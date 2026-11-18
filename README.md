@@ -24,7 +24,7 @@ Elite-Global-World-Travel-and-Tour/
 
 ## Part 1 — Build the Google Forms & Sheets (once)
 
-Nothing to install. In an incognito window signed in **only** as `eliteglobaltravelsng@gmail.com`:
+Nothing to install. In an incognito window signed in **only** as the owner account for the current environment (see docs/ENVIRONMENTS.md):
 
 1. Go to **script.google.com → New project**, rename it `Elite Global Lead System`.
 2. Open `apps-script/EliteGlobal_LeadSystem.gs` in Notepad/VS Code → copy all → replace everything in `Code.gs` → **Ctrl+S**.

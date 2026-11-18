@@ -5,7 +5,7 @@ You are the engineer executing this project. The human operator is Abdulmumin (d
 
 ## What this project is
 A static landing page (`public/index.html`) + Google Forms/Sheets lead system built by a Google
-Apps Script (`apps-script/EliteGlobal_LeadSystem.gs`) in the account `eliteglobaltravelsng@gmail.com`.
+Apps Script (`apps-script/EliteGlobal_LeadSystem.gs`) in the owner account for the current environment (see docs/ENVIRONMENTS.md).
 The website opens Forms 1 & 2 in a new tab and POSTs the contact form to Form 3. Every
 submission is synced to the "Elite Global – Central Lead Tracker" sheet.
 
@@ -16,7 +16,7 @@ submission is synced to the "Elite Global – Central Lead Tracker" sheet.
   - `public/assets/team/` — headshots referenced from `SITE_CONFIG.team[].photo`.
 - `apps-script/` — Apps Script source (clasp rootDir once Phase 4 is done).
 - `assets/form-header.png` — Google Forms header image (not part of the website).
-- `docs/` — PRD and runbook. `source/` — client originals, git-ignored, never commit.
+- `docs/` — PRD, runbook and `ENVIRONMENTS.md` (staging vs production accounts and script IDs). `source/` — client originals, git-ignored, never commit.
 
 ## Hard rules
 1. **Never invent client data.** Address, phone, WhatsApp, email, team names/bios/photos and

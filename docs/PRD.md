@@ -12,8 +12,8 @@
 
 | # | Original handover | This PRD (correct) |
 |---|---|---|
-| 1 | Owner account: `Citizenactofficial@gmail.com` (earlier `Muhammada@wakanow.com`) | **Owner account: `eliteglobaltravelsng@gmail.com`** for every Form, Sheet, script and Drive file |
-| 2 | Blocked waiting on a ChatGPT Google Drive connector | **No connector needed.** Everything is built by a Google Apps Script run directly in the company account at script.google.com |
+| 1 | Owner account: `Citizenactofficial@gmail.com` (earlier `Muhammada@wakanow.com`) | **The owner account for the current environment (see docs/ENVIRONMENTS.md)** owns every Form, Sheet, script and Drive file. Production is `eliteglobaltravelsng@gmail.com` |
+| 2 | Blocked waiting on a ChatGPT Google Drive connector | **No connector needed.** Everything is built by a Google Apps Script run directly in the owner account for the current environment (see docs/ENVIRONMENTS.md) at script.google.com |
 | 3 | 2 forms, 2 response sheets | **3 forms, 3 response sheets.** Added Form 3: *General Contact Enquiries*, which powers the website contact form |
 | 4 | Lead Category: Visa Only, Customised Experience | **Adds a third category, "General Enquiry"**, for website contact leads |
 | 5 | The tracker must not be assumed to sync automatically, and options needed approval | **Auto-sync approved and built** with Google-native Apps Script triggers (no third-party service) |
@@ -69,7 +69,7 @@ Elite Global needs a professional web presence and a dependable way to capture U
                                   └─ System Info   (all URLs + Form 3 entry IDs)
 ```
 
-**Platform:** Google Forms, Google Sheets, Google Apps Script and Google Drive, all owned by `eliteglobaltravelsng@gmail.com` and stored in one private Drive folder: **Elite Global – Lead Generation System**.
+**Platform:** Google Forms, Google Sheets, Google Apps Script and Google Drive, all owned by the owner account for the current environment (see docs/ENVIRONMENTS.md) and stored in one private Drive folder: **Elite Global – Lead Generation System**.
 
 ---
 
@@ -286,7 +286,7 @@ Git and GitHub are **not** needed for the Apps Script. GitHub is optional, and o
 ---
 
 ## 9. Security and privacy
-- All files are owned by `eliteglobaltravelsng@gmail.com` and stay private. Staff get access by sharing with named accounts only, never "Anyone with the link".
+- All files are owned by the owner account for the current environment (see docs/ENVIRONMENTS.md) and stay private. No real customer data or passports in staging. Staff get access by sharing with named accounts only, never "Anyone with the link".
 - Passport files are never made public. Apply the retention and deletion policy once a lead closes.
 - Never put the owner password or verification codes in any tool, chat or document.
 - The website exposes only the **public** form URLs and the Form 3 POST endpoint, never edit URLs.
@@ -294,7 +294,7 @@ Git and GitHub are **not** needed for the Apps Script. GitHub is optional, and o
 ---
 
 ## 10. Testing and QA checklist
-- [ ] Setup log shows ✅ SETUP COMPLETE as `eliteglobaltravelsng@gmail.com`
+- [ ] Setup log shows ✅ SETUP COMPLETE as the owner account for the current environment (see docs/ENVIRONMENTS.md)
 - [ ] All 3 forms and 4 spreadsheets are in the Drive folder
 - [ ] Every question, option, required flag and validation matches §3
 - [ ] Passport uploads are optional, PDF/Image only, max 10, with the sign-in notice visible
