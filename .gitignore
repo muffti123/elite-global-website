@@ -12,3 +12,6 @@ source/
 Thumbs.db
 .vscode/
 node_modules/
+
+# clasp project link is per environment (staging/production) — see docs/ENVIRONMENTS.md
+.clasp.json
