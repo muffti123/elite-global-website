@@ -1,0 +1,14 @@
+# Client originals — keep local only, never push
+source/
+
+# Apps Script CLI credentials (should live in your user folder, never here)
+.clasprc.json
+
+# Netlify local state
+.netlify/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+node_modules/
