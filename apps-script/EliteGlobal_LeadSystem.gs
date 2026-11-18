@@ -26,7 +26,8 @@
 // CONFIGURATION
 // ---------------------------------------------------------------------
 const CONFIG = {
-  EXPECTED_OWNER: 'eliteglobaltravelsng@gmail.com',
+  // Expected owner account is per environment: Script Properties key OWNER_EMAIL
+  // (set it with setOwnerEmail). See docs/ENVIRONMENTS.md.
   COMPANY: 'Elite Global World Travel & Tours Ltd.',
   FOLDER_NAME: 'Elite Global – Lead Generation System',
 
@@ -854,10 +855,30 @@ function showSystemInfo() {
 
 function checkOwner_() {
   const me = (Session.getEffectiveUser().getEmail() || '').toLowerCase();
-  if (me && me !== CONFIG.EXPECTED_OWNER) {
-    throw new Error('You are signed in as ' + me + '. Please run this script while signed in as ' +
-      CONFIG.EXPECTED_OWNER + ' so every file is owned by the company account.');
+  const expected = (PropertiesService.getScriptProperties().getProperty('OWNER_EMAIL') || '')
+    .trim().toLowerCase();
+  if (!expected) {
+    Logger.log('ℹ️ No OWNER_EMAIL set in Script Properties — continuing as ' + (me || '(unknown account)') +
+      '. Every file will be owned by this account. Run setOwnerEmail() to enforce an owner.');
+    return;
   }
+  if (me && me !== expected) {
+    throw new Error('You are signed in as ' + me + '. Please run this script while signed in as ' +
+      expected + ' (Script Property OWNER_EMAIL) so every file is owned by the right account.');
+  }
+}
+
+/**
+ * Stores the expected owner account for this environment in Script Properties (OWNER_EMAIL).
+ * Called with no argument (e.g. Run from the editor) it stores the account you are signed in as.
+ */
+function setOwnerEmail(email) {
+  const value = String(email || Session.getEffectiveUser().getEmail() || '').trim().toLowerCase();
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(value)) {
+    throw new Error('setOwnerEmail: "' + value + '" is not a valid email address.');
+  }
+  PropertiesService.getScriptProperties().setProperty('OWNER_EMAIL', value);
+  Logger.log('OWNER_EMAIL set to ' + value);
 }
 
 /** Only use if you deleted the generated folder and want to rebuild everything. */
