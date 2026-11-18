@@ -17,7 +17,7 @@ lead system, and a live preview website that Claude Code can keep updating with 
 |---|---|---|
 | Claude **Pro** (or higher) | Claude Code login | ☐ |
 | **GitHub** account | Repo + history | ☐ |
-| Google account **eliteglobaltravelsng@gmail.com** (password + phone for 2-step) | Owns the forms and sheets | ☐ |
+| Google **owner account (see docs/ENVIRONMENTS.md)** (password + phone for 2-step) | Owns the forms and sheets | ☐ |
 | **Netlify** account (sign up *with GitHub*) | Free hosting + preview URL | ☐ |
 
 ## Phase 1: Install the tools (20–30 min) 🧑
@@ -73,11 +73,11 @@ Claude Code asks permission before editing files or running commands. Read each 
 
 Expected: `gh repo create elite-global-website --private --source . --remote origin --push`.
 
-## Phase 4: Apps Script into the company Google account (20 min) 🧑 + 🤖
+## Phase 4: Apps Script into the owner account (see docs/ENVIRONMENTS.md) (20 min) 🧑 + 🤖
 
-🧑 In a browser signed in **only** as eliteglobaltravelsng@gmail.com, open https://script.google.com/home/usersettings and turn **Google Apps Script API → On**.
+🧑 In a browser signed in **only** as the owner account (see docs/ENVIRONMENTS.md), open https://script.google.com/home/usersettings and turn **Google Apps Script API → On**.
 
-🧑 In the VS Code terminal (Claude Code can't do logins), run `clasp login`. When the browser opens, choose **eliteglobaltravelsng@gmail.com** and allow access.
+🧑 In the VS Code terminal (Claude Code can't do logins), run `clasp login`. When the browser opens, choose the **owner account (see docs/ENVIRONMENTS.md)** and allow access.
 
 🤖 Prompt:
 > Using clasp, create a standalone Apps Script project titled "Elite Global Lead System" with rootDir apps-script, push EliteGlobal_LeadSystem.gs, set the runtime to V8 and timeZone Africa/Lagos in appsscript.json, push again, and commit .clasp.json + appsscript.json as "chore(forms): link Apps Script project via clasp". Then run clasp open-script.
@@ -167,7 +167,7 @@ docs: record production URLs and handover        → tag v1.0.0
 | `winget` not recognised | Install "App Installer" from the Microsoft Store, or download each tool from its website |
 | `claude`/`clasp` "not recognised" after installing | Close **all** terminals and VS Code, then reopen |
 | `clasp push` "User has not enabled the Apps Script API" | Phase 4 first step, wait 2 minutes, retry |
-| Setup script: "You are signed in as …" | You authorised with the wrong Google account. `clasp logout`, then `clasp login` with the company account |
+| Setup script: "You are signed in as …" | You authorised with the wrong Google account. `clasp logout`, then `clasp login` with the owner account (see docs/ENVIRONMENTS.md) |
 | Website form says success but no row appears | Entry IDs or endpoint wrong. Ask 🤖 to re-check against System Info |
 | Tracker stops updating | Run `reinstallTriggers` in the Apps Script editor |
 | Netlify shows 404 | Check `netlify.toml` has `publish = "public"` and redeploy |

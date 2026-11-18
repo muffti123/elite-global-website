@@ -5,7 +5,7 @@
  * =====================================================================
  *
  *  HOW TO USE (full instructions in the chat / README):
- *   1. Sign in to script.google.com as eliteglobaltravelsng@gmail.com
+ *   1. Sign in to script.google.com as the owner account (see docs/ENVIRONMENTS.md)
  *   2. New project → paste this whole file into Code.gs → Save
  *   3. Select  setupEliteGlobal  → Run → approve permissions
  *   4. Read the Execution log (or the "System Info" tab of the tracker)

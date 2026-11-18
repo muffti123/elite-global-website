@@ -26,6 +26,23 @@ editor while signed in as that account. With no argument it stores the current a
 | scriptId | `1H510Iw90QAggF4gjWJomnZ7KoU9pD4O3Lopkafjgg0KTCPwYS8hda4kO` |
 | Editor | https://script.google.com/d/1H510Iw90QAggF4gjWJomnZ7KoU9pD4O3Lopkafjgg0KTCPwYS8hda4kO/edit |
 | Time zone / runtime | Africa/Lagos / V8 |
+| Drive folder | https://drive.google.com/drive/folders/12fCpHRx9-qgdfmTgaHgZLgHgB2DcYM-8 |
+| Central Lead Tracker | https://docs.google.com/spreadsheets/d/1fE5Ukcn2y0P1pyMUykrWrTpYKPMUC9VUWL58p7OkzjU/edit |
+
+**Forms.** The edit links are for staff only. Never put them in the website.
+
+| Form | Edit (admin only) | Public link used by the website |
+|---|---|---|
+| 1 — Request Umrah Visa Only | https://docs.google.com/forms/d/1SpxJsVAfDW9pmsIrlsuVwGnXLgPeQCyIGKuj73BfuzY/edit | https://docs.google.com/forms/d/e/1FAIpQLSeSxTcKMLAguBCEBbIJRlmUvoLHqKTm_6UtMrxA0mUawB61oQ/viewform |
+| 2 — Customize My Umrah Experience | https://docs.google.com/forms/d/1NkaY-jtleCi68RYQespzCNBzeHtZO5V93yH25dKKUGU/edit | https://docs.google.com/forms/d/e/1FAIpQLSf6By61NsbF6fR2sNb6bS8tl0frlsc_PMsXfqs4eIb2rClkQQ/viewform |
+| 3 — General Contact Enquiries | https://docs.google.com/forms/d/11mlisymEHkKXXISNwplydum2lPQ-ffBlWuCjcxr6hdU/edit | POST endpoint https://docs.google.com/forms/d/e/1FAIpQLSeoKpj51pKYbmvlRqgNAVfb2M0QRXrIzPXYvIlWVyszcoHVow/formResponse |
+
+**Response sheets.** Each one is linked from its form's edit page (Responses → View in Sheets) and
+stored in the Drive folder above.
+
+**Form 3 entry IDs** (in `SITE_CONFIG.contactForm.entries`): name `entry.645013578` · phone
+`entry.1204423232` · request `entry.41404828` · date `entry.849728182` · travellers
+`entry.1233044836` · details `entry.317425149`.
 
 ## Production (eliteglobaltravelsng@gmail.com)
 
