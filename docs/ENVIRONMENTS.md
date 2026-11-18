@@ -37,8 +37,13 @@ editor while signed in as that account. With no argument it stores the current a
 | 2 — Customize My Umrah Experience | https://docs.google.com/forms/d/1NkaY-jtleCi68RYQespzCNBzeHtZO5V93yH25dKKUGU/edit | https://docs.google.com/forms/d/e/1FAIpQLSf6By61NsbF6fR2sNb6bS8tl0frlsc_PMsXfqs4eIb2rClkQQ/viewform |
 | 3 — General Contact Enquiries | https://docs.google.com/forms/d/11mlisymEHkKXXISNwplydum2lPQ-ffBlWuCjcxr6hdU/edit | POST endpoint https://docs.google.com/forms/d/e/1FAIpQLSeoKpj51pKYbmvlRqgNAVfb2M0QRXrIzPXYvIlWVyszcoHVow/formResponse |
 
-**Response sheets.** Each one is linked from its form's edit page (Responses → View in Sheets) and
-stored in the Drive folder above.
+**Response sheets** (staff only, stored in the Drive folder above):
+
+| Form | Response sheet |
+|---|---|
+| 1 — Request Umrah Visa Only | https://docs.google.com/spreadsheets/d/12yYRIt28_FkQgdbXtsAQ-R28LLty120VyMR0iH2_Qxc/edit |
+| 2 — Customize My Umrah Experience | https://docs.google.com/spreadsheets/d/1tltFG23vPjim4xzl1E44Kb-PKMtICf6ea3T58SdLeq8/edit |
+| 3 — General Contact Enquiries | https://docs.google.com/spreadsheets/d/1vAR_InBqfNKOx4bPBptY-Nlje9VdFCu0pz803zm8uCo/edit |
 
 **Form 3 entry IDs** (in `SITE_CONFIG.contactForm.entries`): name `entry.645013578` · phone
 `entry.1204423232` · request `entry.41404828` · date `entry.849728182` · travellers
