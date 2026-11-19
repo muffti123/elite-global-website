@@ -1,52 +1,68 @@
 # CLAUDE.md — Elite Global World Travel & Tours Ltd. (RC: 7787410)
 
 You are the engineer executing this project. The human operator is Abdulmumin (developer).
-**Source of truth:** `docs/PRD.md`. **Tonight's runbook:** `docs/EXECUTION_PLAN.md` (follow its phases in order).
+**Source of truth:** `docs/PRD.md`. **Runbook:** `docs/EXECUTION_PLAN.md`. **Accounts/IDs:** `docs/ENVIRONMENTS.md`.
 
 ## What this project is
-A static landing page (`public/index.html`) + Google Forms/Sheets lead system built by a Google
-Apps Script (`apps-script/EliteGlobal_LeadSystem.gs`) in the owner account for the current environment (see docs/ENVIRONMENTS.md).
-The website opens Forms 1 & 2 in a new tab and POSTs the contact form to Form 3. Every
-submission is synced to the "Elite Global – Central Lead Tracker" sheet.
+A static website (`public/`) whose three customer forms — `apply-visa.html` (passengers with passport +
+photo uploads), `customize-umrah.html` (7 steps) and the contact box on `index.html` — POST text/plain JSON
+to **one Google Apps Script web app** (`apps-script/`, `doPost` router) running in the owner account for
+the current environment (see docs/ENVIRONMENTS.md). The web app validates, assigns a Lead ID and writes to
+the "Elite Global – Central Lead Tracker" sheet (Lead Tracker, Visa Passengers, Custom Requests, Contact
+Enquiries, System Info) and to Drive (`Visa Applications/<LeadID> – <name>/NN – <passenger>/`).
+No Google Forms in the customer journey; the old ones are closed and kept in Drive.
 
 ## Layout
 - `public/` — the ONLY published folder (Netlify publishes it; cPanel gets its contents).
-  - `public/index.html` — single self-contained page. All editable values live in the
-    `window.SITE_CONFIG = {…}` block near the top. Do not scatter config elsewhere.
-  - `public/assets/team/` — headshots referenced from `SITE_CONFIG.team[].photo`.
-- `apps-script/` — Apps Script source (clasp rootDir once Phase 4 is done).
-- `assets/form-header.png` — Google Forms header image (not part of the website).
-- `docs/` — PRD, runbook and `ENVIRONMENTS.md` (staging vs production accounts and script IDs). `source/` — client originals, git-ignored, never commit.
+  - `index.html`, `apply-visa.html`, `customize-umrah.html` — share `assets/css/site.css`, `assets/logo.jpg`.
+  - `assets/js/config.js` — **the single `window.SITE_CONFIG`** (company details, `webAppUrl`, team).
+    Do not scatter config elsewhere.
+  - `assets/js/lists.js` — answer options; must equal `apps-script/Config.gs` `LISTS` + `COUNTRIES`.
+  - `assets/js/` — `common.js` (company details, form helpers), `api.js` (web app calls), `wizard.js`
+    (steps, leave-page guard, field checks), `image.js` (magic bytes, photo/passport compression),
+    `index.js`, `customize.js`, `visa.js`.
+  - `assets/team/` — headshots referenced from `SITE_CONFIG.team[].photo`.
+- `apps-script/` — clasp rootDir: `Config.gs`, `WebApp.gs`, `Validate.gs`, `Leads.gs`, `Visa.gs`,
+  `Setup.gs`, `Cleanup.gs`, `appsscript.json`. `.clasp.json` is per environment and git-ignored.
+- `tools/check-lists.js` — list sync check (no deps). `tools/qa/` — headless-Chrome QA (`npm install` once).
+- `docs/` — PRD, runbook, ENVIRONMENTS. `source/` — client originals, git-ignored, never commit.
+- `assets/form-header.png` — header image of the retired Google Forms (not part of the website).
 
 ## Hard rules
-1. **Never invent client data.** Address, phone, WhatsApp, email, team names/bios/photos and
-   form URLs come only from the operator. If missing, leave `''` (the page hides empty items).
-2. **Never** put a Google Forms `/edit` URL in the website. Only `/viewform` (Forms 1 & 2) and
-   `/formResponse` (Form 3 endpoint).
-3. Never commit `source/`, `.clasprc.json`, tokens, passwords or real customer/passport data.
-   Run `git status` before every commit and check what is staged.
-4. Never type passwords or verification codes. Logins (`gh auth login`, `clasp login`,
-   `netlify login`, Google sign-in, script authorisation) are done by the operator in the browser.
-5. Form 3 question titles, the website `<select>` options and the `Q`/`LISTS` constants in the
-   Apps Script must stay identical. If one changes, change all three in the same commit.
+1. **Never invent client data.** Address, phone, WhatsApp, email, team names/bios/photos and URLs come
+   only from the operator. If missing, leave `''` (the page hides empty items).
+2. **No Google Forms URLs and no `/edit` URLs on the website.** The only Google URL in `public/` is
+   `webAppUrl` (`https://script.google.com/macros/s/…/exec`).
+3. Never commit `source/`, `.clasp.json`, `.clasprc.json`, tokens, passwords or real customer/passport
+   data. Test only with `TEST …` names and generated SPECIMEN files. Run `git status` before every commit
+   and check what is staged.
+4. Never type passwords or verification codes. Logins (`gh auth login`, `clasp login`, `netlify login`,
+   Google sign-in, script authorisation, web app deployment) are done by the operator in the browser.
+5. Answer options live in `apps-script/Config.gs` (`LISTS`, `COUNTRIES`) **and**
+   `public/assets/js/lists.js` (and the enquiry `<select>` in `index.html`). Change them together in one
+   commit and run `node tools/check-lists.js` — the web app rejects any value not in its lists.
 6. Keep the approved navy/gold design. No frameworks, no build step, no external JS libraries.
-7. Ask before anything irreversible: deleting the Drive folder, `resetSetupFlag`, force-push,
-   changing DNS, or deleting the GitHub repo.
+7. Never log or email request bodies, names or file contents from the Apps Script.
+8. Ask before anything irreversible: deleting the Drive folder, `resetSetupFlag`, archiving a
+   deployment, force-push, changing DNS, or deleting the GitHub repo. Never run `tools/qa/run.js live`
+   against production.
 
-## Verify before every commit that touches `public/index.html`
-- Open it in a browser (or `npx serve public` → http://localhost:3000) and check the console
-  has no errors.
-- Confirm: 4 CTA buttons → correct `/viewform` URLs with `target="_blank"`; contact form shows
-  field errors on empty submit; no `[Add …]`/`[Full Name]` placeholders anywhere;
-  no horizontal scroll at 360 px wide (DevTools device toolbar).
-- After config is real: submit one enquiry named `TEST …` and confirm it reaches the
-  "General Contact Enquiries (Responses)" sheet and the Lead Tracker.
+## Verify before every commit that touches `public/` or `apps-script/`
+- `node tools/check-lists.js` passes.
+- `cd tools/qa && node run.js static` passes: no console errors on all three pages; CTAs go to
+  `apply-visa.html` / `customize-umrah.html` in the same tab; empty submits show field errors and send
+  nothing; no Google Forms URLs, no "sign in to Google", no `[Add …]`/`[Full Name]` placeholders; no
+  horizontal scroll at 360 px; the web app health check answers `ok:true`.
+- Apps Script changes: `clasp push`, then update the **same** deployment (`clasp update-deployment <id>`)
+  so the `/exec` URL stays the same; new permissions need the operator to run a function once in the editor.
+- Changes to a form flow: on **staging**, one `TEST …` submission of that form (or `node run.js live`),
+  confirm the Lead ID and the rows/folders, then ask the operator to run `cleanupTestData`.
 
 ## Git conventions
 - Branch: `main` (small project; one commit per logical change).
 - Conventional Commits, imperative mood, ≤ 72-char subject, body explains *why* when useful:
   - `feat(site): …` new website behaviour · `fix(site): …` · `style(site): …` visual only
-  - `feat(forms): …` / `fix(forms): …` Apps Script changes
+  - `feat(forms): …` / `fix(forms): …` Apps Script / web app changes
   - `docs: …` PRD/README/runbook · `chore: …` tooling, config, ignore files
   - `content(site): …` client copy/details/photos
 - Push after each phase: `git push`. Netlify redeploys automatically from `main`.
@@ -54,9 +70,14 @@ submission is synced to the "Elite Global – Central Lead Tracker" sheet.
 ## Useful commands (Windows, run from the project root)
 ```
 git status / git add -p / git commit / git push
-gh repo view --web                 # open the GitHub repo
-npx serve public                   # local preview at http://localhost:3000
-clasp push                         # upload apps-script/ to script.google.com (after Phase 4)
-clasp open-script                  # open the Apps Script editor in the browser
-netlify status / netlify open      # deployment info / dashboard
+gh repo view --web                       # open the GitHub repo
+npx serve public                         # local preview at http://localhost:3000
+node tools/check-lists.js                # Config.gs lists == website lists
+cd tools/qa && node run.js static        # browser QA, sends nothing
+clasp show-authorized-user               # which Google account clasp uses
+clasp push                               # upload apps-script/ (to the project in .clasp.json)
+clasp list-deployments                   # deployment IDs (web app URL = …/macros/s/<id>/exec)
+clasp update-deployment <id>             # put pushed code live on the same URL
+clasp open-script                        # open the Apps Script editor
+netlify status / netlify open            # deployment info / dashboard
 ```

@@ -1,98 +1,84 @@
 # Elite Global World Travel & Tours Ltd. — Website & Lead System
 
-Landing page + Google Forms/Sheets lead generation system.
-Full requirements: [`docs/PRD.md`](docs/PRD.md)
+A static website whose three customer forms (visa application with passports and photos, customised Umrah
+request, contact box) submit to **one Google Apps Script web app**. The web app writes every lead to the
+*Central Lead Tracker* sheet and files passports in Drive. No Google Forms, no sign-in for customers.
+Full requirements: [`docs/PRD.md`](docs/PRD.md) · accounts and IDs: [`docs/ENVIRONMENTS.md`](docs/ENVIRONMENTS.md)
 
 ```
 Elite-Global-World-Travel-and-Tour/
-├── public/                     ← EVERYTHING IN HERE IS THE LIVE WEBSITE (and nothing else is)
-│   ├── index.html              ← the website
-│   └── assets/team/            ← management headshots (ceo.jpg, ...)
-├── assets/
-│   └── form-header.png         ← header image for Google Forms 1 & 2 (not part of the website)
-├── netlify.toml                ← tells Netlify to publish only public/
-├── CLAUDE.md                   ← instructions Claude Code reads automatically
-├── apps-script/
-│   └── EliteGlobal_LeadSystem.gs  ← paste into script.google.com (runs on Google, not your PC)
-├── docs/
-│   ├── PRD.md                  ← product requirements (v2.1)
-│   └── EXECUTION_PLAN.md       ← tonight's step-by-step runbook (start here)
-└── source/                     ← original template + handover (git-ignored, stays on your PC)
+├── public/                       ← EVERYTHING IN HERE IS THE LIVE WEBSITE (and nothing else is)
+│   ├── index.html                ← home page + contact box
+│   ├── apply-visa.html           ← Request Umrah Visa Only (passengers, passports, photos)
+│   ├── customize-umrah.html      ← Customize My Umrah Experience (7 steps)
+│   └── assets/
+│       ├── js/config.js          ← ⭐ the ONLY settings file: company details, webAppUrl, team
+│       ├── js/lists.js           ← answer options (must match apps-script/Config.gs)
+│       ├── js/*.js, css/site.css, logo.jpg
+│       └── team/                 ← management headshots (ceo.jpg, ...)
+├── apps-script/                  ← the web app (runs on Google; upload with `clasp push`)
+├── tools/                        ← check-lists.js + browser QA (dev only, never published)
+├── docs/                         ← PRD, ENVIRONMENTS (staging/production), EXECUTION_PLAN
+├── assets/form-header.png        ← old Google Forms header (retired forms only)
+├── netlify.toml                  ← publishes only public/
+└── source/                       ← client originals (git-ignored, stays on your PC)
 ```
 
 ---
 
-## Part 1 — Build the Google Forms & Sheets (once)
+## Part 1 — Deploy the web app (once per Google account)
 
-Nothing to install. In an incognito window signed in **only** as the owner account for the current environment (see docs/ENVIRONMENTS.md):
+Signed in **only** as the owner account for the current environment (see docs/ENVIRONMENTS.md):
 
-1. Go to **script.google.com → New project**, rename it `Elite Global Lead System`.
-2. Open `apps-script/EliteGlobal_LeadSystem.gs` in Notepad/VS Code → copy all → replace everything in `Code.gs` → **Ctrl+S**.
-3. Function dropdown → `setupEliteGlobal` → **Run** → Review permissions → Advanced → *Go to … (unsafe)* → Allow.
-4. Wait for **✅ SETUP COMPLETE**. A Drive folder *Elite Global – Lead Generation System* now holds 3 forms + 4 sheets.
-5. Manual (Google has no API for these), in **Form 1 and Form 2**:
-   - Click the **Passport Documents** section → **+** → **File upload**. Title: *Upload Passport Biodata Page(s) for All Applicants* (Form 2: *…All Travellers*). Allow only **PDF** + **Image**, max **10** files, **10 MB**. Leave **Required OFF**.
-   - 🎨 Theme → header image `assets/form-header.png`, colour `#071B50`, lightest background.
-6. Open the **Central Lead Tracker → System Info** tab. You need its values for Part 2.
+1. Push the code: `clasp push` (`.clasp.json` must hold this environment's `scriptId`; copy `.clasp.json.example`).
+   No clasp? Create a project at script.google.com and paste each file from `apps-script/` (same names).
+2. In the editor run **`setupEliteGlobal`** → Review permissions → Advanced → *Go to … (unsafe)* → Allow.
+   Wait for **✅ SETUP COMPLETE**. Safe to run again at any time.
+3. **Deploy → New deployment → ⚙ Web app** → *Execute as:* **Me** · *Who has access:* **Anyone** → Deploy →
+   authorise → copy the **Web app URL** (ends in `/exec`) and the **Deployment ID**.
+4. Open the `/exec` URL in a browser: it must show `{"ok":true,…}`.
 
-## Part 2 — Configure the website (one place only)
+Later code changes: `clasp push`, then update the **same** deployment so the URL stays the same —
+`clasp update-deployment <Deployment ID>` or Deploy → Manage deployments → ✏ → Version: *New version*.
 
-Open `public/index.html` in **VS Code** (recommended) or Notepad. Near the top, find `window.SITE_CONFIG = {` and fill in:
+## Part 2 — Configure the website (one file only)
+
+Open `public/assets/js/config.js`:
 
 | Setting | Where to get it |
 |---|---|
 | `company.address`, `phone`, `email` | From the client (verified) |
 | `company.whatsapp` | Same number, **digits only** with country code, e.g. `2348030000000` |
-| `forms.visaOnlyUrl` | System Info → *FORM 1 … PUBLIC respondent URL* (ends in `/viewform`) |
-| `forms.customUmrahUrl` | System Info → *FORM 2 … PUBLIC respondent URL* |
-| `contactForm.endpoint` | System Info → *Form 3 — website POST endpoint* (ends in `/formResponse`) |
-| `contactForm.entries.*` | System Info → *Form 3 — field entry IDs* — copy each `entry.123456789` to the matching key |
-| `team` | One line per manager (example line is in the file). Photos go in `public/assets/team/` |
+| `webAppUrl` | Part 1 step 3 (ends in `/exec`) |
+| `team` | One line per manager (example in the file). Photos go in `public/assets/team/` |
 
-Example:
-```js
-team: [
-  { name: 'Aisha Bello', role: 'Managing Director / CEO', bio: 'Over 10 years in Hajj & Umrah operations.', photo: 'assets/team/ceo.jpg' },
-]
+Anything left as `''` hides itself, so no placeholders go live.
+
+## Part 3 — Test
+
+```bash
+node tools/check-lists.js                       # options match the web app
+cd tools/qa && npm install && node run.js static # all pages, sends nothing
+node run.js live                                 # ⚠️ staging only: TEST leads + SPECIMEN files
 ```
-
-Anything left as `''` hides itself (no ugly placeholders go live). Until the form URLs are set, the buttons scroll to the enquiry form instead.
-
-> ⚠️ Never paste a URL that ends in `/edit` — that is the staff editing link.
-
-## Part 3 — Test locally
-
-1. Double-click `public/index.html` — it opens in your browser. No server needed.
-2. Click all **4** Umrah buttons → each opens the correct form in a new tab.
-3. Submit the enquiry form with a name starting **`TEST`** → it must appear in *General Contact Enquiries (Responses)* **and** the *Lead Tracker*.
-4. Submit Forms 1 & 2 from your phone with `TEST` names and dummy images.
-5. Press **F12 → Device toolbar** to check phone sizes.
-6. In script.google.com run **`cleanupTestData`** to remove all TEST records. Delete the test upload files in Drive.
+Or by hand: `npx serve public` → http://localhost:3000, use names starting **`TEST`**, never real passports.
+Afterwards run **`cleanupTestData`** in the Apps Script editor (removes TEST rows from every tab and moves
+TEST visa folders to the Drive bin).
 
 ## Part 4 — Put it live
 
-**Option A — client's existing host (simplest).** cPanel → File Manager → `public_html` → upload the **contents** of `public/` (`index.html` + `assets/`). Done — no DNS change.
+**Option A — client's existing host.** cPanel → File Manager → `public_html` → upload the **contents** of `public/`.
 
-**Option B — GitHub + Netlify.**
-```bash
-cd C:\Users\LenovoT460\Desktop\Elite-Global-World-Travel-and-Tour
-git init
-git add .
-git commit -m "Elite Global website v1"
-git branch -M main
-git remote add origin https://github.com/<your-username>/elite-global-website.git
-git push -u origin main
-```
-(No Git installed? Use GitHub's **Add file → Upload files** in the browser instead.)
-Then netlify.com → *Add new site → Import from GitHub* → pick the repo → Deploy (no build command; `netlify.toml` already sets the publish folder to `public`). Netlify → *Domain settings → Add custom domain* shows the DNS records to send to the client's DNS team. HTTPS is automatic.
-
-> `source/` is in `.gitignore`, so the client's original handover never reaches GitHub. Keep the repo **private** anyway.
+**Option B — GitHub + Netlify.** Netlify → *Import from GitHub* → this repo (no build command; `netlify.toml`
+publishes `public/`). Every `git push` to `main` redeploys. *Domain settings → Add custom domain* shows the
+DNS records for the client's DNS team. HTTPS is automatic.
 
 ## Maintenance
 
 | Task | How |
 |---|---|
-| Change phone/email/team | Edit `SITE_CONFIG` in `public/index.html`, commit, push (Netlify redeploys automatically) |
-| Rename a form question | Also update the `Q` constants in the Apps Script, or the tracker sync breaks |
-| Sync stopped | script.google.com → run `reinstallTriggers` |
-| See all links again | run `showSystemInfo` or open the System Info tab |
+| Change phone/email/team | Edit `public/assets/js/config.js`, commit, push |
+| Change an answer option | Change it in `apps-script/Config.gs` **and** `public/assets/js/lists.js` (and the home-page `<select>` for enquiry types) in the same commit; run `node tools/check-lists.js`; `clasp push` + update the deployment |
+| See all links | Run `showSystemInfo` or open the tracker's System Info tab |
+| Something failed for a customer | Apps Script editor → Executions (the owner also gets an email) |
+| Unfinished visa application | Tracker notes start with `[Uploading k/N]`; the folder link shows what arrived |
