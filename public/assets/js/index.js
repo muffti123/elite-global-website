@@ -2,9 +2,8 @@
 (function () {
   'use strict';
   var C = window.SITE_CONFIG || {};
-  var co = C.company || {};
   var forms = C.forms || {};
-  var $ = window.EG.$, $$ = window.EG.$$, waLink = window.EG.waLink;
+  var $ = window.EG.$, $$ = window.EG.$$;
 
   // ---- Management team -------------------------------------------------
   var team = (C.team || []).filter(function (m) { return m && m.name; });
@@ -51,98 +50,73 @@
     }
   });
 
-  // ---- Enquiry form → Google Form 3 ------------------------------------
+  // ---- Enquiry form → web app (submitContact) --------------------------
   var form = $('#enquiryForm');
   var F = form.elements;
   var status = $('#formStatus');
   var submitBtn = $('#submitBtn');
-  var cf = C.contactForm || {};
-  var E = cf.entries || {};
-  var PHONE_RE = /^\+?[0-9][0-9 ()\-]{6,19}$/;
+  var EG = window.EG;
+  // server field name → form field
+  var FIELD = { name: F.name, phone: F.phone, enquiryType: F.request, travelDate: F.date, travellers: F.travellers };
 
-  function todayISO() {
-    var d = new Date(); d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
-    return d.toISOString().slice(0, 10);
-  }
-  F.date.min = todayISO();
-
-  function setInvalid(field, bad) {
-    var wrap = field.closest('.field');
-    wrap.classList.toggle('invalid', bad);
-    field.setAttribute('aria-invalid', bad ? 'true' : 'false');
-    var msg = wrap.querySelector('.err-msg');
-    if (msg) { if (bad) field.setAttribute('aria-describedby', msg.id); else field.removeAttribute('aria-describedby'); }
-    return !bad;
-  }
+  F.date.min = EG.todayISO();
+  EG.clearOnInput(form);
 
   function validate() {
     var ok = true, first = null;
-    var check = function (field, bad) { if (!setInvalid(field, bad)) { ok = false; first = first || field; } };
+    var check = function (field, bad) { if (!EG.setInvalid(field, bad)) { ok = false; first = first || field; } };
     check(F.name, F.name.value.trim().length < 2);
-    check(F.phone, !PHONE_RE.test(F.phone.value.trim()));
+    check(F.phone, !EG.PHONE_RE.test(F.phone.value.trim()));
     check(F.request, !F.request.value);
-    check(F.date, !!F.date.value && F.date.value < todayISO());
+    check(F.date, !!F.date.value && F.date.value < EG.todayISO());
     var t = F.travellers.value.trim();
     check(F.travellers, t !== '' && !/^[1-9][0-9]{0,2}$/.test(t));
     if (first) first.focus();
     return ok;
   }
 
-  // Clear an error as soon as the user fixes it
-  $$('input,select,textarea', form).forEach(function (f) {
-    f.addEventListener('input', function () { if (f.closest('.field') && f.closest('.field').classList.contains('invalid')) setInvalid(f, false); });
-  });
-
   function showStatus(type, html) { status.className = 'status ' + type; status.innerHTML = html; }
-  function contactFallback() {
-    var bits = [];
-    if (waLink) bits.push('<a href="' + waLink + '" target="_blank" rel="noopener">message us on WhatsApp</a>');
-    if (co.phone) bits.push('call <a href="tel:' + co.phone.replace(/[^\d+]/g, '') + '">' + co.phone + '</a>');
-    if (co.email) bits.push('email <a href="mailto:' + co.email + '">' + co.email + '</a>');
-    return bits.length ? ' You can also ' + bits.join(', or ') + '.' : '';
-  }
 
-  var configured = !!(cf.endpoint && /\/formResponse$/.test(cf.endpoint) && E.name && E.phone && E.request);
-  if (!configured && window.console) console.warn('[Elite Global] Contact form not connected yet: fill SITE_CONFIG.contactForm (see README).');
+  var configured = EG.apiReady();
+  if (!configured && window.console) console.warn('[Elite Global] Enquiry form not connected yet: set SITE_CONFIG.webAppUrl in assets/js/config.js (see README).');
 
   form.addEventListener('submit', function (e) {
     e.preventDefault();
     status.className = 'status';
     if (F.company_website.value) { showStatus('ok', 'Thank you. Your enquiry has been received.'); form.reset(); return; } // bot
     if (!validate()) { showStatus('err', 'Please correct the highlighted fields and try again.'); return; }
-    if (!configured) { showStatus('err', 'Sorry, online enquiries are temporarily unavailable.' + contactFallback()); return; }
-    if (!navigator.onLine) { showStatus('err', 'You appear to be offline. Please check your connection and try again.' + contactFallback()); return; }
-
-    var data = new URLSearchParams();
-    data.append(E.name, F.name.value.trim());
-    data.append(E.phone, F.phone.value.trim());
-    data.append(E.request, F.request.value);
-    if (F.date.value && E.date) {
-      var p = F.date.value.split('-');
-      data.append(E.date + '_year', p[0]);
-      data.append(E.date + '_month', String(Number(p[1])));
-      data.append(E.date + '_day', String(Number(p[2])));
-    }
-    if (F.travellers.value.trim() && E.travellers) data.append(E.travellers, F.travellers.value.trim());
-    if (F.details.value.trim() && E.details) data.append(E.details, F.details.value.trim());
+    if (!configured) { showStatus('err', 'Sorry, online enquiries are temporarily unavailable.' + EG.contactFallback()); return; }
+    if (!navigator.onLine) { showStatus('err', 'You appear to be offline. Please check your connection and try again.' + EG.contactFallback()); return; }
 
     submitBtn.disabled = true;
     var label = submitBtn.innerHTML;
     submitBtn.textContent = 'Sending…';
 
-    var ctrl = window.AbortController ? new AbortController() : null;
-    var timer = setTimeout(function () { if (ctrl) ctrl.abort(); }, 15000);
-
-    fetch(cf.endpoint, { method: 'POST', mode: 'no-cors', body: data, signal: ctrl ? ctrl.signal : undefined })
-      .then(function () {
-        // Google returns an opaque response; reaching here means the request was delivered.
-        form.reset();
-        showStatus('ok', '<b>Thank you for contacting Elite Global World Travel &amp; Tours Ltd.</b><br>Your enquiry has been received. A member of our team will contact you shortly.');
-        status.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    // No automatic retry: a lost reply would otherwise create a duplicate lead.
+    EG.postAction('submitContact', {
+      hp: F.company_website.value,
+      name: F.name.value.trim(),
+      phone: F.phone.value.trim(),
+      enquiryType: F.request.value,
+      travelDate: F.date.value,
+      travellers: F.travellers.value.trim(),
+      details: F.details.value.trim(),
+    }, { retries: 0, timeout: 30000 })
+      .then(function (res) {
+        if (res && res.ok) {
+          form.reset();
+          showStatus('ok', '<b>Thank you for contacting Elite Global World Travel &amp; Tours Ltd.</b><br>' +
+            'Your enquiry has been received. Your reference number is <b data-lead-id>' + EG.escapeHtml(res.leadId) + '</b>. ' +
+            'A member of our team will contact you shortly.');
+          status.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+          return;
+        }
+        var field = res && res.field && FIELD[res.field];
+        if (field) { EG.setInvalid(field, true, res.error); field.focus(); }
+        showStatus('err', EG.escapeHtml((res && res.error) || 'Sorry, we could not send your enquiry.') + EG.contactFallback());
+      }, function () {
+        showStatus('err', 'Sorry, we could not send your enquiry. Please check your connection and try again.' + EG.contactFallback());
       })
-      .catch(function () {
-        showStatus('err', 'Sorry, we could not send your enquiry. Please check your connection and try again.' + contactFallback());
-      })
-      .then(function () { clearTimeout(timer); submitBtn.disabled = false; submitBtn.innerHTML = label; });
+      .then(function () { submitBtn.disabled = false; submitBtn.innerHTML = label; });
   });
 })();

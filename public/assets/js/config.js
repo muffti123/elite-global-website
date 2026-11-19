@@ -1,7 +1,7 @@
 /*
   =====================================================================
    SITE SETTINGS — the ONLY place you need to edit. Used by every page.
-   Leave a value as  (empty) and that part of the page hides itself.
+   Leave a value as '' (empty) and that part of the page hides itself.
    Values come from the client and from the "System Info" tab of the
    Central Lead Tracker. See README.md for the step-by-step guide.
   =====================================================================
@@ -22,18 +22,9 @@ window.SITE_CONFIG = {
     customUmrahUrl: 'https://docs.google.com/forms/d/e/1FAIpQLSf6By61NsbF6fR2sNb6bS8tl0frlsc_PMsXfqs4eIb2rClkQQ/viewform'      // Form 2 — Customize My Umrah Experience
   },
 
-  // Form 3 (General Contact) — copy from System Info tab
-  contactForm: {
-    endpoint: 'https://docs.google.com/forms/d/e/1FAIpQLSeoKpj51pKYbmvlRqgNAVfb2M0QRXrIzPXYvIlWVyszcoHVow/formResponse',           // ends in /formResponse
-    entries: {              // copy each entry.XXXXXXXX from "Form 3 — field entry IDs"
-      name: 'entry.645013578',             // "Full Name"
-      phone: 'entry.1204423232',            // "Phone / WhatsApp Number"
-      request: 'entry.41404828',          // "Enquiry Type"
-      date: 'entry.849728182',             // "Preferred Travel Date"
-      travellers: 'entry.1233044836',       // "Number of Travellers"
-      details: 'entry.317425149'           // "Additional Details"
-    }
-  },
+  // Apps Script web app that receives every website form (Deploy → Manage deployments → Web app URL).
+  // Must end in /exec. Staging vs production: see docs/ENVIRONMENTS.md.
+  webAppUrl: 'https://script.google.com/macros/s/AKfycbzSBOiav81YF7eKJvqLaXJM1p2S6oRXeKVVhsGKgCtMfkdKZUrXr7cC0UQ-bRZ6kjtqXQ/exec',
 
   // Management team — section stays hidden until at least one person is added.
   // photo: put the image in the assets/team/ folder, e.g. 'assets/team/ceo.jpg' (square, 600x600+)
