@@ -1,8 +1,7 @@
-/* Home page: management team, CTA buttons, enquiry form. */
+/* Home page: management team and enquiry form. CTA buttons are plain links to the application pages. */
 (function () {
   'use strict';
   var C = window.SITE_CONFIG || {};
-  var forms = C.forms || {};
   var $ = window.EG.$, $$ = window.EG.$$;
 
   // ---- Management team -------------------------------------------------
@@ -35,20 +34,6 @@
   } else {
     $$('[data-team-link]').forEach(function (a) { a.hidden = true; });
   }
-
-  // ---- CTA buttons → Google Forms in a new tab -------------------------
-  $$('[data-form]').forEach(function (btn) {
-    var url = forms[btn.dataset.form];
-    if (url && /^https:\/\/docs\.google\.com\/forms\//.test(url) && !/\/edit/.test(url)) {
-      btn.href = url;
-      btn.target = '_blank';
-      btn.rel = 'noopener';
-      btn.setAttribute('aria-label', btn.textContent.replace(/\s*→\s*$/, '').trim() + ' (opens in a new tab)');
-    } else {
-      // Fallback until the form URL is set: jump to the enquiry form, pre-selected
-      btn.addEventListener('click', function () { $('#requestType').value = btn.dataset.request; });
-    }
-  });
 
   // ---- Enquiry form → web app (submitContact) --------------------------
   var form = $('#enquiryForm');

@@ -1,0 +1,163 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Request Umrah Visa Only | Elite Global World Travel &amp; Tours Ltd.</title>
+<meta name="description" content="Apply for Umrah visa assistance with Elite Global: add every traveller's passport and photo online. No sign-in needed.">
+<meta name="theme-color" content="#071b50">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23071b50'/%3E%3Ctext x='32' y='45' font-family='Arial' font-weight='700' font-size='38' text-anchor='middle' fill='%23f5ae00'%3EE%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="assets/css/site.css">
+</head>
+<body>
+<script src="assets/js/config.js"></script>
+
+<a class="skip" href="#main">Skip to content</a>
+<header><div class="wrap nav">
+<a href="index.html" aria-label="Elite Global home"><img class="logo" src="assets/logo.jpg" alt="Elite Global World Travel &amp; Tours Ltd." width="245" height="169"></a>
+<nav class="links" aria-label="Main"><a href="index.html">Home</a><a href="index.html#services">Our Services</a><a href="index.html#faqs">FAQs</a><a href="index.html#contact">Contact</a></nav>
+<a class="nav-cta" href="customize-umrah.html">Customize</a>
+</div></header>
+
+<main id="main">
+<section class="page-hero"><div class="wrap">
+<a class="back-link" href="index.html">← Back to home</a>
+<h1>Request Umrah Visa Only</h1>
+<p>Complete this short application to request Umrah visa assistance. Add each traveller's passport and photo here on our website — no sign-in needed. Our team will review your application and contact you with the next steps.</p>
+</div></section>
+
+<section><div class="wrap wizard">
+<ol class="stepper" id="stepper" aria-label="Progress"></ol>
+<p class="step-label" id="stepLabel" aria-live="polite"></p>
+
+<form id="visaForm" class="wizard-form" novalidate>
+<div class="hp" aria-hidden="true"><label>Leave this field empty<input name="company_website" tabindex="-1" autocomplete="off"></label></div>
+
+<!-- 1. Lead details -->
+<div class="panel step" data-title="Your Details">
+<h2>Your details</h2><p class="lead">The main contact for this application. We'll use these details to reach you.</p>
+<div class="grid2">
+<label class="field">Full Name<input name="name" autocomplete="name" maxlength="100" placeholder="Your full name"><span class="err-msg" id="e-name">Please enter your full name.</span></label>
+<label class="field">Phone Number / WhatsApp Number<input name="phone" type="tel" autocomplete="tel" inputmode="tel" maxlength="25" placeholder="+234 803 000 0000"><span class="help">Include your country code, e.g. +234 803 000 0000</span><span class="err-msg" id="e-phone">Please enter a valid phone number (digits, spaces, +, - or brackets only).</span></label>
+<label class="field">Email Address<input name="email" type="email" autocomplete="email" inputmode="email" maxlength="254" placeholder="name@example.com"><span class="err-msg" id="e-email">Please enter a valid email address, e.g. name@example.com</span></label>
+<label class="field">Country of Residence<select name="country" data-list="COUNTRIES" data-placeholder="Select your country"></select><span class="err-msg" id="e-country">Please choose your country of residence.</span></label>
+</div>
+<h3>Travel information</h3>
+<div class="grid2">
+<label class="field">Preferred Travel Date<input name="travelDate" type="date"><span class="err-msg" id="e-travelDate">Please choose a date from today onwards.</span></label>
+<label class="field">Departure City<input name="departureCity" maxlength="100" placeholder="e.g. Lagos, Abuja, Kano"><span class="err-msg" id="e-departureCity">Please enter your departure city.</span></label>
+<fieldset class="field full"><legend>Do you have a confirmed flight ticket?</legend><div class="choices" data-choices="flightTicket" data-list="YES_NO"></div><span class="err-msg" id="e-flightTicket">Please choose Yes or No.</span></fieldset>
+<fieldset class="field full"><legend>Have you previously travelled to Saudi Arabia?</legend><div class="choices" data-choices="priorKsa" data-list="YES_NO"></div><span class="err-msg" id="e-priorKsa">Please choose Yes or No.</span></fieldset>
+<fieldset class="field full"><legend>Do you currently hold a valid UK, US or Schengen visa? <span class="opt">(optional)</span></legend><div class="choices" data-choices="westernVisa" data-list="YES_NO"></div></fieldset>
+</div>
+<h3>Additional information</h3>
+<div class="grid2">
+<label class="field full">Additional Information / Special Requests <span class="opt">(optional)</span><textarea name="extraInfo" maxlength="2000"></textarea></label>
+<label class="field">How did you hear about Elite Global? <span class="opt">(optional)</span><select name="heard" data-list="HEARD" data-placeholder="Select an option"></select></label>
+</div>
+</div>
+
+<!-- 2. Passengers -->
+<div class="panel step" data-title="Passengers">
+<h2>Passengers</h2>
+<p class="lead">Add every traveller, including yourself if you are travelling. Each passenger needs their passport biodata page (PDF, JPG or PNG, PDF up to 5 MB) and a passport photograph (25–50 KB — larger photos are resized automatically on your device).</p>
+<div class="dropzone" id="dropzone">
+<p><b>Have all the passports ready?</b></p>
+<p>Select them together and we'll create one passenger for each file.</p>
+<button type="button" class="btn btn-gold" id="pickAllBtn">Select all passports</button>
+<button type="button" class="btn btn-outline" id="addPaxBtn">+ Add passenger</button>
+<p>or drag and drop passport files here · up to 50 passengers</p>
+<input type="file" class="sr-file" id="pickAll" multiple accept="application/pdf,image/jpeg,image/png,.pdf,.jpg,.jpeg,.png" tabindex="-1" aria-hidden="true">
+</div>
+<div class="field" id="paxField"><span class="err-msg" id="e-passengers">Please add at least one passenger.</span></div>
+<div class="pax-list" id="paxList"></div>
+<div class="pax-tools" id="paxTools" hidden>
+<span class="counter" id="paxCount"></span>
+<button type="button" class="btn btn-outline" id="addPaxBtn2">+ Add passenger</button>
+</div>
+</div>
+
+<!-- 3. Review -->
+<div class="panel step review" data-title="Review &amp; Submit">
+<h2>Review your application</h2><p class="lead">Please check everything before you submit. Use “Edit” to change anything.</p>
+<div id="reviewBody"></div>
+<label class="consent field" id="consentField"><input type="checkbox" name="consent" value="yes"><span>I confirm that the information and documents are correct and that I am authorised to submit the passport details of every traveller listed. I agree that Elite Global may store these documents privately and contact me about this application by phone, WhatsApp or email.</span></label>
+<span class="err-msg" id="e-consent" style="display:none">Please tick the declaration to submit your application.</span>
+<div id="formStatus" class="status" role="status" aria-live="polite"></div>
+</div>
+
+<!-- 4. Upload -->
+<div class="panel step" data-title="Upload">
+<h2 id="upTitle">Sending your application…</h2>
+<p class="lead" id="upLead">Please keep this page open until every passenger shows “Uploaded”.</p>
+<p><b>Your reference number:</b> <span id="upLeadId" class="counter"></span></p>
+<div class="progress" role="progressbar" aria-label="Upload progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="progress"><span id="progressBar"></span></div>
+<p class="counter" id="progressText" aria-live="polite"></p>
+<ul class="up-list" id="upList"></ul>
+<div id="upStatus" class="status" role="status" aria-live="polite"></div>
+<div class="wizard-nav"><span class="spacer"></span><button type="button" class="btn btn-gold" id="retryAllBtn" hidden>Retry failed uploads</button></div>
+</div>
+
+<div class="wizard-nav" id="wizardNav">
+<button type="button" class="btn btn-outline" id="backBtn">← Back</button>
+<span class="spacer"></span>
+<button type="button" class="btn btn-gold" id="nextBtn">Next →</button>
+<button type="submit" class="btn btn-gold" id="submitBtn" hidden>Submit Application&nbsp; →</button>
+</div>
+</form>
+
+<div class="panel success" id="successPanel" hidden tabindex="-1">
+<div class="tick" aria-hidden="true">✓</div>
+<h2>Thank you for choosing Elite Global World Travel &amp; Tours Ltd.</h2>
+<p>Your Umrah visa application has been received with <b id="successCount"></b>. Your reference number is:</p>
+<div class="ref" id="leadId" data-lead-id></div>
+<p>Our team will review your documents and contact you shortly to guide you through the next steps. Please quote your reference number when we contact you.</p>
+<a class="btn btn-outline" href="index.html">Back to home</a>
+</div>
+</div></section>
+</main>
+
+<template id="paxTpl">
+<article class="pax">
+<div class="pax-head"><h3>Passenger <span data-no></span></h3><button type="button" class="link-btn pax-remove" data-remove>Remove</button></div>
+<div class="grid2">
+<label class="field">Full name as on passport<input data-name maxlength="100" autocomplete="off" placeholder="e.g. AISHA BELLO MUSA"><span class="err-msg">Please enter the full name exactly as on the passport.</span></label>
+<label class="field">Category<select data-category></select><span class="err-msg">Please choose a category.</span></label>
+</div>
+<div class="pax-files">
+<div class="field" data-passport-field>
+<span class="label-text" style="font-size:13px;font-weight:700;color:var(--navy)">Passport biodata page</span>
+<div class="filebox"><div class="thumb" data-passport-thumb>PDF<br>JPG</div><div class="meta"><b data-passport-title>No file yet</b><span class="fname" data-passport-name>PDF, JPG or PNG · PDF up to 5 MB</span><span class="note" data-passport-note></span><button type="button" class="btn btn-outline" data-passport-btn>Choose passport</button></div></div>
+<input type="file" class="sr-file" data-passport-input accept="application/pdf,image/jpeg,image/png,.pdf,.jpg,.jpeg,.png" tabindex="-1" aria-hidden="true">
+<span class="err-msg">Please add this passenger's passport.</span>
+</div>
+<div class="field" data-photo-field>
+<span class="label-text" style="font-size:13px;font-weight:700;color:var(--navy)">Passport photograph</span>
+<div class="filebox"><div class="thumb" data-photo-thumb>PHOTO</div><div class="meta"><b data-photo-title>No photo yet</b><span class="fname" data-photo-name>JPG or PNG · 25–50 KB (resized for you)</span><span class="note" data-photo-note></span><button type="button" class="btn btn-outline" data-photo-btn>Choose photo</button></div></div>
+<input type="file" class="sr-file" data-photo-input accept="image/jpeg,image/png,.jpg,.jpeg,.png" tabindex="-1" aria-hidden="true">
+<span class="err-msg">Please add this passenger's photo.</span>
+</div>
+</div>
+</article>
+</template>
+
+<footer><div class="wrap"><div class="footer-grid">
+<div><img class="footer-logo" src="assets/logo.jpg" alt="Elite Global logo" width="210" height="145" loading="lazy"><p>Your Journey • Our Priority</p></div>
+<div><h4>Quick Links</h4><a href="index.html#about">About Us</a><a href="index.html#services">Our Services</a><a href="index.html#faqs">FAQs</a><a href="index.html#contact">Contact</a></div>
+<div><h4>Apply Online</h4><a href="apply-visa.html">Request Umrah Visa Only</a><a href="customize-umrah.html">Customize My Umrah Experience</a></div>
+<div><h4>Contact Us</h4>
+<p data-show="phone"><a data-fill="phone" data-href="tel"></a></p>
+<p data-show="whatsapp"><a data-href="whatsapp" target="_blank" rel="noopener">WhatsApp us</a></p>
+<p data-show="email"><a data-fill="email" data-href="mailto"></a></p>
+<p data-show="address"><span data-fill="address"></span></p>
+<p><a href="index.html#contact">Send an enquiry</a></p>
+</div>
+</div><div class="copyright"><span>© <span id="year"></span> Elite Global World Travel &amp; Tours Ltd. All rights reserved.</span><span>RC: 7787410</span></div></div></footer>
+<script src="assets/js/lists.js"></script>
+<script src="assets/js/common.js"></script>
+<script src="assets/js/api.js"></script>
+<script src="assets/js/wizard.js"></script>
+<script src="assets/js/image.js"></script>
+<script src="assets/js/visa.js"></script>
+</body>
+</html>

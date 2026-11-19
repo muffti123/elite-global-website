@@ -16,11 +16,6 @@ window.SITE_CONFIG = {
     email: ''           // e.g. 'info@eliteglobaltravels.com'
   },
 
-  // Public RESPONDENT links (end in /viewform) — never the /edit links
-  forms: {
-    visaOnlyUrl: 'https://docs.google.com/forms/d/e/1FAIpQLSeSxTcKMLAguBCEBbIJRlmUvoLHqKTm_6UtMrxA0mUawB61oQ/viewform'        // Form 1 — Request Umrah Visa Only (until apply-visa.html exists)
-  },
-
   // Apps Script web app that receives every website form (Deploy → Manage deployments → Web app URL).
   // Must end in /exec. Staging vs production: see docs/ENVIRONMENTS.md.
   webAppUrl: 'https://script.google.com/macros/s/AKfycbzSBOiav81YF7eKJvqLaXJM1p2S6oRXeKVVhsGKgCtMfkdKZUrXr7cC0UQ-bRZ6kjtqXQ/exec',
