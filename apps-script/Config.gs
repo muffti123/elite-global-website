@@ -7,27 +7,13 @@ const CONFIG = {
   // Expected owner account is per environment: Script Properties key OWNER_EMAIL
   // (set it with setOwnerEmail). See docs/ENVIRONMENTS.md.
   COMPANY: 'Elite Global World Travel & Tours Ltd.',
-  FOLDER_NAME: 'Elite Global – Lead Generation System',
+  FOLDER_NAME: 'Elite Global – Lead Generation System', // root Drive folder (name kept for existing installs)
 
+  // Lead types: tracker category + Lead ID prefix (EG-VO-00001 …)
   FORMS: {
-    VISA: {
-      title: 'Elite Global – Request Umrah Visa Only',
-      sheetName: 'Elite Global – Visa Only Enquiries',
-      category: 'Visa Only',
-      idPrefix: 'VO',
-    },
-    CUSTOM: {
-      title: 'Elite Global – Customize My Umrah Experience',
-      sheetName: 'Elite Global – Custom Experience Enquiries',
-      category: 'Customised Experience',
-      idPrefix: 'CE',
-    },
-    CONTACT: {
-      title: 'Elite Global – General Contact Enquiries',
-      sheetName: 'Elite Global – General Contact Enquiries (Responses)',
-      category: 'General Enquiry',
-      idPrefix: 'GE',
-    },
+    VISA: { category: 'Visa Only', idPrefix: 'VO' },
+    CUSTOM: { category: 'Customised Experience', idPrefix: 'CE' },
+    CONTACT: { category: 'General Enquiry', idPrefix: 'GE' },
   },
 
   TRACKER_NAME: 'Elite Global – Central Lead Tracker',
@@ -101,41 +87,9 @@ const CONFIG = {
   GOLD: '#f5ae00',
 };
 
-// Question titles — the sync script matches answers by these exact titles.
-// If you rename a question in the Form editor, update it here too.
+// Question title used to find test rows in the retired Google Forms (cleanupTestData).
 const Q = {
   NAME: 'Full Name',
-  PHONE: 'Phone Number / WhatsApp Number',
-  EMAIL: 'Email Address',
-  COUNTRY: 'Country of Residence',
-  ADULTS: 'Number of Adults (18 years and above)',
-  CHILDREN: 'Number of Children (2–17 years)',
-  INFANTS: 'Number of Infants (below 2 years)',
-  TRAVEL_DATE: 'Preferred Travel Date',
-  DEPARTURE_CITY: 'Departure City',
-  PREF_DEPARTURE_CITY: 'Preferred Departure City',
-  FLIGHT: 'Do you have a confirmed flight ticket?',
-  PRIOR_KSA: 'Have you previously travelled to Saudi Arabia?',
-  WESTERN_VISA: 'Do you currently hold a valid UK, US or Schengen visa?',
-  EXTRA_INFO: 'Additional Information / Special Requests',
-  HEARD: 'How did you hear about Elite Global?',
-  ARRIVAL_CITY: 'Preferred Arrival City in Saudi Arabia',
-  NIGHTS_MADINAH: 'Preferred Duration in Madinah (nights)',
-  NIGHTS_MAKKAH: 'Preferred Duration in Makkah (nights)',
-  HOTEL_CAT: 'Preferred Hotel Category',
-  HARAM_DIST: 'Preferred Distance from Haram',
-  PREF_HOTEL: 'Preferred Hotel',
-  SERVICES: 'Which services do you require?',
-  VISA_ASSIST: 'Do you require Umrah visa assistance?',
-  BUDGET: 'What is your estimated budget per person?',
-  EXPERIENCE: 'Preferred Travel Experience',
-  HOTEL_OR_AIRLINE: 'Preferred Hotel or Airline',
-  SPECIAL: 'Special Requests / Additional Information',
-  // Contact form (matches the website enquiry form)
-  C_PHONE: 'Phone / WhatsApp Number',
-  C_TYPE: 'Enquiry Type',
-  C_TRAVELLERS: 'Number of Travellers',
-  C_DETAILS: 'Additional Details',
 };
 
 const LISTS = {
@@ -195,46 +149,4 @@ const COUNTRIES = ['Nigeria'].concat((
 
 const TEXT = {
   FORM_MOVED: 'This form has moved. Please apply on our website.',
-  VISA_DESC:
-    'Welcome to Elite Global World Travel & Tours Ltd. Planning your Umrah journey? ' +
-    'Complete this short form to request Umrah visa assistance. Our team will review your ' +
-    'enquiry and contact you with the next steps.',
-  VISA_CONFIRM:
-    'Thank you for choosing Elite Global World Travel & Tours Ltd.\n' +
-    'Your Umrah visa enquiry has been received. Our team will contact you shortly to guide ' +
-    'you through the next steps.',
-  CUSTOM_DESC:
-    'Every Umrah journey is unique. Tell us about your travel preferences, accommodation ' +
-    'requirements and additional services you may need. Our team will use the information ' +
-    'provided to prepare a customised Umrah travel proposal for you.',
-  CUSTOM_CONFIRM:
-    'Thank you for choosing Elite Global World Travel & Tours Ltd.\n' +
-    'Your customised Umrah enquiry has been successfully received.\n' +
-    'Our travel consultants will review your preferences and contact you to discuss the best ' +
-    'arrangements for your journey.\n' +
-    'We look forward to being part of your Umrah experience.',
-  CONTACT_DESC:
-    'Have a question about Umrah visas, packages, hotel accommodation or ground transport? ' +
-    'Send us your enquiry and a member of the Elite Global team will get back to you.',
-  CONTACT_CONFIRM:
-    'Thank you for contacting Elite Global World Travel & Tours Ltd.\n' +
-    'Your enquiry has been received. A member of our team will contact you shortly.',
-  PASSPORT_SECTION:
-    'If available, upload a clear passport biodata page for each applicant. You may submit ' +
-    'your enquiry first and provide passports later. Passport documents will be required ' +
-    'before visa processing.\n\n' +
-    'Accepted formats: PDF, JPG, JPEG or PNG (up to 10 files). Uploading is optional.\n' +
-    'Please note: Google Forms asks you to sign in to a Google account to upload files. ' +
-    'If you prefer not to sign in, skip this step and our team will collect passports from ' +
-    'you later via WhatsApp or email.\n' +
-    'Your documents are stored privately and are only accessible to authorised Elite Global staff.',
-  PASSPORT_SECTION_CUSTOM:
-    'If available, upload a clear passport biodata page for each traveller. You may submit ' +
-    'your enquiry first and provide passports later. Passport documents will be required ' +
-    'before visa processing.\n\n' +
-    'Accepted formats: PDF, JPG, JPEG or PNG (up to 10 files). Uploading is optional.\n' +
-    'Please note: Google Forms asks you to sign in to a Google account to upload files. ' +
-    'If you prefer not to sign in, skip this step and our team will collect passports from ' +
-    'you later via WhatsApp or email.\n' +
-    'Your documents are stored privately and are only accessible to authorised Elite Global staff.',
 };
