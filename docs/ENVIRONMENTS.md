@@ -26,7 +26,8 @@ signed in as that account. With no argument it stores the current account.
 | Apps Script project | Elite Global Lead System (Staging) |
 | scriptId | `1H510Iw90QAggF4gjWJomnZ7KoU9pD4O3Lopkafjgg0KTCPwYS8hda4kO` |
 | Editor | https://script.google.com/d/1H510Iw90QAggF4gjWJomnZ7KoU9pD4O3Lopkafjgg0KTCPwYS8hda4kO/edit |
-| Web app URL / Deployment ID | — (see next commit) |
+| **Web app URL** (`webAppUrl`) | https://script.google.com/macros/s/AKfycbzSBOiav81YF7eKJvqLaXJM1p2S6oRXeKVVhsGKgCtMfkdKZUrXr7cC0UQ-bRZ6kjtqXQ/exec |
+| Deployment ID | `AKfycbzSBOiav81YF7eKJvqLaXJM1p2S6oRXeKVVhsGKgCtMfkdKZUrXr7cC0UQ-bRZ6kjtqXQ` ("staging v1") |
 | Time zone / runtime | Africa/Lagos / V8 |
 | Drive folder | https://drive.google.com/drive/folders/12fCpHRx9-qgdfmTgaHgZLgHgB2DcYM-8 |
 | Central Lead Tracker | https://docs.google.com/spreadsheets/d/1fE5Ukcn2y0P1pyMUykrWrTpYKPMUC9VUWL58p7OkzjU/edit |
