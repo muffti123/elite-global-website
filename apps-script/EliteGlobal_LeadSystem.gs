@@ -23,191 +23,6 @@
  */
 
 // ---------------------------------------------------------------------
-// CONFIGURATION
-// ---------------------------------------------------------------------
-const CONFIG = {
-  // Expected owner account is per environment: Script Properties key OWNER_EMAIL
-  // (set it with setOwnerEmail). See docs/ENVIRONMENTS.md.
-  COMPANY: 'Elite Global World Travel & Tours Ltd.',
-  FOLDER_NAME: 'Elite Global – Lead Generation System',
-
-  FORMS: {
-    VISA: {
-      title: 'Elite Global – Request Umrah Visa Only',
-      sheetName: 'Elite Global – Visa Only Enquiries',
-      category: 'Visa Only',
-      idPrefix: 'VO',
-    },
-    CUSTOM: {
-      title: 'Elite Global – Customize My Umrah Experience',
-      sheetName: 'Elite Global – Custom Experience Enquiries',
-      category: 'Customised Experience',
-      idPrefix: 'CE',
-    },
-    CONTACT: {
-      title: 'Elite Global – General Contact Enquiries',
-      sheetName: 'Elite Global – General Contact Enquiries (Responses)',
-      category: 'General Enquiry',
-      idPrefix: 'GE',
-    },
-  },
-
-  TRACKER_NAME: 'Elite Global – Central Lead Tracker',
-  TRACKER_TAB: 'Lead Tracker',
-  INFO_TAB: 'System Info',
-  TRACKER_ROWS: 2000, // pre-formatted rows; grows automatically when full
-
-  HEADERS: [
-    'Lead ID', 'Date Received', 'Customer Name', 'Phone Number', 'Lead Category',
-    'Adults', 'Children', 'Infants', 'Total Travellers', 'Travel Date',
-    'Budget', 'Lead Status', 'Assigned Agent', 'Follow-up Notes',
-  ],
-  LEAD_CATEGORIES: ['Visa Only', 'Customised Experience', 'General Enquiry'],
-  LEAD_STATUSES: [
-    'New Lead', 'Contacted', 'Awaiting Response', 'Quotation Sent',
-    'Payment Pending', 'Converted', 'Lost',
-  ],
-
-  NAVY: '#071b50',
-  GOLD: '#f5ae00',
-};
-
-// Question titles — the sync script matches answers by these exact titles.
-// If you rename a question in the Form editor, update it here too.
-const Q = {
-  NAME: 'Full Name',
-  PHONE: 'Phone Number / WhatsApp Number',
-  EMAIL: 'Email Address',
-  COUNTRY: 'Country of Residence',
-  ADULTS: 'Number of Adults (18 years and above)',
-  CHILDREN: 'Number of Children (2–17 years)',
-  INFANTS: 'Number of Infants (below 2 years)',
-  TRAVEL_DATE: 'Preferred Travel Date',
-  DEPARTURE_CITY: 'Departure City',
-  PREF_DEPARTURE_CITY: 'Preferred Departure City',
-  FLIGHT: 'Do you have a confirmed flight ticket?',
-  PRIOR_KSA: 'Have you previously travelled to Saudi Arabia?',
-  WESTERN_VISA: 'Do you currently hold a valid UK, US or Schengen visa?',
-  EXTRA_INFO: 'Additional Information / Special Requests',
-  HEARD: 'How did you hear about Elite Global?',
-  ARRIVAL_CITY: 'Preferred Arrival City in Saudi Arabia',
-  NIGHTS_MADINAH: 'Preferred Duration in Madinah (nights)',
-  NIGHTS_MAKKAH: 'Preferred Duration in Makkah (nights)',
-  HOTEL_CAT: 'Preferred Hotel Category',
-  HARAM_DIST: 'Preferred Distance from Haram',
-  PREF_HOTEL: 'Preferred Hotel',
-  SERVICES: 'Which services do you require?',
-  VISA_ASSIST: 'Do you require Umrah visa assistance?',
-  BUDGET: 'What is your estimated budget per person?',
-  EXPERIENCE: 'Preferred Travel Experience',
-  HOTEL_OR_AIRLINE: 'Preferred Hotel or Airline',
-  SPECIAL: 'Special Requests / Additional Information',
-  // Contact form (matches the website enquiry form)
-  C_PHONE: 'Phone / WhatsApp Number',
-  C_TYPE: 'Enquiry Type',
-  C_TRAVELLERS: 'Number of Travellers',
-  C_DETAILS: 'Additional Details',
-};
-
-const LISTS = {
-  HEARD: ['Website', 'Instagram', 'Facebook', 'WhatsApp', 'Referral', 'Travel Agent', 'Other'],
-  YES_NO: ['Yes', 'No'],
-  ARRIVAL: ['Madinah', 'Jeddah', 'No preference'],
-  HOTEL_CAT: ['3-star', '4-star', '5-star', 'Luxury / Premium', 'No preference'],
-  HARAM_DIST: ['Walking distance', 'Close / short walk', 'Shuttle service', 'No preference'],
-  SERVICES: [
-    'Umrah Visa Processing', 'International Flight Ticket', 'Hotel Accommodation in Makkah',
-    'Hotel Accommodation in Madinah', 'Airport Transfers', 'Makkah–Madinah Transportation',
-    'Ziyarah / Religious Tours', 'Complete Umrah Package',
-  ], // "Other" is added via showOtherOption so respondents can type it
-  VISA_ASSIST: ['Yes', 'No', 'I already have my visa'],
-  BUDGET: [
-    'Below ₦1,000,000',
-    '₦1,000,000 – ₦2,000,000',
-    '₦2,000,000 – ₦3,000,000',
-    '₦3,000,000 – ₦5,000,000',
-    'Above ₦5,000,000',
-    'I need guidance on the budget',
-  ],
-  EXPERIENCE: ['Economy / Budget-friendly', 'Standard / Comfortable', 'Premium', 'Luxury', 'No preference'],
-  // Must match the <select> options on the website exactly
-  ENQUIRY_TYPES: [
-    'Request Umrah Visa Only', 'Customize My Umrah Experience', 'Hotel Accommodation',
-    'Ground Transportation', 'Other Travel Enquiry',
-  ],
-};
-
-// Nigeria first (main market), then all other countries A–Z, then Other.
-const COUNTRIES = ['Nigeria'].concat((
-  'Afghanistan|Albania|Algeria|Andorra|Angola|Antigua and Barbuda|Argentina|Armenia|Australia|Austria|' +
-  'Azerbaijan|Bahamas|Bahrain|Bangladesh|Barbados|Belarus|Belgium|Belize|Benin|Bhutan|Bolivia|' +
-  'Bosnia and Herzegovina|Botswana|Brazil|Brunei|Bulgaria|Burkina Faso|Burundi|Cabo Verde|Cambodia|' +
-  'Cameroon|Canada|Central African Republic|Chad|Chile|China|Colombia|Comoros|Congo (Republic)|' +
-  'Congo (Democratic Republic)|Costa Rica|Côte d\'Ivoire|Croatia|Cuba|Cyprus|Czech Republic|Denmark|' +
-  'Djibouti|Dominica|Dominican Republic|Ecuador|Egypt|El Salvador|Equatorial Guinea|Eritrea|Estonia|' +
-  'Eswatini|Ethiopia|Fiji|Finland|France|Gabon|Gambia|Georgia|Germany|Ghana|Greece|Grenada|Guatemala|' +
-  'Guinea|Guinea-Bissau|Guyana|Haiti|Honduras|Hungary|Iceland|India|Indonesia|Iran|Iraq|Ireland|' +
-  'Israel|Italy|Jamaica|Japan|Jordan|Kazakhstan|Kenya|Kiribati|Kosovo|Kuwait|Kyrgyzstan|Laos|Latvia|' +
-  'Lebanon|Lesotho|Liberia|Libya|Liechtenstein|Lithuania|Luxembourg|Madagascar|Malawi|Malaysia|' +
-  'Maldives|Mali|Malta|Marshall Islands|Mauritania|Mauritius|Mexico|Micronesia|Moldova|Monaco|' +
-  'Mongolia|Montenegro|Morocco|Mozambique|Myanmar|Namibia|Nauru|Nepal|Netherlands|New Zealand|' +
-  'Nicaragua|Niger|North Korea|North Macedonia|Norway|Oman|Pakistan|Palau|Palestine|Panama|' +
-  'Papua New Guinea|Paraguay|Peru|Philippines|Poland|Portugal|Qatar|Romania|Russia|Rwanda|' +
-  'Saint Kitts and Nevis|Saint Lucia|Saint Vincent and the Grenadines|Samoa|San Marino|' +
-  'São Tomé and Príncipe|Saudi Arabia|Senegal|Serbia|Seychelles|Sierra Leone|Singapore|Slovakia|' +
-  'Slovenia|Solomon Islands|Somalia|South Africa|South Korea|South Sudan|Spain|Sri Lanka|Sudan|' +
-  'Suriname|Sweden|Switzerland|Syria|Taiwan|Tajikistan|Tanzania|Thailand|Timor-Leste|Togo|Tonga|' +
-  'Trinidad and Tobago|Tunisia|Turkey|Turkmenistan|Tuvalu|Uganda|Ukraine|United Arab Emirates|' +
-  'United Kingdom|United States|Uruguay|Uzbekistan|Vanuatu|Vatican City|Venezuela|Vietnam|Yemen|' +
-  'Zambia|Zimbabwe'
-).split('|')).concat(['Other']);
-
-const TEXT = {
-  VISA_DESC:
-    'Welcome to Elite Global World Travel & Tours Ltd. Planning your Umrah journey? ' +
-    'Complete this short form to request Umrah visa assistance. Our team will review your ' +
-    'enquiry and contact you with the next steps.',
-  VISA_CONFIRM:
-    'Thank you for choosing Elite Global World Travel & Tours Ltd.\n' +
-    'Your Umrah visa enquiry has been received. Our team will contact you shortly to guide ' +
-    'you through the next steps.',
-  CUSTOM_DESC:
-    'Every Umrah journey is unique. Tell us about your travel preferences, accommodation ' +
-    'requirements and additional services you may need. Our team will use the information ' +
-    'provided to prepare a customised Umrah travel proposal for you.',
-  CUSTOM_CONFIRM:
-    'Thank you for choosing Elite Global World Travel & Tours Ltd.\n' +
-    'Your customised Umrah enquiry has been successfully received.\n' +
-    'Our travel consultants will review your preferences and contact you to discuss the best ' +
-    'arrangements for your journey.\n' +
-    'We look forward to being part of your Umrah experience.',
-  CONTACT_DESC:
-    'Have a question about Umrah visas, packages, hotel accommodation or ground transport? ' +
-    'Send us your enquiry and a member of the Elite Global team will get back to you.',
-  CONTACT_CONFIRM:
-    'Thank you for contacting Elite Global World Travel & Tours Ltd.\n' +
-    'Your enquiry has been received. A member of our team will contact you shortly.',
-  PASSPORT_SECTION:
-    'If available, upload a clear passport biodata page for each applicant. You may submit ' +
-    'your enquiry first and provide passports later. Passport documents will be required ' +
-    'before visa processing.\n\n' +
-    'Accepted formats: PDF, JPG, JPEG or PNG (up to 10 files). Uploading is optional.\n' +
-    'Please note: Google Forms asks you to sign in to a Google account to upload files. ' +
-    'If you prefer not to sign in, skip this step and our team will collect passports from ' +
-    'you later via WhatsApp or email.\n' +
-    'Your documents are stored privately and are only accessible to authorised Elite Global staff.',
-  PASSPORT_SECTION_CUSTOM:
-    'If available, upload a clear passport biodata page for each traveller. You may submit ' +
-    'your enquiry first and provide passports later. Passport documents will be required ' +
-    'before visa processing.\n\n' +
-    'Accepted formats: PDF, JPG, JPEG or PNG (up to 10 files). Uploading is optional.\n' +
-    'Please note: Google Forms asks you to sign in to a Google account to upload files. ' +
-    'If you prefer not to sign in, skip this step and our team will collect passports from ' +
-    'you later via WhatsApp or email.\n' +
-    'Your documents are stored privately and are only accessible to authorised Elite Global staff.',
-};
-
-// ---------------------------------------------------------------------
 // MAIN SETUP — run once
 // ---------------------------------------------------------------------
 function setupEliteGlobal() {
@@ -532,28 +347,6 @@ function buildTracker_() {
   return ss;
 }
 
-/** Formats, dropdowns and the Total Travellers formula for a block of rows. */
-function applyRowRules_(sh, startRow, numRows) {
-  sh.getRange(startRow, 2, numRows, 1).setNumberFormat('dd mmm yyyy, hh:mm');
-  sh.getRange(startRow, 4, numRows, 1).setNumberFormat('@');
-  sh.getRange(startRow, 6, numRows, 4).setNumberFormat('0').setHorizontalAlignment('center');
-  sh.getRange(startRow, 10, numRows, 1).setNumberFormat('dd mmm yyyy');
-
-  sh.getRange(startRow, 5, numRows, 1).setDataValidation(
-    SpreadsheetApp.newDataValidation().requireValueInList(CONFIG.LEAD_CATEGORIES, true)
-      .setAllowInvalid(false).setHelpText('Choose a lead category from the list.').build());
-  sh.getRange(startRow, 12, numRows, 1).setDataValidation(
-    SpreadsheetApp.newDataValidation().requireValueInList(CONFIG.LEAD_STATUSES, true)
-      .setAllowInvalid(false).setHelpText('Choose a lead status from the list.').build());
-  sh.getRange(startRow, 6, numRows, 3).setDataValidation(
-    SpreadsheetApp.newDataValidation().requireNumberGreaterThanOrEqualTo(0)
-      .setAllowInvalid(false).setHelpText('Enter a whole number, 0 or more.').build());
-
-  // Total Travellers = Adults + Children + Infants (blank until a count is entered)
-  sh.getRange(startRow, 9, numRows, 1)
-    .setFormulaR1C1('=IF(COUNT(RC[-3]:RC[-1])=0,"",RC[-3]+RC[-2]+RC[-1])');
-}
-
 // ---------------------------------------------------------------------
 // AUTO-SYNC: form submission → Central Lead Tracker
 // ---------------------------------------------------------------------
@@ -600,9 +393,7 @@ function appendLead_(kind, a, timestamp) {
   const sh = SpreadsheetApp.openById(p.getProperty('TRACKER_ID')).getSheetByName(CONFIG.TRACKER_TAB);
   const cfg = CONFIG.FORMS[kind];
 
-  const seq = Number(p.getProperty('LEAD_SEQ') || 0) + 1;
-  p.setProperty('LEAD_SEQ', String(seq));
-  const leadId = 'EG-' + cfg.idPrefix + '-' + ('00000' + seq).slice(-5);
+  const leadId = nextLeadId_(cfg.idPrefix);
 
   let adults = toInt_(a[Q.ADULTS]);
   const children = toInt_(a[Q.CHILDREN]);
@@ -666,38 +457,8 @@ function appendLead_(kind, a, timestamp) {
     'New Lead',
     '',
     '[Auto] ' + notes.filter(String).join(' | '),
+    '',
   ]]);
-}
-
-/** First empty row, judged by the Lead ID column. Adds more rows when full. */
-function nextEmptyRow_(sh) {
-  const max = sh.getMaxRows();
-  const ids = sh.getRange(2, 1, max - 1, 1).getValues();
-  let last = 0;
-  for (let i = ids.length - 1; i >= 0; i--) { if (ids[i][0] !== '') { last = i + 1; break; } }
-  const row = last + 2;
-  if (row > max) {
-    sh.insertRowsAfter(max, 500);
-    applyRowRules_(sh, max + 1, 500);
-  }
-  return row;
-}
-
-function toInt_(v) {
-  if (v === undefined || v === null || String(v).trim() === '') return '';
-  const n = parseInt(String(v).trim(), 10);
-  return isNaN(n) ? '' : n;
-}
-
-function v_(val, fallback) {
-  if (val === undefined || val === null || val === '') return fallback === undefined ? '—' : fallback;
-  return val;
-}
-
-function parseDate_(s) {
-  if (!s) return '';
-  const m = String(s).match(/^(\d{4})-(\d{2})-(\d{2})$/);
-  return m ? new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])) : s;
 }
 
 function notifyError_(err, e) {
