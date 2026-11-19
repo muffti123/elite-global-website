@@ -1,0 +1,151 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Customize My Umrah Experience | Elite Global World Travel &amp; Tours Ltd.</title>
+<meta name="description" content="Tell Elite Global about your Umrah travel preferences, accommodation and services, and receive a customised Umrah proposal.">
+<meta name="theme-color" content="#071b50">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23071b50'/%3E%3Ctext x='32' y='45' font-family='Arial' font-weight='700' font-size='38' text-anchor='middle' fill='%23f5ae00'%3EE%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="assets/css/site.css">
+</head>
+<body>
+<script src="assets/js/config.js"></script>
+
+<a class="skip" href="#main">Skip to content</a>
+<header><div class="wrap nav">
+<a href="index.html" aria-label="Elite Global home"><img class="logo" src="assets/logo.jpg" alt="Elite Global World Travel &amp; Tours Ltd." width="245" height="169"></a>
+<nav class="links" aria-label="Main"><a href="index.html">Home</a><a href="index.html#services">Our Services</a><a href="index.html#faqs">FAQs</a><a href="index.html#contact">Contact</a></nav>
+<a class="nav-cta" href="apply-visa.html">Visa Only</a>
+</div></header>
+
+<main id="main">
+<section class="page-hero"><div class="wrap">
+<a class="back-link" href="index.html">← Back to home</a>
+<h1>Customize My Umrah Experience</h1>
+<p>Every Umrah journey is unique. Tell us about your travel preferences, accommodation requirements and additional services you may need. Our team will use the information provided to prepare a customised Umrah travel proposal for you.</p>
+</div></section>
+
+<section><div class="wrap wizard">
+<ol class="stepper" id="stepper" aria-label="Progress"></ol>
+<p class="step-label" id="stepLabel" aria-live="polite"></p>
+
+<form id="customForm" class="wizard-form" novalidate>
+<div class="hp" aria-hidden="true"><label>Leave this field empty<input name="company_website" tabindex="-1" autocomplete="off"></label></div>
+
+<!-- 1. Personal Information -->
+<div class="panel step" data-title="Personal Information">
+<h2>Personal Information</h2><p class="lead">How can our team reach you?</p>
+<div class="grid2">
+<label class="field">Full Name<input name="name" autocomplete="name" maxlength="100" placeholder="Your full name"><span class="err-msg" id="e-name">Please enter your full name.</span></label>
+<label class="field">Phone Number / WhatsApp Number<input name="phone" type="tel" autocomplete="tel" inputmode="tel" maxlength="25" placeholder="+234 803 000 0000"><span class="help">Include your country code, e.g. +234 803 000 0000</span><span class="err-msg" id="e-phone">Please enter a valid phone number (digits, spaces, +, - or brackets only).</span></label>
+<label class="field">Email Address<input name="email" type="email" autocomplete="email" inputmode="email" maxlength="254" placeholder="name@example.com"><span class="err-msg" id="e-email">Please enter a valid email address, e.g. name@example.com</span></label>
+<label class="field">Country of Residence<select name="country" data-list="COUNTRIES" data-placeholder="Select your country"></select><span class="err-msg" id="e-country">Please choose your country of residence.</span></label>
+</div>
+</div>
+
+<!-- 2. Traveller and Travel Information -->
+<div class="panel step" data-title="Travellers &amp; Travel">
+<h2>Traveller and Travel Information</h2><p class="lead">Enter the number of people in each age group. Enter 0 if none.</p>
+<div class="grid3">
+<label class="field">Number of Adults (18 years and above)<input name="adults" type="number" inputmode="numeric" min="0" max="999" step="1" placeholder="0"><span class="err-msg" id="e-adults">Please enter a whole number of 0 or more.</span></label>
+<label class="field">Number of Children (2–17 years)<input name="children" type="number" inputmode="numeric" min="0" max="999" step="1" placeholder="0"><span class="err-msg" id="e-children">Please enter a whole number of 0 or more.</span></label>
+<label class="field">Number of Infants (below 2 years)<input name="infants" type="number" inputmode="numeric" min="0" max="999" step="1" placeholder="0"><span class="err-msg" id="e-infants">Please enter a whole number of 0 or more.</span></label>
+</div>
+<div class="grid2" style="margin-top:16px">
+<label class="field">Preferred Departure City<input name="departureCity" maxlength="100" placeholder="e.g. Lagos, Abuja, Kano"><span class="err-msg" id="e-departureCity">Please enter your preferred departure city.</span></label>
+<label class="field">Preferred Travel Date<input name="travelDate" type="date"><span class="err-msg" id="e-travelDate">Please choose a date from today onwards.</span></label>
+<fieldset class="field full"><legend>Do you have a confirmed flight ticket?</legend><div class="choices" data-choices="flightTicket" data-list="YES_NO"></div><span class="err-msg" id="e-flightTicket">Please choose Yes or No.</span></fieldset>
+<fieldset class="field full"><legend>Preferred Arrival City in Saudi Arabia</legend><div class="choices" data-choices="arrivalCity" data-list="ARRIVAL"></div><span class="err-msg" id="e-arrivalCity">Please choose your arrival city.</span></fieldset>
+</div>
+</div>
+
+<!-- 3. Accommodation Preferences -->
+<div class="panel step" data-title="Accommodation">
+<h2>Accommodation Preferences</h2><p class="lead">Where and how would you like to stay?</p>
+<div class="grid2">
+<label class="field">Preferred Duration in Madinah (nights)<input name="nightsMadinah" type="number" inputmode="numeric" min="0" max="999" step="1" placeholder="0"><span class="help">Number of nights you would like to spend in Madinah. Enter 0 if none.</span><span class="err-msg" id="e-nightsMadinah">Please enter a whole number of 0 or more.</span></label>
+<label class="field">Preferred Duration in Makkah (nights)<input name="nightsMakkah" type="number" inputmode="numeric" min="0" max="999" step="1" placeholder="0"><span class="help">Number of nights you would like to spend in Makkah. Enter 0 if none.</span><span class="err-msg" id="e-nightsMakkah">Please enter a whole number of 0 or more.</span></label>
+<label class="field">Preferred Hotel Category<select name="hotelCategory" data-list="HOTEL_CAT" data-placeholder="Select a category"></select><span class="err-msg" id="e-hotelCategory">Please choose a hotel category.</span></label>
+<label class="field">Preferred Distance from Haram<select name="haramDistance" data-list="HARAM_DIST" data-placeholder="Select a distance"></select><span class="err-msg" id="e-haramDistance">Please choose a distance from the Haram.</span></label>
+<label class="field full">Preferred Hotel <span class="opt">(optional)</span><input name="preferredHotel" maxlength="100" placeholder="Name of a specific hotel, if any"></label>
+</div>
+</div>
+
+<!-- 4. Additional Services Required -->
+<div class="panel step" data-title="Services">
+<h2>Additional Services Required</h2><p class="lead">Select all the services you would like us to arrange.</p>
+<fieldset class="field"><legend>Which services do you require? <span class="opt">(optional)</span></legend>
+<div class="choices col" data-choices="services" data-list="SERVICES" data-type="checkbox"></div>
+<label class="choice" style="margin-top:10px"><input type="checkbox" name="servicesOtherOn" value="1"> Other</label>
+<input class="other-text" name="servicesOther" maxlength="200" placeholder="Please describe the other service" aria-label="Other service" hidden>
+<span class="err-msg" id="e-services">Please describe the other service, or untick Other.</span>
+</fieldset>
+</div>
+
+<!-- 5. Visa and Budget Preferences -->
+<div class="panel step" data-title="Visa &amp; Budget">
+<h2>Visa and Budget Preferences</h2><p class="lead">This helps us prepare the right proposal for you.</p>
+<fieldset class="field"><legend>Do you require Umrah visa assistance?</legend><div class="choices" data-choices="visaAssist" data-list="VISA_ASSIST"></div><span class="err-msg" id="e-visaAssist">Please choose an option.</span></fieldset>
+<label class="field" style="display:block;margin-top:16px">What is your estimated budget per person?<select name="budget" data-list="BUDGET" data-placeholder="Select a budget"></select><span class="err-msg" id="e-budget">Please choose a budget.</span></label>
+</div>
+
+<!-- 6. Travel Experience, Special Requests and Lead Source -->
+<div class="panel step" data-title="Experience &amp; Requests">
+<h2>Travel Experience and Special Requests</h2><p class="lead">All questions on this step are optional.</p>
+<div class="grid2">
+<label class="field">Preferred Travel Experience <span class="opt">(optional)</span><select name="experience" data-list="EXPERIENCE" data-placeholder="Select an option"></select></label>
+<label class="field">Preferred Hotel or Airline <span class="opt">(optional)</span><input name="hotelOrAirline" maxlength="100"></label>
+<label class="field full">Special Requests / Additional Information <span class="opt">(optional)</span><textarea name="special" maxlength="2000"></textarea></label>
+</div>
+<h3>Lead Source</h3>
+<label class="field" style="display:block;max-width:420px">How did you hear about Elite Global? <span class="opt">(optional)</span><select name="heard" data-list="HEARD" data-placeholder="Select an option"></select></label>
+</div>
+
+<!-- 7. Review -->
+<div class="panel step review" data-title="Review &amp; Submit">
+<h2>Review your request</h2><p class="lead">Please check your answers. Use “Edit” to change anything.</p>
+<div id="reviewBody"></div>
+<p class="form-note">By submitting, you agree that Elite Global may contact you about your request by phone, WhatsApp or email.</p>
+<div id="formStatus" class="status" role="status" aria-live="polite"></div>
+</div>
+
+<div class="wizard-nav" id="wizardNav">
+<button type="button" class="btn btn-outline" id="backBtn">← Back</button>
+<span class="spacer"></span>
+<button type="button" class="btn btn-gold" id="nextBtn">Next →</button>
+<button type="submit" class="btn btn-gold" id="submitBtn" hidden>Submit Request&nbsp; →</button>
+</div>
+</form>
+
+<div class="panel success" id="successPanel" hidden tabindex="-1">
+<div class="tick" aria-hidden="true">✓</div>
+<h2>Thank you for choosing Elite Global World Travel &amp; Tours Ltd.</h2>
+<p>Your customised Umrah enquiry has been successfully received. Your reference number is:</p>
+<div class="ref" id="leadId" data-lead-id></div>
+<p>Our travel consultants will review your preferences and contact you to discuss the best arrangements for your journey. Please quote your reference number when we contact you.</p>
+<p>We look forward to being part of your Umrah experience.</p>
+<a class="btn btn-outline" href="index.html">Back to home</a>
+</div>
+</div></section>
+</main>
+
+<footer><div class="wrap"><div class="footer-grid">
+<div><img class="footer-logo" src="assets/logo.jpg" alt="Elite Global logo" width="210" height="145" loading="lazy"><p>Your Journey • Our Priority</p></div>
+<div><h4>Quick Links</h4><a href="index.html#about">About Us</a><a href="index.html#services">Our Services</a><a href="index.html#faqs">FAQs</a><a href="index.html#contact">Contact</a></div>
+<div><h4>Apply Online</h4><a href="apply-visa.html">Request Umrah Visa Only</a><a href="customize-umrah.html">Customize My Umrah Experience</a></div>
+<div><h4>Contact Us</h4>
+<p data-show="phone"><a data-fill="phone" data-href="tel"></a></p>
+<p data-show="whatsapp"><a data-href="whatsapp" target="_blank" rel="noopener">WhatsApp us</a></p>
+<p data-show="email"><a data-fill="email" data-href="mailto"></a></p>
+<p data-show="address"><span data-fill="address"></span></p>
+<p><a href="index.html#contact">Send an enquiry</a></p>
+</div>
+</div><div class="copyright"><span>© <span id="year"></span> Elite Global World Travel &amp; Tours Ltd. All rights reserved.</span><span>RC: 7787410</span></div></div></footer>
+<script src="assets/js/lists.js"></script>
+<script src="assets/js/common.js"></script>
+<script src="assets/js/api.js"></script>
+<script src="assets/js/wizard.js"></script>
+<script src="assets/js/customize.js"></script>
+</body>
+</html>

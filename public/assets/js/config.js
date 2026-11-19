@@ -18,8 +18,7 @@ window.SITE_CONFIG = {
 
   // Public RESPONDENT links (end in /viewform) — never the /edit links
   forms: {
-    visaOnlyUrl: 'https://docs.google.com/forms/d/e/1FAIpQLSeSxTcKMLAguBCEBbIJRlmUvoLHqKTm_6UtMrxA0mUawB61oQ/viewform',        // Form 1 — Request Umrah Visa Only
-    customUmrahUrl: 'https://docs.google.com/forms/d/e/1FAIpQLSf6By61NsbF6fR2sNb6bS8tl0frlsc_PMsXfqs4eIb2rClkQQ/viewform'      // Form 2 — Customize My Umrah Experience
+    visaOnlyUrl: 'https://docs.google.com/forms/d/e/1FAIpQLSeSxTcKMLAguBCEBbIJRlmUvoLHqKTm_6UtMrxA0mUawB61oQ/viewform'        // Form 1 — Request Umrah Visa Only (until apply-visa.html exists)
   },
 
   // Apps Script web app that receives every website form (Deploy → Manage deployments → Web app URL).
