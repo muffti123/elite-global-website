@@ -73,6 +73,23 @@ TEST visa folders to the Drive bin).
 publishes `public/`). Every `git push` to `main` redeploys. *Domain settings → Add custom domain* shows the
 DNS records for the client's DNS team. HTTPS is automatic.
 
+## Repository mirror
+
+| Repo | Role |
+|---|---|
+| https://github.com/muffti123/elite-global-website | **Source of truth** (fetch + push) |
+| https://github.com/Elite-Global-World-Travel-Tours/Elite-Global-World-Travel-Tours-Website | **Push mirror** — Netlify deploys from it |
+
+Every `git push` sends the same history to both (origin has two push URLs). **Never edit, commit to or
+merge PRs in the org repo directly** — the next push would be rejected or would overwrite it. If one of the
+two pushes fails, fix the cause and run `git push` again. The push URLs are local git config, so set them
+up again on any new clone:
+```bash
+git remote set-url --add --push origin https://github.com/muffti123/elite-global-website.git
+git remote set-url --add --push origin https://github.com/Elite-Global-World-Travel-Tours/Elite-Global-World-Travel-Tours-Website.git
+git remote -v   # 1 fetch URL (personal), 2 push URLs (personal, org)
+```
+
 ## Maintenance
 
 | Task | How |

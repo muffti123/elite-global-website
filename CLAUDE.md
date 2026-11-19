@@ -67,6 +67,16 @@ No Google Forms in the customer journey; the old ones are closed and kept in Dri
   - `content(site): …` client copy/details/photos
 - Push after each phase: `git push`. Netlify redeploys automatically from `main`.
 
+## Repository mirror
+- **Source of truth:** https://github.com/muffti123/elite-global-website (origin fetch URL).
+- **Push mirror:** https://github.com/Elite-Global-World-Travel-Tours/Elite-Global-World-Travel-Tours-Website
+  — **Netlify deploys from this org repo.**
+- `origin` has two push URLs (personal first, then org), so one `git push` updates both with identical
+  history. Check with `git remote -v`; after pushing, both `git ls-remote <url> refs/heads/main` must
+  show the same hash as `git rev-parse HEAD`.
+- Never edit, commit to or merge PRs in the org repo directly. If its push is rejected, stop and tell the
+  operator — never force-push the mirror without their approval.
+
 ## Useful commands (Windows, run from the project root)
 ```
 git status / git add -p / git commit / git push
