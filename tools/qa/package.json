@@ -1,0 +1,14 @@
+{
+  "name": "elite-global-qa",
+  "private": true,
+  "description": "Browser QA for public/ (dev only, never published). See run.js.",
+  "scripts": {
+    "static": "node run.js static",
+    "live": "node run.js live",
+    "fixtures": "node fixtures.js"
+  },
+  "devDependencies": {
+    "puppeteer-core": "23.11.1",
+    "serve": "14.2.4"
+  }
+}
