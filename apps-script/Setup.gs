@@ -206,19 +206,52 @@ function removeLegacyTriggers_() {
   if (n) Logger.log('Removed ' + n + ' old Google Forms trigger(s).');
 }
 
-/** Closes the old Forms (kept in Drive) with a "moved" message. Each form independently. */
+/**
+ * Closes the old Forms (kept in Drive). Each step is tried on its own, because on some forms
+ * Google rejects setCustomClosedFormMessage ("Invalid data updating form") even though closing
+ * works. Order: try the "moved" message, stop accepting responses, and if the form still
+ * accepts responses, unpublish it. The real state is read back and logged.
+ */
 function closeLegacyForms_() {
   const p = PropertiesService.getScriptProperties();
   LEGACY_FORMS.forEach(function (f) {
     const id = p.getProperty(f[0]);
     if (!id) return;
-    try {
-      FormApp.openById(id).setAcceptingResponses(false).setCustomClosedFormMessage(TEXT.FORM_MOVED);
-      Logger.log('Closed retired ' + f[1] + '.');
-    } catch (e) {
-      Logger.log('Skipped ' + f[1] + ' (could not open it: ' + e.message + ').');
+    let form;
+    try { form = FormApp.openById(id); } catch (e) {
+      Logger.log('Skipped ' + f[1] + ': could not open it (' + e.message + ').');
+      return;
     }
+    const notes = [];
+    try { form.setCustomClosedFormMessage(TEXT.FORM_MOVED); } catch (e) {
+      notes.push('custom message not accepted by Google (' + e.message + ')');
+    }
+    try { if (form.isAcceptingResponses()) form.setAcceptingResponses(false); } catch (e) {
+      notes.push('stop accepting failed (' + e.message + ')');
+    }
+    try {
+      if (form.isAcceptingResponses() && typeof form.setPublished === 'function') form.setPublished(false);
+    } catch (e) {
+      notes.push('unpublish failed (' + e.message + ')');
+    }
+    Logger.log(f[1] + ': ' + legacyFormState_(form) + (notes.length ? ' — ' + notes.join('; ') : '') + '.');
   });
+}
+
+/** Human-readable real state of a retired form, read back from Google. */
+function legacyFormState_(form) {
+  let accepting = null, published = null, message = '';
+  try { accepting = form.isAcceptingResponses(); } catch (e) { /* unknown */ }
+  try { if (typeof form.isPublished === 'function') published = form.isPublished(); } catch (e) { /* unknown */ }
+  try { message = form.getCustomClosedFormMessage() || ''; } catch (e) { /* unknown */ }
+  if (published === false) return 'UNPUBLISHED (not reachable by respondents)';
+  if (accepting === false) {
+    return message === TEXT.FORM_MOVED
+      ? 'CLOSED with "' + TEXT.FORM_MOVED + '"'
+      : 'CLOSED with Google\'s default "no longer accepting responses" message';
+  }
+  if (accepting === true) return '⚠️ STILL OPEN — close it by hand (Responses → Accepting responses off)';
+  return 'state unknown';
 }
 
 // ---------------------------------------------------------------------
@@ -250,9 +283,14 @@ function collectInfo_() {
   if (legacy.length) {
     rows.push(['', '']);
     legacy.forEach(function (f) {
-      let url = '(could not open)';
-      try { url = FormApp.openById(p.getProperty(f[0])).getEditUrl(); } catch (e) { /* deleted */ }
-      rows.push(['Retired ' + f[1] + ' (closed, not on the website)', url]);
+      let url = '(could not open — deleted or no access)';
+      let state = 'state unknown';
+      try {
+        const form = FormApp.openById(p.getProperty(f[0]));
+        url = form.getEditUrl();
+        state = legacyFormState_(form);
+      } catch (e) { /* deleted */ }
+      rows.push(['Retired ' + f[1] + ' (not on the website): ' + state, url]);
     });
   }
   return rows;
