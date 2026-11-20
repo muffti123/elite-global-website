@@ -91,6 +91,50 @@ const PAGES = ['index.html', 'customize-umrah.html', 'apply-visa.html'];
     await p.close();
   }
 
+  // Management team: 4 portrait cards, 1/2/4 columns, bio on focus (desktop) / below photo (phone)
+  {
+    const p = await b.newPage();
+    await p.setViewport({ width: 1280, height: 900 });
+    await p.goto(base + '/index.html', { waitUntil: 'networkidle0' });
+    const n = await p.$$eval('#teamGrid .team-card', (c) => c.length);
+    ok('team: 4 cards, section shown', n === 4 && !(await p.$eval('#management', (s) => s.hidden)), 'cards=' + n);
+    const cols = {};
+    for (const [w, want] of [[375, 1], [768, 2], [1024, 4], [1280, 4]]) {
+      await p.setViewport({ width: w, height: 900 }); await sleep(200);
+      const r = await p.evaluate(() => {
+        const cs = [...document.querySelectorAll('#teamGrid .team-card')];
+        const top = Math.round(cs[0].getBoundingClientRect().top);
+        const row = cs.filter((c) => Math.round(c.getBoundingClientRect().top) === top);
+        const grid = document.querySelector('#teamGrid').getBoundingClientRect();
+        const l = row[0].getBoundingClientRect().left - grid.left, rgt = grid.right - row[row.length - 1].getBoundingClientRect().right;
+        const img = cs[0].querySelector('.team-photo').getBoundingClientRect();
+        return { row: row.length, centred: Math.abs(l - rgt) < 2, ratio: Math.round(img.width / img.height * 100) / 100 };
+      });
+      cols[w] = r;
+      if (r.row !== want || !r.centred || r.ratio !== 0.8) cols[w].bad = want;
+    }
+    ok('team: 1 → 2 → 4 columns, centred, 4:5 photos', !Object.values(cols).some((c) => c.bad), JSON.stringify(cols));
+    await p.setViewport({ width: 1280, height: 900 }); await sleep(200);
+    const hidden0 = await p.$eval('#team-bio-1', (e) => getComputedStyle(e).visibility);
+    await p.focus('#teamGrid .team-head'); await sleep(400);
+    const shown = await p.$eval('#team-bio-1', (e) => ({ v: getComputedStyle(e).visibility, o: getComputedStyle(e).opacity }));
+    await p.click('#teamGrid .team-card:nth-child(2) .team-head'); await sleep(400);
+    const tap = await p.$eval('#teamGrid .team-card:nth-child(2) .team-head', (h) => h.getAttribute('aria-expanded'));
+    ok('team: bio hidden, shown on focus, tap toggles (desktop)', hidden0 === 'hidden' && shown.v === 'visible' && shown.o === '1' && tap === 'true', JSON.stringify({ hidden0, shown, tap }));
+    await p.setViewport({ width: 375, height: 800 }); await sleep(300);
+    const phone = await p.$eval('#team-bio-1', (e) => ({ v: getComputedStyle(e).visibility, pos: getComputedStyle(e).position, text: e.innerText.slice(0, 20) }));
+    ok('team: bio below photo on phones', phone.v === 'visible' && phone.pos === 'static' && phone.text.length > 5, JSON.stringify(phone));
+    await p.close();
+    const q = await b.newPage();
+    await q.evaluateOnNewDocument(() => {
+      let c; Object.defineProperty(window, 'SITE_CONFIG', { configurable: true, get: () => c, set: (v) => { v.team = []; c = v; } });
+    });
+    await q.goto(base + '/index.html', { waitUntil: 'networkidle0' });
+    const empty = await q.evaluate(() => ({ section: document.querySelector('#management').hidden, link: document.querySelector('[data-team-link]').hidden }));
+    ok('team: hidden when SITE_CONFIG.team is empty', empty.section && empty.link, JSON.stringify(empty));
+    await q.close();
+  }
+
   // Contact + footer: icons, links, responsive columns; empty config value hides its icon
   {
     const p = await b.newPage();

@@ -5,31 +5,82 @@
   var $ = window.EG.$, $$ = window.EG.$$;
 
   // ---- Management team -------------------------------------------------
+  // Portrait cards: name + role over the photo. From 768 px the bio is an overlay shown on hover,
+  // keyboard focus or tap (the name button toggles it); on phones the bio sits under the photo.
   var team = (C.team || []).filter(function (m) { return m && m.name; });
   if (team.length) {
     var grid = $('#teamGrid');
-    team.forEach(function (m) {
-      var card = document.createElement('article');
-      card.className = 'team-card';
-      var photo = document.createElement('div');
-      photo.className = 'team-photo';
+    var el = function (tag, cls, text) {
+      var n = document.createElement(tag);
+      if (cls) n.className = cls;
+      if (text) n.textContent = text;
+      return n;
+    };
+    var cards = team.map(function (m, i) {
+      var card = el('article', 'team-card');
+      card.setAttribute('data-reveal', '');
+      var photo = el('div', 'team-photo');
       if (m.photo) {
-        var img = document.createElement('img');
-        img.src = m.photo; img.alt = m.name + (m.role ? ', ' + m.role : ''); img.loading = 'lazy';
+        var img = el('img');
+        img.src = m.photo; img.alt = ''; img.loading = 'lazy'; img.width = 800; img.height = 1000;
         photo.appendChild(img);
       } else {
-        photo.textContent = m.name.trim().split(/\s+/).map(function (w) { return w[0]; }).slice(0, 2).join('').toUpperCase();
-        photo.setAttribute('aria-hidden', 'true');
+        photo.appendChild(el('span', 'team-initials', m.name.trim().split(/\s+/).map(function (w) { return w[0]; }).slice(0, 2).join('').toUpperCase()));
       }
-      var info = document.createElement('div');
-      info.className = 'team-info';
-      var role = document.createElement('div'); role.className = 'team-role'; role.textContent = m.role || '';
-      var h3 = document.createElement('h3'); h3.textContent = m.name;
-      info.appendChild(role); info.appendChild(h3);
-      if (m.bio) { var p = document.createElement('p'); p.textContent = m.bio; info.appendChild(p); }
-      card.appendChild(photo); card.appendChild(info); grid.appendChild(card);
+      var head = el('button', 'team-head');
+      head.type = 'button';
+      head.appendChild(el('span', 'team-accent'));
+      head.appendChild(el('span', 'team-name', m.name));
+      if (m.role) head.appendChild(el('span', 'team-role', m.role));
+      photo.appendChild(head);
+      card.appendChild(photo);
+      if (m.bio) {
+        var bio = el('div', 'team-bio');
+        bio.id = 'team-bio-' + (i + 1);
+        var dup = el('div', 'team-bio-head');
+        dup.setAttribute('aria-hidden', 'true');
+        dup.appendChild(el('span', 'team-accent'));
+        dup.appendChild(el('span', 'team-name', m.name));
+        if (m.role) dup.appendChild(el('span', 'team-role', m.role));
+        bio.appendChild(dup);
+        bio.appendChild(el('p', '', m.bio));
+        card.appendChild(bio);
+        head.setAttribute('aria-controls', bio.id);
+      } else {
+        head.disabled = true;
+      }
+      grid.appendChild(card);
+      return { card: card, head: head, bio: m.bio };
     });
-    if (team.length < 5) grid.style.gridTemplateColumns = 'repeat(auto-fit,minmax(200px,240px))', grid.style.justifyContent = 'center';
+
+    var overlay = window.matchMedia('(min-width: 768px)');
+    var setOpen = function (c, open) {
+      c.card.classList.toggle('open', open);
+      if (overlay.matches && c.bio) c.head.setAttribute('aria-expanded', open ? 'true' : 'false');
+    };
+    var applyMode = function () {
+      cards.forEach(function (c) {
+        c.card.classList.remove('open');
+        if (overlay.matches && c.bio) c.head.setAttribute('aria-expanded', 'false');
+        else c.head.removeAttribute('aria-expanded');
+      });
+    };
+    cards.forEach(function (c) {
+      c.head.addEventListener('click', function () {
+        if (!overlay.matches || !c.bio) return;
+        var open = !c.card.classList.contains('open');
+        cards.forEach(function (o) { if (o !== c) setOpen(o, false); });
+        setOpen(c, open);
+      });
+      c.card.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape' && c.card.classList.contains('open')) { setOpen(c, false); c.head.focus(); }
+      });
+      c.card.addEventListener('focusout', function (e) {
+        if (!c.card.contains(e.relatedTarget)) setOpen(c, false);
+      });
+    });
+    applyMode();
+    if (overlay.addEventListener) overlay.addEventListener('change', applyMode); else overlay.addListener(applyMode);
     $('#management').hidden = false;
   } else {
     $$('[data-team-link]').forEach(function (a) { a.hidden = true; });
