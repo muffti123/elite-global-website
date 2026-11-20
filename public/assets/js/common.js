@@ -42,7 +42,9 @@ window.EG = window.EG || {};
 
   // ---- Company details: fill, or hide when empty -----------------------
   var waLink = co.whatsapp ? 'https://wa.me/' + String(co.whatsapp).replace(/\D/g, '') : '';
-  ['address', 'phone', 'whatsapp', 'email'].forEach(function (key) {
+  var igLink = /^https:\/\/(www\.)?instagram\.com\//i.test(String(co.instagram || '').trim()) ? String(co.instagram).trim() : '';
+  if (!igLink) co = Object.assign({}, co, { instagram: '' });
+  ['address', 'phone', 'whatsapp', 'email', 'instagram'].forEach(function (key) {
     var has = !!(co[key] && String(co[key]).trim());
     $$('[data-show="' + key + '"]').forEach(function (el) { el.hidden = !has; });
   });
@@ -52,6 +54,11 @@ window.EG = window.EG || {};
     if (t === 'tel' && co.phone) el.href = 'tel:' + co.phone.replace(/[^\d+]/g, '');
     if (t === 'mailto' && co.email) el.href = 'mailto:' + co.email;
     if (t === 'whatsapp' && waLink) el.href = waLink;
+    if (t === 'instagram' && igLink) el.href = igLink;
+  });
+  // An icon row whose icons are all hidden disappears too
+  $$('.social').forEach(function (ul) {
+    ul.hidden = !$$('li', ul).some(function (li) { return !li.hidden; });
   });
 
   // ---- Form helpers (same rules as apps-script/Validate.gs) -------------
@@ -115,7 +122,7 @@ window.EG = window.EG || {};
   }
 
   Object.assign(window.EG, {
-    $: $, $$: $$, waLink: waLink, PHONE_RE: PHONE_RE, EMAIL_RE: EMAIL_RE,
+    $: $, $$: $$, waLink: waLink, igLink: igLink, PHONE_RE: PHONE_RE, EMAIL_RE: EMAIL_RE,
     todayISO: todayISO, setInvalid: setInvalid, clearOnInput: clearOnInput,
     contactFallback: contactFallback, escapeHtml: escapeHtml, fillSelect: fillSelect,
   });

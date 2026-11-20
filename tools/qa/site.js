@@ -91,6 +91,37 @@ const PAGES = ['index.html', 'customize-umrah.html', 'apply-visa.html'];
     await p.close();
   }
 
+  // Contact + footer: icons, links, responsive columns; empty config value hides its icon
+  {
+    const p = await b.newPage();
+    await p.goto(base + '/index.html', { waitUntil: 'networkidle0' });
+    const links = await p.evaluate(() => ['#contact', 'footer'].map((sel) => [...document.querySelectorAll(sel + ' .social a')].filter((a) => a.offsetParent).map((a) => a.getAttribute('aria-label') + '=' + a.href)));
+    const want = ['Chat with us on WhatsApp=https://wa.me/2347062152046', 'Follow us on Instagram=https://www.instagram.com/elite_global_travels/', 'Email us=mailto:eliteglobaltravelsng@gmail.com'];
+    ok('contact + footer: WhatsApp, Instagram, email icons', links.every((l) => JSON.stringify(l) === JSON.stringify(want)), JSON.stringify(links));
+    const det = await p.evaluate(() => ['#contact', 'footer'].map((sel) => ({
+      tel: !!document.querySelector(sel + ' a[href^="tel:+2347062152046"]'),
+      addr: /Zoo Road, Kano/.test(document.querySelector(sel).innerText),
+    })));
+    ok('contact + footer: phone (tel:) and address', det.every((d) => d.tel && d.addr), JSON.stringify(det));
+    const cols = {};
+    for (const [w, n] of [[1280, 4], [820, 2], [390, 1]]) {
+      await p.setViewport({ width: w, height: 900 }); await sleep(150);
+      cols[w] = await p.$eval('.footer-grid', (g) => getComputedStyle(g).gridTemplateColumns.split(' ').length) + '/' + n;
+    }
+    ok('footer columns 4 → 2 → 1', Object.values(cols).every((c) => c.split('/')[0] === c.split('/')[1]), JSON.stringify(cols));
+    const colours = await p.evaluate(() => ({ bg: getComputedStyle(document.querySelector('footer')).backgroundColor, h4: getComputedStyle(document.querySelector('footer h4')).color, p: getComputedStyle(document.querySelector('.footer-grid p')).color }));
+    ok('footer colours navy / gold / light', colours.bg === 'rgb(6, 22, 63)' && colours.h4 === 'rgb(245, 174, 0)' && colours.p === 'rgb(217, 224, 239)', JSON.stringify(colours));
+    await p.close();
+    const q = await b.newPage();
+    await q.evaluateOnNewDocument(() => {
+      let c; Object.defineProperty(window, 'SITE_CONFIG', { configurable: true, get: () => c, set: (v) => { v.company.instagram = ''; c = v; } });
+    });
+    await q.goto(base + '/index.html', { waitUntil: 'networkidle0' });
+    const ig = await q.evaluate(() => [...document.querySelectorAll('.social a[aria-label*="Instagram"]')].filter((a) => a.offsetParent).length);
+    ok('empty instagram value hides its icon', ig === 0, 'visible=' + ig);
+    await q.close();
+  }
+
   // Web app health (GET only — writes nothing)
   const p = await b.newPage();
   await p.goto(base + '/index.html', { waitUntil: 'domcontentloaded' });
