@@ -215,7 +215,6 @@ function submitCustomRequest_(d) {
     adults: vInt_(d.adults, true, 'adults', 'the number of adults', 0, 999),
     children: vInt_(d.children, true, 'children', 'the number of children', 0, 999),
     infants: vInt_(d.infants, true, 'infants', 'the number of infants', 0, 999),
-    departureCity: vText_(d.departureCity, true, 'departureCity', 'your preferred departure city'),
     travelDate: vDate_(d.travelDate, true, 'travelDate', 'your preferred travel date'),
     flightTicket: vOneOf_(d.flightTicket, LISTS.YES_NO, true, 'flightTicket', 'whether you have a flight ticket'),
     arrivalCity: vOneOf_(d.arrivalCity, LISTS.ARRIVAL, true, 'arrivalCity', 'your arrival city'),
@@ -233,6 +232,7 @@ function submitCustomRequest_(d) {
     special: vLong_(d.special),
     heard: vOneOf_(d.heard, LISTS.HEARD, false, 'heard', 'how you heard about us'),
   };
+  a.departureAirport = vAirport_(d.departureAirport, d.departureAirportOther, a.country);
   if (a.adults + a.children + a.infants < 1) fail_('Please enter at least one traveller.', 'adults');
   rateLimit_('email:' + a.email);
 
@@ -246,12 +246,12 @@ function submitCustomRequest_(d) {
       category: CONFIG.FORMS.CUSTOM.category,
       adults: a.adults, children: a.children, infants: a.infants,
       travelDate: a.travelDate, budget: a.budget,
-      email: a.email, country: a.country, departure: a.departureCity, source: a.heard,
+      email: a.email, country: a.country, departure: a.departureAirport, source: a.heard,
       status: CONFIG.STATUS.RECEIVED,
     });
     appendDetailRow_(CONFIG.TABS.CUSTOM, [
       leadId, now, a.name, a.phone, a.email, a.country, a.adults, a.children, a.infants,
-      a.departureCity, parseDate_(a.travelDate), a.flightTicket, a.arrivalCity, a.nightsMadinah,
+      a.departureAirport, parseDate_(a.travelDate), a.flightTicket, a.arrivalCity, a.nightsMadinah,
       a.nightsMakkah, a.hotelCategory, a.haramDistance, a.preferredHotel, services.join(', '),
       a.visaAssist, a.budget, a.experience, a.hotelOrAirline, a.special, a.heard,
     ]);

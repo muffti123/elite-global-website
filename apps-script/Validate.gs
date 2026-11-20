@@ -59,6 +59,25 @@ function vText_(value, required, field, label, max) {
   return s;
 }
 
+/**
+ * Departure airport: an IATA code from the list for the chosen country (Nigeria: LISTS.AIRPORTS_NG,
+ * others: AIRPORTS in Airports.gs), or "OTHER" with the airport typed in. Returns a readable label,
+ * e.g. "Lagos – Murtala Muhammed International Airport (LOS)" or "Other: Kumasi".
+ */
+function vAirport_(code, other, country) {
+  const c = str_(code, 10);
+  if (!c) fail_('Please choose your departure airport.', 'departureAirport');
+  if (c === 'OTHER') {
+    const t = str_(other, CONFIG.LIMITS.NAME_MAX);
+    if (t.length < 2) fail_('Please type your departure airport or city.', 'departureAirportOther');
+    return 'Other: ' + t;
+  }
+  const list = country === 'Nigeria' ? LISTS.AIRPORTS_NG : (AIRPORTS[country] || []);
+  const a = list.filter(function (x) { return x[0] === c; })[0];
+  if (!a) fail_('Please choose a departure airport from the list, or "Other (type it)".', 'departureAirport');
+  return (a[2] ? a[2] + ' – ' : '') + a[1] + ' (' + a[0] + ')';
+}
+
 function vLong_(value) {
   return str_(value, CONFIG.LIMITS.TEXT_MAX, true);
 }

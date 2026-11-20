@@ -23,7 +23,7 @@ async function fillLead(p, tag) {
   await p.type('[name=email]', `qa-visa-${tag.toLowerCase()}@example.com`); await p.select('[name=country]', 'Nigeria');
   const d = new Date(Date.now() + 60 * 864e5).toISOString().slice(0, 10);
   await p.$eval('[name=travelDate]', (e, v) => { e.value = v; }, d);
-  await p.type('[name=departureCity]', 'Lagos'); await p.click('#flightTicket-1'); await p.click('#priorKsa-1');
+  await p.select('[name=departureAirport]', 'LOS'); await p.click('#flightTicket-1'); await p.click('#priorKsa-1');
   await p.select('[name=heard]', 'Website');
 }
 const cards = (p) => p.$$('#paxList .pax');
@@ -45,6 +45,21 @@ const cardInvalid = async (p, i) => (await cards(p))[i].$$eval('.field.invalid',
   if (mode === 'offline') {
     const p = await open(b);
     ok('4 steps', (await p.$$eval('#stepper li', (l) => l.length)) === 4);
+
+    // Departure Airport follows the country; airports.json loads only when needed
+    const loaded = () => p.evaluate(() => performance.getEntriesByType('resource').filter((e) => /airports\.json/.test(e.name)).length);
+    const opts = () => p.$$eval('[name=departureAirport] option', (o) => o.map((x) => x.value));
+    const ng = await opts();
+    const fetched0 = await loaded();
+    await p.select('[name=country]', 'Ghana');
+    await p.waitForFunction(() => [...document.querySelectorAll('[name=departureAirport] option')].some((o) => o.value === 'ACC'), { timeout: 10000 });
+    const gh = await opts();
+    await p.select('[name=departureAirport]', 'ACC');
+    await p.select('[name=country]', 'Nigeria'); await sleep(100);
+    const back = { opts: await opts(), value: await p.$eval('[name=departureAirport]', (s) => s.value), cb: await p.$eval('[name=departureAirport]', (s) => s.closest('label').querySelector('.cb-input').value) };
+    ok('airports: Nigeria list without fetching; other country loads JSON once', ng[1] === 'LOS' && ng.length === 19 && fetched0 === 0 && (await loaded()) === 1 && gh.includes('KMS') && gh[gh.length - 1] === 'OTHER', `ng=${ng.length} before=${fetched0} gh=${gh.length}`);
+    ok('airports: changing country resets an airport that is not in the new list', back.opts[1] === 'LOS' && back.value === '' && back.cb === '', JSON.stringify({ value: back.value, cb: back.cb }));
+    await p.select('[name=country]', '');
     await next(p);
     ok('lead step blocks empty', (await label(p)).startsWith('Step 1') && (await p.$$eval('.field.invalid', (e) => e.length)) >= 8);
     await fillLead(p, 'Offline'); await next(p);

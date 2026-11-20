@@ -61,7 +61,8 @@
 <h3>Travel information</h3>
 <div class="grid2">
 <label class="field">Preferred Travel Date<input name="travelDate" type="date"><span class="err-msg" id="e-travelDate">Please choose a date from today onwards.</span></label>
-<label class="field">Departure City<input name="departureCity" maxlength="100" placeholder="e.g. Lagos, Abuja, Kano"><span class="err-msg" id="e-departureCity">Please enter your departure city.</span></label>
+<label class="field">Departure Airport<select name="departureAirport" data-combobox data-placeholder="Type a city or airport"></select><span class="help" data-airport-note>Airports in your country of residence. Not listed? Choose “Other (type it)”.</span><span class="err-msg" id="e-departureAirport">Please choose your departure airport.</span></label>
+<label class="field full" data-airport-other hidden>Your departure airport or city<input name="departureAirportOther" maxlength="100" placeholder="e.g. King Abdulaziz, Jeddah"><span class="err-msg" id="e-departureAirportOther">Please type your departure airport or city.</span></label>
 <fieldset class="field full"><legend>Do you have a confirmed flight ticket?</legend><div class="choices" data-choices="flightTicket" data-list="YES_NO"></div><span class="err-msg" id="e-flightTicket">Please choose Yes or No.</span></fieldset>
 <fieldset class="field full"><legend>Have you previously travelled to Saudi Arabia?</legend><div class="choices" data-choices="priorKsa" data-list="YES_NO"></div><span class="err-msg" id="e-priorKsa">Please choose Yes or No.</span></fieldset>
 <fieldset class="field full"><legend>Do you currently hold a valid UK, US or Schengen visa? <span class="opt">(optional)</span></legend><div class="choices" data-choices="westernVisa" data-list="YES_NO"></div></fieldset>
@@ -189,6 +190,7 @@
 <script src="assets/js/common.js"></script>
 <script src="assets/js/datepicker.js"></script>
 <script src="assets/js/combobox.js"></script>
+<script src="assets/js/airports.js"></script>
 <script src="assets/js/api.js"></script>
 <script src="assets/js/wizard.js"></script>
 <script src="assets/js/image.js"></script>

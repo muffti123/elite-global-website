@@ -27,6 +27,10 @@
   $$('select[data-list]', form).forEach(function (s) { EG.fillSelect(s, LISTS[s.dataset.list], s.dataset.placeholder); });
   $$('[data-choices]', form).forEach(function (c) { EG.fillChoices(c, c.dataset.choices, LISTS[c.dataset.list]); });
   F.travelDate.min = EG.todayISO();
+  var airport = EG.airportField({
+    country: F.country, airport: F.departureAirport, other: F.departureAirportOther,
+    otherField: $('[data-airport-other]', form), note: $('[data-airport-note]', form),
+  });
   EG.clearOnInput(form);
   form.addEventListener('input', function () { dirty = true; });
   form.addEventListener('change', function () { dirty = true; });
@@ -203,7 +207,7 @@
       function () { return check.email(F.email); },
       function () { return check.select(F.country); },
       function () { return check.date(F.travelDate, true); },
-      function () { return check.text(F.departureCity, 1); },
+      function () { return airport.validate(); },
       function () { return check.radio(form, 'flightTicket'); },
       function () { return check.radio(form, 'priorKsa'); },
     ], panels[0]);
@@ -257,7 +261,7 @@
     var c = counts();
     var groups = [
       [0, 'Your details', [['Full Name', F.name.value.trim()], ['Phone / WhatsApp', F.phone.value.trim()], ['Email', F.email.value.trim()],
-        ['Country of Residence', F.country.value], ['Travel Date', fmtDate(F.travelDate.value)], ['Departure City', F.departureCity.value.trim()],
+        ['Country of Residence', F.country.value], ['Travel Date', fmtDate(F.travelDate.value)], ['Departure Airport', airport.text()],
         ['Confirmed flight ticket', EG.radioValue(form, 'flightTicket')], ['Travelled to Saudi Arabia before', EG.radioValue(form, 'priorKsa')],
         ['UK, US or Schengen visa', EG.radioValue(form, 'westernVisa')], ['Additional information', F.extraInfo.value.trim()],
         ['How you heard about us', F.heard.value]]],
@@ -322,7 +326,8 @@
     return {
       hp: F.company_website.value,
       name: F.name.value.trim(), phone: F.phone.value.trim(), email: F.email.value.trim(), country: F.country.value,
-      travelDate: F.travelDate.value, departureCity: F.departureCity.value.trim(),
+      travelDate: F.travelDate.value, departureAirport: airport.payload().departureAirport,
+      departureAirportOther: airport.payload().departureAirportOther,
       flightTicket: EG.radioValue(form, 'flightTicket'), priorKsa: EG.radioValue(form, 'priorKsa'),
       westernVisa: EG.radioValue(form, 'westernVisa'), extraInfo: F.extraInfo.value.trim(), heard: F.heard.value,
       consent: F.consent.checked,

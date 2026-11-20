@@ -20,13 +20,13 @@ function createVisaApplication_(d) {
     email: vEmail_(d.email, 'email'),
     country: vOneOf_(d.country, COUNTRIES, true, 'country', 'your country of residence'),
     travelDate: vDate_(d.travelDate, true, 'travelDate', 'your preferred travel date'),
-    departureCity: vText_(d.departureCity, true, 'departureCity', 'your departure city'),
     flightTicket: vOneOf_(d.flightTicket, LISTS.YES_NO, true, 'flightTicket', 'whether you have a flight ticket'),
     priorKsa: vOneOf_(d.priorKsa, LISTS.YES_NO, true, 'priorKsa', 'whether you have travelled to Saudi Arabia before'),
     westernVisa: vOneOf_(d.westernVisa, LISTS.YES_NO, false, 'westernVisa', 'whether you hold a UK, US or Schengen visa'),
     extraInfo: vLong_(d.extraInfo),
     heard: vOneOf_(d.heard, LISTS.HEARD, false, 'heard', 'how you heard about us'),
   };
+  a.departureAirport = vAirport_(d.departureAirport, d.departureAirportOther, a.country);
   if (d.consent !== true) fail_('Please tick the declaration to submit your application.', 'consent');
 
   const list = d.passengers;
@@ -60,13 +60,13 @@ function createVisaApplication_(d) {
       adults: counts[0], children: counts[1], infants: counts[2],
       travelDate: a.travelDate, budget: 'N/A (visa only)',
       folderUrl: folder.getUrl(),
-      email: a.email, country: a.country, departure: a.departureCity,
+      email: a.email, country: a.country, departure: a.departureAirport,
       passengers: list.length, source: a.heard,
       status: CONFIG.STATUS.uploading(0, list.length),
     });
     const tab = CONFIG.TABS.VISA;
     const row = appendDetailRow_(tab, [
-      leadId, now, a.name, a.phone, a.email, a.country, parseDate_(a.travelDate), a.departureCity,
+      leadId, now, a.name, a.phone, a.email, a.country, parseDate_(a.travelDate), a.departureAirport,
       a.flightTicket, a.priorKsa, a.westernVisa, list.length, counts[0], counts[1], counts[2],
       '', '', a.extraInfo, a.heard, '',
     ]);

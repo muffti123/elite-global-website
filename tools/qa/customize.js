@@ -34,7 +34,13 @@ const res = []; const ok = (n, c, i = '') => res.push(`${c ? 'PASS' : 'FAIL'}  $
   await next();
   ok('step 2 blocks empty', (await invalid()).length >= 6, (await invalid()).join());
   for (const [n, v] of [['adults', '0'], ['children', '0'], ['infants', '0']]) await p.type(`[name=${n}]`, v);
-  await p.type('[name=departureCity]', 'Kano');
+  // Departure airport: Nigerian list without loading the JSON; "Other (type it)" needs text
+  const ap = await p.evaluate(() => [...document.querySelectorAll('[name=departureAirport] option')].map((o) => o.value));
+  ok('departure airports: Nigeria list (17 + Other), LOS first', ap.length === 19 && ap[1] === 'LOS' && ap[4] === 'DKA' && ap[18] === 'OTHER', ap.join(','));
+  await p.select('[name=departureAirport]', 'OTHER');
+  await new Promise(r => setTimeout(r, 100));
+  ok('Other shows a text box', await p.$eval('[data-airport-other]', (e) => !e.hidden));
+  await p.type('[name=departureAirportOther]', 'Kano (via Abuja)');
   // Date picker: keyboard only, past days refused, PgDn = next month
   await p.focus('.dp-button'); await p.keyboard.press('Enter'); await new Promise(r => setTimeout(r, 150));
   const dp1 = await p.evaluate(() => ({ open: !document.querySelector('.dp-dialog').hidden, exp: document.querySelector('.dp-button').getAttribute('aria-expanded'), focus: document.activeElement.getAttribute('data-date'), past: document.querySelectorAll('.dp-day[aria-disabled]').length }));

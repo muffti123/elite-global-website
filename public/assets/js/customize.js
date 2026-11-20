@@ -12,6 +12,10 @@
   $$('select[data-list]', form).forEach(function (s) { EG.fillSelect(s, LISTS[s.dataset.list], s.dataset.placeholder); });
   $$('[data-choices]', form).forEach(function (c) { EG.fillChoices(c, c.dataset.choices, LISTS[c.dataset.list], c.dataset.type); });
   F.travelDate.min = EG.todayISO();
+  var airport = EG.airportField({
+    country: F.country, airport: F.departureAirport, other: F.departureAirportOther,
+    otherField: $('[data-airport-other]', form), note: $('[data-airport-note]', form),
+  });
 
   // "Other" service shows a text box
   F.servicesOtherOn.addEventListener('change', function () {
@@ -40,7 +44,7 @@
         function () { return check.int(F.adults, 0, 999, true); },
         function () { return check.int(F.children, 0, 999, true); },
         function () { return check.int(F.infants, 0, 999, true); },
-        function () { return check.text(F.departureCity, 1); },
+        function () { return airport.validate(); },
         function () { return check.date(F.travelDate, true); },
         function () { return check.radio(form, 'flightTicket'); },
         function () { return check.radio(form, 'arrivalCity'); },
@@ -112,7 +116,8 @@
       adults: F.adults.value.trim(),
       children: F.children.value.trim(),
       infants: F.infants.value.trim(),
-      departureCity: F.departureCity.value.trim(),
+      departureAirport: airport.payload().departureAirport,
+      departureAirportOther: airport.payload().departureAirportOther,
       travelDate: F.travelDate.value,
       flightTicket: EG.radioValue(form, 'flightTicket'),
       arrivalCity: EG.radioValue(form, 'arrivalCity'),
@@ -145,7 +150,7 @@
     var groups = [
       [0, 'Personal Information', [['Full Name', d.name], ['Phone / WhatsApp', d.phone], ['Email', d.email], ['Country of Residence', d.country]]],
       [1, 'Travellers & Travel', [['Adults / Children / Infants', d.adults + ' / ' + d.children + ' / ' + d.infants],
-        ['Departure City', d.departureCity], ['Travel Date', fmtDate(d.travelDate)], ['Confirmed flight ticket', d.flightTicket], ['Arrival City', d.arrivalCity]]],
+        ['Departure Airport', airport.text()], ['Travel Date', fmtDate(d.travelDate)], ['Confirmed flight ticket', d.flightTicket], ['Arrival City', d.arrivalCity]]],
       [2, 'Accommodation', [['Nights in Madinah / Makkah', d.nightsMadinah + ' / ' + d.nightsMakkah], ['Hotel Category', d.hotelCategory],
         ['Distance from Haram', d.haramDistance], ['Preferred Hotel', d.preferredHotel]]],
       [3, 'Services', [['Services required', services.join(', ')]]],

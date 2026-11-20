@@ -54,7 +54,7 @@ const CONFIG = {
     VISA: {
       name: 'Visa Applications',
       headers: ['Lead ID', 'Date Received', 'Full Name', 'Phone / WhatsApp', 'Email', 'Country',
-        'Travel Date', 'Departure', 'Confirmed Flight Ticket', 'Travelled to Saudi Arabia Before',
+        'Travel Date', 'Departure Airport', 'Confirmed Flight Ticket', 'Travelled to Saudi Arabia Before',
         'UK/US/Schengen Visa', 'Passengers', 'Adults', 'Children', 'Infants', 'Shared Flight Ticket',
         'Shared Hotel Booking', 'Additional Information', 'How They Heard', 'Drive Folder'],
       widths: [120, 140, 190, 150, 210, 130, 110, 260, 110, 130, 110, 90, 70, 75, 70, 150, 150, 320, 120, 150],
@@ -73,7 +73,7 @@ const CONFIG = {
     CUSTOM: {
       name: 'Custom Requests',
       headers: ['Lead ID', 'Date Received', 'Full Name', 'Phone / WhatsApp', 'Email', 'Country',
-        'Adults', 'Children', 'Infants', 'Departure City', 'Travel Date', 'Confirmed Flight Ticket',
+        'Adults', 'Children', 'Infants', 'Departure Airport', 'Travel Date', 'Confirmed Flight Ticket',
         'Arrival City', 'Nights in Madinah', 'Nights in Makkah', 'Hotel Category',
         'Distance from Haram', 'Preferred Hotel', 'Services Required', 'Visa Assistance',
         'Budget per Person', 'Travel Experience', 'Preferred Hotel or Airline',
@@ -150,6 +150,27 @@ const LISTS = {
   ],
   // Visa application passenger cards. Order matters: index 0 = adult, 1 = child, 2 = infant.
   PASSENGER_CATEGORIES: ['Adult (18+)', 'Child (2–17)', 'Infant (under 2)'],
+  // Departure airports for Nigeria (approved by the operator, in this order). Other countries: Airports.gs.
+  // [IATA, airport, city]. The website sends the IATA code, or "OTHER" + typed text.
+  AIRPORTS_NG: [
+    ['LOS', 'Murtala Muhammed International Airport', 'Lagos'],
+    ['ABV', 'Nnamdi Azikiwe International Airport', 'Abuja'],
+    ['KAN', 'Mallam Aminu Kano International Airport', 'Kano'],
+    ['DKA', "Umaru Musa Yar'Adua International Airport", 'Katsina'],
+    ['PHC', 'Port Harcourt International Airport', 'Port Harcourt'],
+    ['ENU', 'Akanu Ibiam International Airport', 'Enugu'],
+    ['SKO', 'Sadiq Abubakar III International Airport', 'Sokoto'],
+    ['KAD', 'Kaduna International Airport', 'Kaduna'],
+    ['MIU', 'Maiduguri International Airport', 'Maiduguri'],
+    ['YOL', 'Yola Airport', 'Yola'],
+    ['ILR', 'General Tunde Idiagbon International Airport', 'Ilorin'],
+    ['BCU', 'Sir Abubakar Tafawa Balewa International Airport', 'Bauchi'],
+    ['ABB', 'Asaba International Airport', 'Asaba'],
+    ['CBQ', 'Margaret Ekpo International Airport', 'Calabar'],
+    ['QUO', 'Akwa Ibom International Airport', 'Uyo'],
+    ['QOW', 'Sam Mbakwe International Cargo Airport', 'Owerri'],
+    ['GMO', 'Gombe Lawanti International Airport', 'Gombe'],
+  ],
 };
 
 // Nigeria first (main market), then all other countries A–Z, then Other.
