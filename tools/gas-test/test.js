@@ -136,6 +136,68 @@ ctx.testBackdateUpload(v2.leadId);
 ctx.purgeStaleUploads_();
 ok('purge after 24 h → Expired', tr.get(ctx.findLeadRow_(tr, v2.leadId), 21) === 'Expired');
 
+// --- trackApplication ---------------------------------------------------------------------------
+const resetLimits = () => Object.keys(g.cache).forEach((k) => delete g.cache[k]);
+// every lookup starts with fresh rate-limit counters, except in the rate-limit tests below
+const track = (leadId, contact) => { resetLimits(); return ctx.trackApplication_({ leadId, contact }); };
+const trackRaw = (leadId, contact) => ctx.trackApplication_({ leadId, contact });
+const NF = JSON.stringify({ ok: false, error: C.TRACK.NOT_FOUND });
+const ALLOWED = ['ok', 'leadId', 'service', 'received', 'stage', 'description', 'nextStep', 'message', 'upload'];
+const colOf = (h) => ctx.trackerCols_(tr)[h];
+const setCell = (id, h, v) => tr.set(ctx.findLeadRow_(tr, id), colOf(h), v);
+
+const tv = track(v.leadId.toLowerCase(), '  V@E.CO ');
+ok('track visa by email (any case, spaces, lower-case ID)', tv.ok && tv.leadId === v.leadId && tv.service === 'Visa only' && tv.stage === 'Received' && /^\d{1,2} \w{3} \d{4}$/.test(tv.received), JSON.stringify(tv));
+ok('visa upload line: complete', tv.upload === "All 2 passengers' documents received", tv.upload);
+ok('reply has only the allowed fields (no name, phone, email, links, notes)', Object.keys(tv).every((k) => ALLOWED.includes(k)) && !/TEST|@|\+234|drive|HYPERLINK/i.test(JSON.stringify(tv)), Object.keys(tv).join(','));
+for (const ph of ['0800 000 0001', '+234 800 000 0001', '234-800-000-0001', '00234 8000000001']) {
+  const r = track(cu.leadId, ph);
+  ok('custom lead by phone ' + ph, r.ok && r.service === 'Customised Umrah' && r.upload === undefined, JSON.stringify(r));
+}
+ok('general enquiry by phone', track(c1.leadId, '08000000000').service === 'General enquiry');
+ok('general enquiry cannot match by email (it has none)', JSON.stringify(track(c1.leadId, 'q@e.co')) === NF);
+const replies = [
+  track('EG-VO-99999', 'v@e.co'),            // unknown ID
+  track(v.leadId, 'someone@else.co'),         // wrong email
+  track(v.leadId, '0811 111 1111'),           // wrong phone
+  track('EG-XX-1', 'v@e.co'),                 // bad ID format
+  track(v.leadId, '12'),                      // contact too short
+  JSON.parse(ctx.doPost({ postData: { contents: JSON.stringify({ action: 'trackApplication', hp: 'bot', leadId: v.leadId, contact: 'v@e.co' }) } })), // honeypot
+].map((r) => JSON.stringify(r));
+ok('unknown ID, wrong contact, bad format, honeypot: byte-identical reply', replies.every((r) => r === NF), replies.filter((r) => r !== NF).join(' | '));
+
+// stage mapping, Lost / Expired precedence, upload lines
+const stageOf = (status, app) => { setCell(v2.leadId, 'Lead Status', status); if (app !== undefined) setCell(v2.leadId, 'Application Status', app); return track(v2.leadId, 'v@e.co'); };
+const want = { 'New Lead': 'Received', 'Contacted': 'In progress', 'Awaiting Response': 'Waiting for your reply', 'Quotation Sent': 'Quotation sent', 'Payment Pending': 'Awaiting payment', 'Converted': 'Confirmed', 'Lost': 'Closed', '': 'Received', 'Something new': 'Received' };
+const got = Object.keys(want).map((s) => [s, stageOf(s, 'Uploading 1/3').stage]);
+ok('stage mapping for every Lead Status (blank/unknown → Received)', got.every(([s, st]) => st === want[s]), JSON.stringify(got));
+const up = stageOf('Contacted', 'Uploading 1/3');
+ok('upload line: Uploading 1/3', up.upload === 'Upload not finished (1 of 3 passengers received)', up.upload);
+const ex = stageOf('Contacted', 'Expired');
+ok('Expired → "Upload not finished" stage + line', ex.stage === 'Upload not finished' && ex.description === 'Upload not finished — please contact us or apply again.' && ex.upload === 'Upload not finished', JSON.stringify(ex));
+const lost = stageOf('Lost', 'Expired');
+ok('Lost wins over Expired → Closed', lost.stage === 'Closed' && lost.nextStep === 'Contact us if you have questions.', JSON.stringify(lost));
+const one = stageOf('New Lead', 'Complete: 1 passenger');
+ok('upload line for 1 passenger', one.upload === 'All documents for your 1 passenger received', one.upload);
+
+// staff message: trimmed to 300, control characters removed, plain text
+setCell(v2.leadId, 'Message to Customer', '  Hello\u0007 <b>there</b> ' + 'x'.repeat(400));
+const msg = track(v2.leadId, 'v@e.co').message;
+ok('Message to Customer: ≤ 300 chars, no control characters, returned as plain text', msg.length === 300 && !/[\u0000-\u001F]/.test(msg) && msg.startsWith('Hello <b>there</b>'), msg.length + ' ' + msg.slice(0, 30));
+setCell(v2.leadId, 'Message to Customer', '');
+ok('no message key when the cell is empty', !('message' in track(v2.leadId, 'v@e.co')));
+
+// rate limits: 5 per Lead ID, 20 per contact value (10 min); refusal looks like a miss
+resetLimits();
+const rl = [1, 2, 3, 4, 5, 6].map(() => trackRaw(vd.leadId, 'd@e.co').ok);
+ok('6th lookup on one Lead ID refused (same reply), even with the right contact', rl.slice(0, 5).every(Boolean) && rl[5] === false && JSON.stringify(trackRaw(vd.leadId, 'd@e.co')) === NF, rl.join(','));
+resetLimits();
+for (let i = 0; i < 20; i++) trackRaw('EG-VO-8' + String(i).padStart(4, '0'), 'q@e.co');
+ok('21st lookup with one contact refused (same reply), even for the right lead', JSON.stringify(trackRaw(cu.leadId, 'q@e.co')) === NF);
+ok('another contact is not affected by that limit', trackRaw(cu.leadId, '0800 000 0001').ok);
+const tlogs = logs.filter((l) => /^trackApplication/.test(l));
+ok('logs: only found / not-found / limited — never the contact or a missed ID', tlogs.length > 10 && tlogs.every((l) => /^trackApplication (found|not-found|limited)$/.test(l)), [...new Set(tlogs)].join(' | '));
+
 // --- cleanup -----------------------------------------------------------------------------------
 ctx.cleanupTestData();
 const leftIds = []; for (let r = 2; r <= tr.getLastRow(); r++) if (tr.get(r, 1)) leftIds.push(tr.get(r, 1));

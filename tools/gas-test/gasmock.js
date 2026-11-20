@@ -61,6 +61,7 @@ module.exports = function (dir) {
     getSheets() { return this.sheets; }, insertSheet(n, pos) { const s = new Sheet(n, 1000, 26); this.sheets.splice(pos === undefined ? this.sheets.length : pos, 0, s); return s; },
     getId() { return 'SSID' }, getUrl() { return 'https://sheet' } };
   const props = {};
+  const cache = {};
   const folders = [];
   function Folder(name) { this.name = name; this.id = 'F' + folders.length; this.files = []; this.subs = []; folders.push(this); }
   Folder.prototype = {
@@ -83,14 +84,17 @@ module.exports = function (dir) {
       newDataValidation: () => new Proxy({}, { get: (t, k) => (k === 'build' ? () => ({}) : () => t.__p || (t.__p = new Proxy({}, { get: (a, b) => (b === 'build' ? () => ({}) : () => a.__self || (a.__self = new Proxy({}, { get: () => () => ({ build: () => ({}) }) })) ) }))) }),
       newConditionalFormatRule: () => ({}) },
     LockService: { getScriptLock: () => ({ tryLock: () => true, releaseLock() {} }) },
-    CacheService: { getScriptCache: () => { const m = {}; return { get: (k) => m[k] || null, put: (k, v) => { m[k] = v; } }; } },
+    // one shared script cache (like Apps Script), so rate limits persist between calls
+    CacheService: { getScriptCache: () => ({ get: (k) => (k in cache ? cache[k] : null), put: (k, v) => { cache[k] = v; } }) },
     DriveApp: { getFolderById: (id) => folders.find((f) => f.id === id), createFolder: (n) => new Folder(n), getFileById: () => ({ moveTo() {} }) },
     Utilities: {
       getUuid: () => 'uuid-' + Math.random().toString(36).slice(2),
       base64Decode: (s) => Array.from(Buffer.from(s, 'base64')).map((b) => (b > 127 ? b - 256 : b)),
       newBlob: (bytes, mime, name) => ({ bytes, mime, name }),
-      formatDate: (d) => d.toISOString().slice(0, 10),
-      computeDigest: () => [1, 2, 3], base64EncodeWebSafe: () => 'x'.repeat(50), DigestAlgorithm: {},
+      formatDate: (d, tz, pattern) => (pattern === 'd MMM yyyy' ? d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'Africa/Lagos' }).replace('Sept', 'Sep') : d.toISOString().slice(0, 10)),
+      computeDigest: (alg, v) => Array.from(require('crypto').createHash('sha256').update(String(v)).digest()).map((b) => (b > 127 ? b - 256 : b)),
+      base64EncodeWebSafe: (bytes) => Buffer.from(bytes.map((b) => b & 255)).toString('base64url'),
+      DigestAlgorithm: { SHA_256: 'sha256' },
     },
     Session: { getEffectiveUser: () => ({ getEmail: () => 'test@example.com' }) },
     ScriptApp: { getProjectTriggers: () => [], getService: () => ({ getUrl: () => 'https://script.google.com/macros/s/X/exec' }) },
@@ -104,5 +108,5 @@ module.exports = function (dir) {
   const src = files.map((f) => fs.readFileSync(path.join(dir, 'apps-script', f), 'utf8')).join('\n;\n') +
     '\n;this.__exports = {' + 'CONFIG, LISTS, COUNTRIES' + '};';
   vm.runInContext(src, ctx, { filename: 'apps-script.gs' });
-  return { ctx, ss, props, folders, logs, Sheet, Folder };
+  return { ctx, ss, props, folders, logs, Sheet, Folder, cache };
 };

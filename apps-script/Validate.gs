@@ -135,21 +135,23 @@ function vDate_(value, required, field, label) {
 }
 
 // ---------------------------------------------------------------------
-// Rate limit: RATE_MAX create/submit calls per RATE_WINDOW_S, per key.
-// The key (email or phone) is hashed so no personal data sits in the cache.
+// Rate limit: `max` calls per `windowS` seconds, per key (defaults: RATE_MAX create/submit calls per
+// RATE_WINDOW_S). The key (email, phone, Lead ID) is hashed so no personal data sits in the cache.
 // ---------------------------------------------------------------------
-function rateLimit_(key) {
+function rateLimit_(key, max, windowS, message) {
+  max = max || CONFIG.LIMITS.RATE_MAX;
+  windowS = windowS || CONFIG.LIMITS.RATE_WINDOW_S;
   const cache = CacheService.getScriptCache();
   const digest = Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, String(key).toLowerCase());
   const cacheKey = 'RL_' + Utilities.base64EncodeWebSafe(digest).slice(0, 43);
   const now = Date.now();
-  const windowMs = CONFIG.LIMITS.RATE_WINDOW_S * 1000;
+  const windowMs = windowS * 1000;
 
   let entry = null;
   try { entry = JSON.parse(cache.get(cacheKey) || 'null'); } catch (e) { entry = null; }
   if (!entry || now - entry.s >= windowMs) entry = { s: now, n: 0 };
-  if (entry.n >= CONFIG.LIMITS.RATE_MAX) {
-    fail_('Too many requests. Please wait a few minutes and try again.');
+  if (entry.n >= max) {
+    fail_(message || 'Too many requests. Please wait a few minutes and try again.');
   }
   entry.n += 1;
   const ttl = Math.max(1, Math.ceil((entry.s + windowMs - now) / 1000));

@@ -16,6 +16,7 @@ const ACTIONS = {
   uploadPassenger: uploadPassenger_,
   uploadDocument: uploadDocument_,
   finalizeVisaApplication: finalizeVisaApplication_,
+  trackApplication: trackApplication_,
 };
 
 /**
@@ -65,6 +66,7 @@ function json_(obj) {
 }
 
 function honeypotReply_(action) {
+  if (action === 'trackApplication') return { ok: false, error: CONFIG.TRACK.NOT_FOUND }; // same as a miss
   const fake = 'EG-' + (action === 'submitContact' ? 'GE' : action === 'submitCustomRequest' ? 'CE' : 'VO') +
     '-' + ('0000' + Math.floor(Math.random() * 99999)).slice(-5);
   return action === 'createVisaApplication'
