@@ -191,6 +191,8 @@ const cardInvalid = async (p, i) => (await cards(p))[i].$$eval('.field.invalid',
       const ms = await submitAndWait(p);
       const id = await p.$eval('#leadId', (e) => e.textContent);
       ok('visa 1 passenger → success', /^EG-VO-\d{5}$/.test(id), id + ' in ' + ms + ' ms');
+      const tl = await p.$eval('#successPanel [data-track-link]', (e) => e.getAttribute('href'));
+      ok('success: Track this application → track.html?id=<Lead ID>', tl === 'track.html?id=' + id, tl);
       const d0 = p.dialogs; await p.goto(base + '/index.html', { waitUntil: 'domcontentloaded' });
       ok('no leave warning after success', p.dialogs === d0);
       ok('no console errors (1)', p.errors.length === 0, p.errors.join(' | '));

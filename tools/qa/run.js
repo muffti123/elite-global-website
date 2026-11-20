@@ -36,7 +36,7 @@ const node = (args) => spawnSync(process.execPath, args, { stdio: 'inherit', cwd
   try {
     for (let i = 0; i < 40; i++) { try { await fetch(base); break; } catch (e) { await new Promise((r) => setTimeout(r, 250)); } }
     const suites = mode === 'live'
-      ? [['contact.js', base, chrome], ['customize.js', base, chrome, '--submit'], ['visa.js', base, chrome, fixtures, 'live']]
+      ? [['contact.js', base, chrome], ['customize.js', base, chrome, '--submit'], ['visa.js', base, chrome, fixtures, 'live'], ['track-live.js', base, chrome, fixtures]]
       : [['site.js', base, chrome], ['track.js', base, chrome], ['customize.js', base, chrome], ['visa.js', base, chrome, fixtures, 'offline']];
     const NEED = ['passport.jpg', 'passport.pdf', 'photo-40kb.jpg', 'photo-png.png', 'fake.jpg', 'hotel.jpg', 'ticket.pdf', 'pax12.jpg', 'photo-landscape.jpg', 'photo-lowres.jpg'];
     const version = fs.existsSync(path.join(fixtures, 'VERSION')) ? fs.readFileSync(path.join(fixtures, 'VERSION'), 'utf8').trim() : '';
