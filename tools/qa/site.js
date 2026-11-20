@@ -135,6 +135,62 @@ const PAGES = ['index.html', 'customize-umrah.html', 'apply-visa.html'];
     await q.close();
   }
 
+  // Motion: Why Choose carousel (arrows, dots, keys, focus pause, autoplay) and scroll reveal
+  {
+    const p = await b.newPage();
+    await p.setViewport({ width: 1280, height: 900 });
+    await p.goto(base + '/index.html', { waitUntil: 'networkidle0' });
+    const idx = () => p.evaluate(() => document.querySelector('[data-carousel]')._carousel.index());
+    const st = await p.evaluate(() => {
+      const cs = [...document.querySelectorAll('.why-card')];
+      const s = (i) => { const c = getComputedStyle(cs[i]); return { o: c.opacity, f: c.filter, t: c.transform }; };
+      return { n: cs.length, dots: document.querySelectorAll('.carousel-dot').length, active: s(0), next: s(1), hidden: cs[1].getAttribute('aria-hidden') };
+    });
+    ok('carousel: 6 cards, 6 dots, neighbours scaled + blurred + dimmed', st.n === 6 && st.dots === 6 && st.active.o === '1' && st.next.f.includes('blur') && Number(st.next.o) < 1 && st.next.t !== 'none' && st.hidden === 'true', JSON.stringify(st));
+    await p.$eval('#why', (e) => e.scrollIntoView());
+    await p.click('.carousel-next'); await sleep(200);
+    const a1 = await idx();
+    await p.keyboard.press('ArrowRight'); await sleep(200);
+    const a2 = await idx();
+    await p.keyboard.press('ArrowLeft'); await p.keyboard.press('ArrowLeft'); await p.keyboard.press('ArrowLeft'); await sleep(200);
+    const a3 = await idx();
+    await p.click('.carousel-dot:nth-child(4)'); await sleep(200);
+    const a4 = await idx();
+    const cur = await p.$eval('.carousel-dot[aria-current]', (d) => [...d.parentNode.children].indexOf(d));
+    ok('carousel: next, ←/→ keys (wraps), dots', a1 === 1 && a2 === 2 && a3 === 5 && a4 === 3 && cur === 3, [a1, a2, a3, a4, cur].join(','));
+    // focus is inside (dot button) → no autoplay
+    await sleep(5600);
+    const a5 = await idx();
+    // move focus + mouse away → autoplay advances
+    await p.evaluate(() => document.activeElement.blur()); await p.mouse.move(5, 5);
+    await sleep(5600);
+    const a6 = await idx();
+    ok('carousel: paused while focused, autoplays otherwise', a5 === 3 && a6 === 4, [a5, a6].join(','));
+    // swipe left on the viewport → next
+    const box = await (await p.$('.carousel-viewport')).boundingBox();
+    await p.mouse.move(box.x + box.width / 2 + 80, box.y + box.height / 2); await p.mouse.down();
+    await p.mouse.move(box.x + box.width / 2 - 80, box.y + box.height / 2, { steps: 5 }); await p.mouse.up(); await sleep(200);
+    ok('carousel: swipe moves to next card', (await idx()) === 5, String(await idx()));
+    const rev = await p.evaluate(() => ({ on: document.documentElement.classList.contains('reveal-on'), n: document.querySelectorAll('.reveal').length }));
+    ok('scroll reveal active', rev.on && rev.n > 10, JSON.stringify(rev));
+    await p.close();
+
+    const q = await b.newPage();
+    await q.emulateMediaFeatures([{ name: 'prefers-reduced-motion', value: 'reduce' }]);
+    await q.setViewport({ width: 1280, height: 900 });
+    await q.goto(base + '/index.html', { waitUntil: 'networkidle0' });
+    const r0 = await q.evaluate(() => document.querySelector('[data-carousel]')._carousel.index());
+    await sleep(5600);
+    const r = await q.evaluate(() => ({
+      idx: document.querySelector('[data-carousel]')._carousel.index(),
+      hiddenReveal: [...document.querySelectorAll('.section-title, .service, .value, .team-card, .formbox')].filter((e) => getComputedStyle(e).opacity !== '1').length,
+      blur: getComputedStyle(document.querySelectorAll('.why-card')[1]).filter,
+      pause: document.querySelector('.carousel-pause').hidden,
+    }));
+    ok('reduced motion: no autoplay, nothing hidden, no blur', r0 === 0 && r.idx === 0 && r.hiddenReveal === 0 && r.blur === 'none' && r.pause, JSON.stringify(r));
+    await q.close();
+  }
+
   // Contact + footer: icons, links, responsive columns; empty config value hides its icon
   {
     const p = await b.newPage();
