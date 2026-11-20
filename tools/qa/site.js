@@ -147,7 +147,8 @@ const PAGES = ['index.html', 'customize-umrah.html', 'apply-visa.html'];
       return { n: cs.length, dots: document.querySelectorAll('.carousel-dot').length, active: s(0), next: s(1), hidden: cs[1].getAttribute('aria-hidden') };
     });
     ok('carousel: 6 cards, 6 dots, neighbours scaled + blurred + dimmed', st.n === 6 && st.dots === 6 && st.active.o === '1' && st.next.f.includes('blur') && Number(st.next.o) < 1 && st.next.t !== 'none' && st.hidden === 'true', JSON.stringify(st));
-    await p.$eval('#why', (e) => e.scrollIntoView());
+    await p.$eval('#why', (e) => e.scrollIntoView({ behavior: 'instant' }));
+    await p.waitForFunction(() => document.querySelector('[data-carousel]').classList.contains('in'), { timeout: 5000 }); await sleep(800); // reveal finished, nothing moving
     await p.click('.carousel-next'); await sleep(200);
     const a1 = await idx();
     await p.keyboard.press('ArrowRight'); await sleep(200);
