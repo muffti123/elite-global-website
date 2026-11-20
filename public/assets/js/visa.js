@@ -190,6 +190,7 @@
       q(p, '[data-photo-title]').textContent = 'Photo not accepted';
       q(p, '[data-photo-name]').textContent = file.name + ' · ' + EG.fmtSize(file.size);
       EG.setInvalid(btn, true, err.userFacing ? err.message : 'This photo could not be read. Please choose another one.');
+      if (err.userFacing && /pixels\)/.test(err.message)) $('#photoGuide').open = true; // shape/size: show the guide
       btn.textContent = 'Choose file';
     }).then(function () { p.busy--; });
   }

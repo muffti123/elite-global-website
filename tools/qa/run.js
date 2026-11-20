@@ -38,8 +38,10 @@ const node = (args) => spawnSync(process.execPath, args, { stdio: 'inherit', cwd
     const suites = mode === 'live'
       ? [['contact.js', base, chrome], ['customize.js', base, chrome, '--submit'], ['visa.js', base, chrome, fixtures, 'live']]
       : [['site.js', base, chrome], ['customize.js', base, chrome], ['visa.js', base, chrome, fixtures, 'offline']];
-    const NEED = ['passport.jpg', 'passport.pdf', 'photo-40kb.jpg', 'photo-png.png', 'fake.jpg', 'hotel.jpg', 'ticket.pdf', 'pax12.jpg'];
-    if (NEED.some((f) => !fs.existsSync(path.join(fixtures, f)))) failed = node(['fixtures.js', chrome, fixtures]) !== 0 || failed;
+    const NEED = ['passport.jpg', 'passport.pdf', 'photo-40kb.jpg', 'photo-png.png', 'fake.jpg', 'hotel.jpg', 'ticket.pdf', 'pax12.jpg', 'photo-landscape.jpg', 'photo-lowres.jpg'];
+    const version = fs.existsSync(path.join(fixtures, 'VERSION')) ? fs.readFileSync(path.join(fixtures, 'VERSION'), 'utf8').trim() : '';
+    const wanted = (fs.readFileSync(path.join(here, 'fixtures.js'), 'utf8').match(/FIXTURES_VERSION = '(\w+)'/) || [])[1];
+    if (version !== wanted || NEED.some((f) => !fs.existsSync(path.join(fixtures, f)))) failed = node(['fixtures.js', chrome, fixtures]) !== 0 || failed;
     for (const [script, ...args] of suites) {
       console.log('\n=== ' + script + ' ' + args.slice(-1)[0] + ' ===');
       failed = node([script, ...args]) !== 0 || failed;

@@ -116,14 +116,37 @@ window.EG = window.EG || {};
       if (file.size < L.PHOTO_MIN) {
         throw userError('This photo is only ' + kb.toFixed(1) + ' KB. Photos must be at least 25 KB, so please choose a clearer photo.');
       }
-      if (file.size <= L.PHOTO_MAX) {
-        return { blob: file, type: type, kb: Math.round(kb * 10) / 10, compressed: false, originalKb: kb };
-      }
-      return compressTo(file, L.PHOTO_MAX, L.PHOTO_MIN, 1200).then(function (blob) {
-        return { blob: blob, type: 'jpg', kb: Math.round(blob.size / KB * 10) / 10, compressed: true, originalKb: kb };
+      return checkPhotoShape(file).then(function (size) {
+        if (file.size <= L.PHOTO_MAX) {
+          return { blob: file, type: type, kb: Math.round(kb * 10) / 10, compressed: false, originalKb: kb, w: size.w, h: size.h };
+        }
+        return compressTo(file, L.PHOTO_MAX, L.PHOTO_MIN, 1200).then(function (blob) {
+          return { blob: blob, type: 'jpg', kb: Math.round(blob.size / KB * 10) / 10, compressed: true, originalKb: kb, w: size.w, h: size.h };
+        });
       });
     });
   };
+
+  /**
+   * Passport photo shape (35 × 45 mm portrait): taller than wide, width/height 0.70–0.85 (accepts
+   * 3:4 and 4:5 crops), at least 350 × 450 pixels. Checked on the original image (EXIF rotation
+   * applied). Resolves {w, h}; rejects with a friendly message.
+   */
+  L.PHOTO_RATIO_MIN = 0.70; L.PHOTO_RATIO_MAX = 0.85; L.PHOTO_MIN_W = 350; L.PHOTO_MIN_H = 450;
+  function checkPhotoShape(file) {
+    return decode(file).then(function (src) {
+      var w = src.width, h = src.height, r = w / h;
+      release(src);
+      var size = ' (' + w + ' × ' + h + ' pixels)';
+      if (w > h) throw userError('This photo is landscape' + size + '. A passport photo is portrait: taller than it is wide (35 × 45 mm). Please crop it or take a new one, holding your phone upright.');
+      if (w === h) throw userError('This photo is square' + size + '. A passport photo is portrait: taller than it is wide (35 × 45 mm). Please crop it to show your head and shoulders.');
+      if (r < L.PHOTO_RATIO_MIN) throw userError('This photo is too tall and narrow' + size + ' — it looks like a full-screen or full-body picture. Please crop it to a 35 × 45 mm passport shape showing your head and shoulders.');
+      if (r > L.PHOTO_RATIO_MAX) throw userError('This photo is almost square' + size + '. Please crop it to a 35 × 45 mm passport shape (a little taller than it is wide).');
+      if (w < L.PHOTO_MIN_W || h < L.PHOTO_MIN_H) throw userError('This photo is too small' + size + '. Please use a clearer photo of at least ' + L.PHOTO_MIN_W + ' × ' + L.PHOTO_MIN_H + ' pixels.');
+      return { w: w, h: h };
+    });
+  }
+  window.EG.checkPhotoShape = checkPhotoShape;
 
   /** Quick check when a passport file is chosen: real type and PDF size. Resolves {type}. */
   window.EG.checkPassport = function (file) {

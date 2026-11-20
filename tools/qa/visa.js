@@ -78,6 +78,17 @@ const cardInvalid = async (p, i) => (await cards(p))[i].$$eval('.field.invalid',
     const c0 = (await cards(p))[0];
     await (await c0.$('[data-photo-input]')).uploadFile(fx('photo-20kb.jpg')); await waitIdle(p);
     ok('<25 KB photo rejected', /at least 25 KB/.test(await cardText(p, 0, '[data-photo-field] .err-msg')) && (await cardInvalid(p, 0)) >= 1, await cardText(p, 0, '[data-photo-field] .err-msg'));
+    // Passport photo shape: portrait 35 × 45 mm, ≥ 350 × 450 px — anything else is refused kindly
+    const guide0 = await p.$eval('#photoGuide', (d) => ({ open: d.open, svg: d.querySelectorAll('svg[role=img]').length, rules: d.querySelector('.guide-rules').textContent }));
+    ok('photo guide: drawn examples + rules, closed by default', !guide0.open && guide0.svg === 6 && /recent/i.test(guide0.rules) && /plain white/i.test(guide0.rules) && /centred/i.test(guide0.rules) && /looking at the camera/i.test(guide0.rules) && /no selfies/i.test(guide0.rules) && /no full-body/i.test(guide0.rules), JSON.stringify(guide0).slice(0, 160));
+    for (const [file, re] of [['photo-landscape.jpg', /landscape/], ['photo-square.jpg', /square/], ['photo-selfie.jpg', /too tall and narrow/], ['photo-lowres.jpg', /too small \(280 × 360 pixels\)/]]) {
+      await (await c0.$('[data-photo-input]')).uploadFile(fx(file)); await waitIdle(p);
+      const msg = await cardText(p, 0, '[data-photo-field] .err-msg');
+      ok('photo shape rejected: ' + file, re.test(msg) && (await cardText(p, 0, '[data-photo-title]')) === 'Photo not accepted', msg);
+    }
+    ok('photo guide opens after a shape problem', await p.$eval('#photoGuide', (d) => d.open));
+    await (await c0.$('[data-photo-input]')).uploadFile(fx('photo-40kb.jpg')); await waitIdle(p);
+    ok('portrait 35 × 45 photo accepted', /^Photo · \d/.test(await cardText(p, 0, '[data-photo-title]')), await cardText(p, 0, '[data-photo-title]'));
     await (await c0.$('[data-photo-input]')).uploadFile(fx('photo-2mb.jpg')); await waitIdle(p);
     const t2 = await cardText(p, 0, '[data-photo-title]'); const kb = parseFloat(t2.replace(/[^\d.]/g, ''));
     ok('2 MB photo compressed into 25–50 KB', kb >= 25 && kb <= 50, t2 + ' / ' + (await cardText(p, 0, '[data-photo-note]')));
@@ -129,7 +140,7 @@ const cardInvalid = async (p, i) => (await cards(p))[i].$$eval('.field.invalid',
     await next(p);
     ok('review reached', (await label(p)).startsWith('Step 3'));
     const rv = await p.$eval('#reviewBody', (e) => e.innerText);
-    ok('review counts', /2 passengers \(1 adult, 1 child, 0 infants\)/.test(rv) && /photo 33\.4 KB/.test(rv), rv.split('\n').filter((l) => /Passengers/.test(l))[0]);
+    ok('review counts', /2 passengers \(1 adult, 1 child, 0 infants\)/.test(rv) && /photo \d+\.\d KB/.test(rv), rv.split('\n').filter((l) => /Passengers/.test(l))[0]);
     ok('review lists documents', /Flight ticket \(all passengers\)\s+ticket\.pdf/.test(rv) && /2\. TEST Pax Two\s+Child[^\n]*hotel booking/.test(rv), rv.split('\n').filter((l) => /ticket|hotel/i.test(l)).join(' / '));
     await p.$eval('#backBtn', (e) => e.click()); await sleep(250); await p.$eval('#backBtn', (e) => e.click()); await sleep(250);
     const kept = await p.evaluate(() => ({ name: document.querySelector('[name=name]').value, cards: document.querySelectorAll('#paxList .pax').length }));
