@@ -3,7 +3,7 @@ const puppeteer = require('puppeteer-core');
 const [base, exe] = process.argv.slice(2);
 const res = []; const ok = (n, c, i = '') => res.push(`${c ? 'PASS' : 'FAIL'}  ${n}${i ? '  — ' + i : ''}`);
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-const PAGES = ['index.html', 'customize-umrah.html', 'apply-visa.html'];
+const PAGES = ['index.html', 'customize-umrah.html', 'apply-visa.html', 'track.html'];
 
 (async () => {
   const b = await puppeteer.launch({ executablePath: exe, headless: true });
@@ -44,6 +44,10 @@ const PAGES = ['index.html', 'customize-umrah.html', 'apply-visa.html'];
       await p.click('#submitBtn'); await new Promise((r) => setTimeout(r, 300));
       const invalid = await p.$$eval('#enquiryForm .field.invalid', (els) => els.map((e) => e.querySelector('[name]').name));
       ok('index: empty enquiry flags name, phone, request', ['name', 'phone', 'request'].every((n) => invalid.includes(n)), invalid.join());
+    } else if (page === 'track.html') {
+      await p.$eval('#trackBtn', (e) => e.click()); await new Promise((r) => setTimeout(r, 300));
+      const n = await p.$$eval('#trackForm .field.invalid', (e) => e.length);
+      ok('track.html: empty form flags reference + contact', n === 2, n + ' invalid fields');
     } else {
       await p.click('#nextBtn'); await new Promise((r) => setTimeout(r, 300));
       const n = await p.$$eval('.step:not([hidden]) .field.invalid', (e) => e.length);
@@ -63,7 +67,9 @@ const PAGES = ['index.html', 'customize-umrah.html', 'apply-visa.html'];
         const bad = items.filter((a) => lines(a) !== 1).map((a) => a.textContent);
         const nav = document.querySelector('.site-header .nav');
         const toggle = document.querySelector('.menu-toggle');
-        const tops = new Set(items.map((a) => Math.round(a.getBoundingClientRect().top + a.offsetHeight / 2)));
+        const mids = items.map((a) => a.getBoundingClientRect().top + a.offsetHeight / 2);
+        // one row = every item's vertical centre within 6 px (a wrapped item sits 30 px+ lower)
+        const tops = { size: Math.max(...mids) - Math.min(...mids) <= 6 ? 1 : 2 };
         return { bad, overflow: nav.scrollWidth > nav.clientWidth + 1, toggle: !!toggle.offsetParent, rows: tops.size };
       });
       if (r.bad.length || r.overflow || r.toggle || r.rows > 1) wraps.push(w + ':' + JSON.stringify(r));
