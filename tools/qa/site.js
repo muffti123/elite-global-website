@@ -42,7 +42,7 @@ const PAGES = ['index.html', 'customize-umrah.html', 'apply-visa.html'];
       const want = { 'Request Umrah Visa Only': 'apply-visa.html', 'Customize My Umrah Experience': 'customize-umrah.html' };
       ok('index: 4 CTAs → local pages, same tab', ctas.length === 4 && ctas.every((c) => want[c.t.replace(/\s*→\s*$/, '').replace(/ /g, ' ').trim()] === c.h && !c.target), JSON.stringify(ctas));
       await p.click('#submitBtn'); await new Promise((r) => setTimeout(r, 300));
-      const invalid = await p.$$eval('#enquiryForm .field.invalid', (els) => els.map((e) => e.querySelector('input,select,textarea').name));
+      const invalid = await p.$$eval('#enquiryForm .field.invalid', (els) => els.map((e) => e.querySelector('[name]').name));
       ok('index: empty enquiry flags name, phone, request', ['name', 'phone', 'request'].every((n) => invalid.includes(n)), invalid.join());
     } else {
       await p.click('#nextBtn'); await new Promise((r) => setTimeout(r, 300));

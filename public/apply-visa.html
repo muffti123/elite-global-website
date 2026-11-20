@@ -56,7 +56,7 @@
 <label class="field">Full Name<input name="name" autocomplete="name" maxlength="100" placeholder="Your full name"><span class="err-msg" id="e-name">Please enter your full name.</span></label>
 <label class="field">Phone Number / WhatsApp Number<input name="phone" type="tel" autocomplete="tel" inputmode="tel" maxlength="25" placeholder="+234 803 000 0000"><span class="help">Include your country code, e.g. +234 803 000 0000</span><span class="err-msg" id="e-phone">Please enter a valid phone number (digits, spaces, +, - or brackets only).</span></label>
 <label class="field">Email Address<input name="email" type="email" autocomplete="email" inputmode="email" maxlength="254" placeholder="name@example.com"><span class="err-msg" id="e-email">Please enter a valid email address, e.g. name@example.com</span></label>
-<label class="field">Country of Residence<select name="country" data-list="COUNTRIES" data-placeholder="Select your country"></select><span class="err-msg" id="e-country">Please choose your country of residence.</span></label>
+<label class="field">Country of Residence<select name="country" data-list="COUNTRIES" data-placeholder="Type or choose your country" data-combobox></select><span class="err-msg" id="e-country">Please choose your country of residence.</span></label>
 </div>
 <h3>Travel information</h3>
 <div class="grid2">
@@ -187,6 +187,8 @@
 </div><div class="copyright"><span>© <span id="year"></span> Elite Global World Travel &amp; Tours Ltd. All rights reserved.</span><span>RC: 7787410</span></div></div></footer>
 <script src="assets/js/lists.js"></script>
 <script src="assets/js/common.js"></script>
+<script src="assets/js/datepicker.js"></script>
+<script src="assets/js/combobox.js"></script>
 <script src="assets/js/api.js"></script>
 <script src="assets/js/wizard.js"></script>
 <script src="assets/js/image.js"></script>

@@ -12,22 +12,38 @@ const res = []; const ok = (n, c, i = '') => res.push(`${c ? 'PASS' : 'FAIL'}  $
 
   const label = () => p.$eval('#stepLabel', e => e.textContent);
   const next = async () => { await p.$eval('#nextBtn', e => e.click()); await new Promise(r => setTimeout(r, 200)); };
-  const invalid = () => p.$$eval('.step:not([hidden]) .field.invalid', els => els.map(e => (e.querySelector('input,select,textarea') || {}).name));
+  const invalid = () => p.$$eval('.step:not([hidden]) .field.invalid', els => els.map(e => (e.querySelector('[name]') || {}).name));
 
   ok('7 steps in stepper', (await p.$$eval('#stepper li', l => l.length)) === 7);
   ok('country list filled', (await p.$$eval('select[name=country] option', o => o.length)) > 190);
   await next();
   ok('step 1 blocks empty', (await label()).startsWith('Step 1') && (await invalid()).join() === 'name,phone,email,country', (await invalid()).join());
   await p.type('[name=name]', 'TEST Customize QA'); await p.type('[name=phone]', '+234 800 000 0003');
-  await p.type('[name=email]', 'qa-customize@example.com'); await p.select('[name=country]', 'Nigeria');
+  await p.type('[name=email]', 'qa-customize@example.com');
+  // Country combobox: type to filter, accents ignored, Esc restores, Enter chooses
+  const cbIn = '.cb-input';
+  await p.click(cbIn); await p.keyboard.type('cote');
+  const cb1 = await p.evaluate(() => ({ exp: document.querySelector('.cb-input').getAttribute('aria-expanded'), first: document.querySelector('.cb-option.active').textContent, ad: !!document.querySelector('.cb-input').getAttribute('aria-activedescendant') }));
+  await p.keyboard.press('Escape');
+  const cb2 = await p.evaluate(() => ({ v: document.querySelector('[name=country]').value, t: document.querySelector('.cb-input').value }));
+  await p.click(cbIn); await p.keyboard.type('Nig'); await p.keyboard.press('Enter');
+  const cb3 = await p.evaluate(() => ({ v: document.querySelector('[name=country]').value, t: document.querySelector('.cb-input').value, exp: document.querySelector('.cb-input').getAttribute('aria-expanded'), step: document.querySelector('#stepLabel').textContent }));
+  ok('country combobox: filter, Esc, Enter', cb1.exp === 'true' && cb1.first === "Côte d'Ivoire" && cb1.ad && cb2.v === '' && cb2.t === '' && cb3.v === 'Nigeria' && cb3.t === 'Nigeria' && cb3.exp === 'false' && cb3.step.startsWith('Step 1'), JSON.stringify([cb1, cb2, cb3]));
   await next();
   ok('step 2 reached', (await label()).startsWith('Step 2'));
   await next();
   ok('step 2 blocks empty', (await invalid()).length >= 6, (await invalid()).join());
   for (const [n, v] of [['adults', '0'], ['children', '0'], ['infants', '0']]) await p.type(`[name=${n}]`, v);
   await p.type('[name=departureCity]', 'Kano');
-  const d = new Date(Date.now() + 50 * 864e5).toISOString().slice(0, 10);
-  await p.$eval('[name=travelDate]', (e, v) => { e.value = v; }, d);
+  // Date picker: keyboard only, past days refused, PgDn = next month
+  await p.focus('.dp-button'); await p.keyboard.press('Enter'); await new Promise(r => setTimeout(r, 150));
+  const dp1 = await p.evaluate(() => ({ open: !document.querySelector('.dp-dialog').hidden, exp: document.querySelector('.dp-button').getAttribute('aria-expanded'), focus: document.activeElement.getAttribute('data-date'), past: document.querySelectorAll('.dp-day[aria-disabled]').length }));
+  await p.keyboard.press('ArrowLeft'); await p.keyboard.press('Enter'); await new Promise(r => setTimeout(r, 100));
+  const dp2 = await p.evaluate(() => ({ v: document.querySelector('[name=travelDate]').value, open: !document.querySelector('.dp-dialog').hidden }));
+  await p.keyboard.press('ArrowRight'); await p.keyboard.press('PageDown'); await p.keyboard.press('PageDown'); await p.keyboard.press('Enter'); await new Promise(r => setTimeout(r, 150));
+  const dp3 = await p.evaluate(() => ({ v: document.querySelector('[name=travelDate]').value, open: !document.querySelector('.dp-dialog').hidden, focus: document.activeElement.className, text: document.querySelector('.dp-text').textContent }));
+  const want = (() => { const t = new Date(dp1.focus); const m = new Date(t.getFullYear(), t.getMonth() + 2, 1); const last = new Date(m.getFullYear(), m.getMonth() + 1, 0).getDate(); const x = new Date(m.getFullYear(), m.getMonth(), Math.min(t.getDate(), last)); return x.getFullYear() + '-' + String(x.getMonth() + 1).padStart(2, '0') + '-' + String(x.getDate()).padStart(2, '0'); })();
+  ok('date picker: keyboard, past days refused, min = today', dp1.open && dp1.exp === 'true' && dp1.focus === new Date(Date.now() - new Date().getTimezoneOffset() * 6e4).toISOString().slice(0, 10) && dp1.past >= 1 && dp2.v === '' && dp2.open && dp3.v === want && !dp3.open && /dp-button/.test(dp3.focus), JSON.stringify([dp1, dp2, dp3, want]));
   await p.click('#flightTicket-1'); await p.click('#arrivalCity-0');
   await next();
   ok('zero travellers blocked', (await label()).startsWith('Step 2') && (await invalid()).includes('adults'));
