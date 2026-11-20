@@ -11,6 +11,7 @@ Elite-Global-World-Travel-and-Tour/
 │   ├── index.html                ← home page + contact box
 │   ├── apply-visa.html           ← Request Umrah Visa Only (passengers, passports, photos)
 │   ├── customize-umrah.html      ← Customize My Umrah Experience (7 steps)
+│   ├── track.html                ← Track my application (reference + email/phone)
 │   └── assets/
 │       ├── js/config.js          ← ⭐ the ONLY settings file: company details, webAppUrl, team
 │       ├── js/lists.js           ← answer options + Nigerian airports (must match apps-script/Config.gs)
@@ -64,6 +65,7 @@ node tools/check-lists.js                       # options match the web app
 cd tools/qa && npm install && node run.js static # all pages, sends nothing
 node run.js live                                 # ⚠️ staging only: TEST leads + SPECIMEN files
 node shots.js                                    # desktop/tablet/phone screenshots → tools/qa/screenshots/
+node ../gas-test/test.js                         # web app logic against a mock (no Google calls)
 ```
 Or by hand: `npx serve public` → http://localhost:3000, use names starting **`TEST`**, never real passports.
 Afterwards run **`cleanupTestData`** in the Apps Script editor (removes TEST rows from every tab and moves
@@ -108,4 +110,5 @@ git remote -v   # 1 fetch URL (personal), 2 push URLs (personal, org)
 | Replace the logo | Swap `public/assets/brand/emblem.svg` / `emblem-white.svg`; the text is live (`brand.css`) |
 | See all links | Run `showSystemInfo` or open the tracker's System Info tab |
 | Something failed for a customer | Apps Script editor → Executions (the owner also gets an email) |
+| Tell a customer something on the Track page | Write it in the Lead Tracker column **Message to Customer** (short, professional; the first 300 characters are shown). Customers see a stage based on **Lead Status** (PRD §3.5) |
 | Unfinished visa application | Lead Tracker → **Application Status** says `Uploading k/N` (`Expired` after 24 h); the folder link shows what arrived. Follow-up Notes are for staff only |

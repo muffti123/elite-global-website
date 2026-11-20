@@ -96,7 +96,7 @@ fieldset.field{border:0;padding:0;margin:0;min-width:0}fieldset.field legend{fon
 .thumb img{width:100%;height:100%;object-fit:cover}
 .filebox .meta{font-size:13px;color:var(--muted);min-width:0;flex:1}.filebox .meta b{display:block;color:var(--navy);font-size:14px}
 .filebox .fname{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.filebox .note{display:block;margin-top:3px}.filebox .note.ok{color:var(--ok);font-weight:700}.filebox .note.warn{color:#a04a00;font-weight:700}
+.filebox .note{display:block;margin-top:3px}.filebox .note.ok{color:var(--ok);font-weight:700}.filebox .note.warn{color:#a04a00;font-weight:700}.filebox .note.tip{color:var(--muted,#55607a);font-size:13px}.filebox .note[hidden]{display:none}
 .filebox .btn{padding:9px 12px;font-size:13px;margin-top:6px;width:auto}
 .pax-tools{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-top:16px}
 .counter{font-weight:800;color:var(--navy)}
@@ -287,3 +287,36 @@ input:not([type=checkbox]):not([type=radio]):hover,select:hover,textarea:hover,.
 .guide-tiles span{display:flex;align-items:center;gap:4px;font-size:11.5px;font-weight:700;color:var(--ink);line-height:1.2}
 .guide-tiles span svg{flex:0 0 16px}
 @media(max-width:620px){.guide-body{grid-template-columns:1fr}.guide-main svg{margin:0 auto;width:170px}.guide-tiles{grid-template-columns:repeat(3,minmax(0,1fr))}}
+
+/* ---- Header: 7 links still on one line from 1024 px (Track Application added in round 2) ---- */
+@media(min-width:1024px) and (max-width:1279.98px){.menu{gap:16px}.links{gap:12px;font-size:13.5px}.site-header .nav-cta{padding:12px 16px;font-size:15px}}
+
+/* ---- Track my application (track.html) ---- */
+.track-wrap{max-width:720px;margin:auto}
+form.track-form{display:grid;grid-template-columns:1fr;gap:16px}
+.track-form .btn{min-width:220px}
+.track-result h2{margin:2px 0 10px;font-size:28px;letter-spacing:.5px}
+.track-result h2:focus{outline:none}.track-result h2:focus-visible{outline:3px solid var(--gold);outline-offset:4px}
+.track-eyebrow{margin:0;color:#a86f00}
+.stage-badge{display:inline-flex;align-items:center;gap:8px;margin:0 0 12px;padding:8px 14px;border-radius:999px;font-weight:800;font-size:15px;background:#e3ecff;color:var(--navy)}
+.stage-badge:before{content:"";width:9px;height:9px;border-radius:50%;background:currentColor}
+.stage-badge[data-tone="ok"]{background:#dff3e6;color:var(--ok)}
+.stage-badge[data-tone="warn"]{background:#fff4d6;color:#8a5a00}
+.stage-badge[data-tone="closed"]{background:#eef0f4;color:#3d4660}
+.track-desc{color:var(--ink);margin:0 0 16px;font-size:16px}
+.track-dl{display:grid;grid-template-columns:max-content 1fr;gap:8px 18px;margin:0 0 18px;padding:14px 16px;background:#f7f9fc;border:1px solid #e6eaf1;border-radius:12px}
+.track-dl div{display:contents}.track-dl div[hidden]{display:none}
+.track-dl dt{font-weight:700;color:var(--navy);font-size:14px}.track-dl dd{margin:0;font-size:14px;overflow-wrap:anywhere}
+.next-step,.staff-msg{border-radius:12px;padding:14px 16px;margin:0 0 14px}
+.next-step{background:var(--cream);border:1px solid #f1dfae}.staff-msg{background:#f1f5ff;border:1px solid #d3def7}
+.next-step b,.staff-msg b{display:block;color:var(--navy);font-size:14px;margin-bottom:4px}
+.next-step p,.staff-msg p{margin:0;overflow-wrap:anywhere;white-space:pre-line}
+.track-actions{display:flex;flex-wrap:wrap;gap:12px;margin-top:20px}
+@media(max-width:620px){.track-form .btn,.track-actions .btn{width:100%}.track-dl{grid-template-columns:1fr;gap:2px}.track-dl dd{margin-bottom:8px}}
+.track-result:not([hidden]){animation:trackIn .35s ease-out}
+@keyframes trackIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+@media(prefers-reduced-motion:reduce){.track-result:not([hidden]){animation:none}}
+
+.success-actions{display:flex;flex-wrap:wrap;justify-content:center;gap:12px;margin-top:6px}
+.status .track-link{display:inline-block;margin-top:8px;font-weight:800}
+@media(max-width:620px){.success-actions .btn{width:100%}}

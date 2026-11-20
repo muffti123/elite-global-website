@@ -143,7 +143,8 @@
           form.reset();
           showStatus('ok', '<b>Thank you for contacting Elite Global World Travel &amp; Tours Ltd.</b><br>' +
             'Your enquiry has been received. Your reference number is <b data-lead-id>' + EG.escapeHtml(res.leadId) + '</b>. ' +
-            'A member of our team will contact you shortly.');
+            'A member of our team will contact you shortly.' +
+            '<br><a class="track-link" href="track.html?id=' + encodeURIComponent(res.leadId) + '">Track this application</a>');
           status.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
           return;
         }

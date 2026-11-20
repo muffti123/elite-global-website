@@ -61,7 +61,7 @@ function setupEliteGlobal() {
   // 5. Housekeeping + info
   purgeStaleUploads_();
   writeSystemInfo_();
-  p.setProperties({ SETUP_DONE: 'yes', SCHEMA_VERSION: '3' });
+  p.setProperties({ SETUP_DONE: 'yes', SCHEMA_VERSION: CONFIG.SCHEMA_VERSION });
 
   Logger.log('✅ SETUP COMPLETE');
   showSystemInfo();
@@ -157,7 +157,7 @@ function upgradeTracker_(ss) {
       .setDescription('Drive Folder is generated automatically').setWarningOnly(true);
     Logger.log('Added "' + H[col - 1] + '" column to the Lead Tracker.');
   }
-  addV3Columns_(sh);
+  addTrackerColumns_(sh);
   backfillV3Columns_(sh);
 
   // Make the sales filter cover every web-app column
@@ -175,21 +175,27 @@ function upgradeTracker_(ss) {
 }
 
 /**
- * v3: Email, Country, Departure, Passengers, Lead Source, Application Status. Each missing header is
- * added in the first free column after the existing headers, so no existing column, row, formula,
- * protection or Lead ID moves. Safe to repeat: headers that exist (anywhere) are left alone.
+ * Columns added after Drive Folder (CONFIG.EXTRA_COLS): v3 Email, Country, Departure, Passengers,
+ * Lead Source, Application Status; v4 Message to Customer. Each missing header is added in the first
+ * free column after the existing headers, so no existing column, row, formula, protection or Lead ID
+ * moves. Safe to repeat: headers that exist (anywhere) are left alone; header notes are (re)applied.
  */
-function addV3Columns_(sh) {
+function addTrackerColumns_(sh) {
   const head = sh.getRange(1, 1, 1, sh.getMaxColumns()).getValues()[0];
   let last = 0;
   head.forEach(function (h, i) { if (h !== '') last = i + 1; });
   const rows = sh.getMaxRows() - 1;
-  Object.keys(CONFIG.V3_COLS).forEach(function (name) {
-    if (head.indexOf(name) !== -1) return;
+  Object.keys(CONFIG.EXTRA_COLS).forEach(function (name) {
+    const spec = CONFIG.EXTRA_COLS[name];
+    const at = head.indexOf(name);
+    if (at !== -1) {
+      if (spec.note) sh.getRange(1, at + 1).setNote(spec.note);
+      return;
+    }
     last += 1;
     if (sh.getMaxColumns() < last) sh.insertColumnsAfter(sh.getMaxColumns(), last - sh.getMaxColumns());
-    const spec = CONFIG.V3_COLS[name];
-    sh.getRange(1, last).setValue(name)
+    const cell = sh.getRange(1, last);
+    cell.setValue(name)
       .setBackground(CONFIG.NAVY).setFontColor('#ffffff').setFontWeight('bold')
       .setVerticalAlignment('middle').setHorizontalAlignment('center').setWrap(true);
     sh.setColumnWidth(last, spec.width);
@@ -197,6 +203,8 @@ function addV3Columns_(sh) {
     if (spec.format) body.setNumberFormat(spec.format);
     if (spec.align) body.setHorizontalAlignment(spec.align);
     if (spec.auto) body.protect().setDescription(name + ' is updated automatically').setWarningOnly(true);
+    if (spec.wrap) body.setWrap(true).setVerticalAlignment('top');
+    if (spec.note) cell.setNote(spec.note);
     head[last - 1] = name;
     Logger.log('Added "' + name + '" column to the Lead Tracker.');
   });

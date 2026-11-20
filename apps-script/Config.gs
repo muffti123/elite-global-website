@@ -28,17 +28,55 @@ const CONFIG = {
     'Budget', 'Lead Status', 'Assigned Agent', 'Follow-up Notes', 'Drive Folder',
     // v3 (round 1): appended after Drive Folder so existing rows never move.
     'Email', 'Country', 'Departure', 'Passengers', 'Lead Source', 'Application Status',
+    // v4 (round 2): written by staff, shown to the customer on track.html
+    'Message to Customer',
   ],
-  // Columns 1–15 keep their fixed positions; the v3 columns are found by header name.
+  // Columns 1–15 keep their fixed positions; columns added later are found by header name.
   NOTES_COL: 14,      // Follow-up Notes: staff only (the web app no longer writes here)
   FOLDER_COL: 15,
-  V3_COLS: {
+  EXTRA_COLS: {
     'Email': { width: 210, format: '@' },
     'Country': { width: 140 },
     'Departure': { width: 260 },
     'Passengers': { width: 95, format: '0', align: 'center' },
     'Lead Source': { width: 120 },
     'Application Status': { width: 190, auto: true },
+    'Message to Customer': { width: 320, wrap: true, max: 300,
+      note: 'Visible to the customer on the Track page — keep it short and professional' },
+  },
+  SCHEMA_VERSION: '4',
+
+  // track.html (trackApplication): what the customer sees. Approved by the operator (round 2).
+  TRACK: {
+    NOT_FOUND: 'We couldn\'t find an application with those details. Please check your reference number and the email or phone number you used.',
+    ID_MAX: 5,          // lookups per Lead ID …
+    CONTACT_MAX: 20,    // … and per email/phone value …
+    WINDOW_S: 600,      // … per 10 minutes
+    MESSAGE_MAX: 300,   // Message to Customer is cut to this length
+    SERVICE: {
+      'Visa Only': 'Visa only',
+      'Customised Experience': 'Customised Umrah',
+      'General Enquiry': 'General enquiry',
+    },
+    // Lead Status (staff) → customer stage. Blank/unknown counts as New Lead.
+    STAGES: {
+      'New Lead': ['Received', 'We have received your request and it is in our queue.',
+        'A member of our team will contact you shortly by phone or WhatsApp.'],
+      'Contacted': ['In progress', 'Our team has been in touch with you about this request.',
+        'Reply to our message, or contact us if you have any questions.'],
+      'Awaiting Response': ['Waiting for your reply', 'We are waiting for information or a reply from you.',
+        'Please reply to our last message, or contact us on WhatsApp or by phone.'],
+      'Quotation Sent': ['Quotation sent', 'We have sent you a quotation for your request.',
+        'Please review it and let us know if you would like to go ahead.'],
+      'Payment Pending': ['Awaiting payment', 'Your arrangements are ready to continue once payment is received.',
+        'Please complete payment as agreed with our team. Contact us if you need the details again.'],
+      'Converted': ['Confirmed', 'Your request is confirmed. Thank you for choosing Elite Global.',
+        'Our team will keep you updated on the next steps of your journey.'],
+      'Lost': ['Closed', 'This request is closed.', 'Contact us if you have questions.'],
+    },
+    // Visa application whose upload expired (Application Status "Expired"), unless Lost
+    EXPIRED: ['Upload not finished', 'Upload not finished — please contact us or apply again.',
+      'Contact us on WhatsApp or by phone, or start a new application.'],
   },
   // Application Status values written by the web app
   STATUS: {

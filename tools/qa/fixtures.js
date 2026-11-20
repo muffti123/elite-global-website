@@ -2,7 +2,7 @@
 const fs = require('fs'), path = require('path');
 const puppeteer = require('puppeteer-core');
 const [exe, out] = process.argv.slice(2);
-const FIXTURES_VERSION = '3'; // bump when fixtures change; run.js regenerates on mismatch
+const FIXTURES_VERSION = '4'; // bump when fixtures change; run.js regenerates on mismatch
 fs.mkdirSync(out, { recursive: true });
 
 (async () => {
@@ -36,15 +36,16 @@ fs.mkdirSync(out, { recursive: true });
   }
 
   await jpegInRange('passport.jpg', 1400, 980, 60, 250 * 1024, 400 * 1024, 'SPECIMEN PASSPORT');
-  // Passport photos are portrait 35 × 45 mm (width/height ≈ 0.78), at least 350 × 450 px
+  // Passport photos: portrait 35 × 45 mm (width/height ≈ 0.78). Blocked only when landscape or under 200 × 250 px
   await jpegInRange('photo-40kb.jpg', 420, 540, 40, 36 * 1024, 46 * 1024, 'SPECIMEN');
   await jpegInRange('photo-20kb.jpg', 300, 300, 30, 18 * 1024, 22 * 1024, 'SPECIMEN');
   await jpegInRange('photo-2mb.jpg', 2400, 3086, 90, 1.8 * 1024 * 1024, 2.4 * 1024 * 1024, 'SPECIMEN');
-  // Photos the shape check must reject (all 25–50 KB, so only the shape is wrong)
+  // Shape fixtures (all 25–50 KB, so only the shape matters): landscape + tiny are blocked; square, selfie-ratio and a real 251 × 342 export are accepted
   await jpegInRange('photo-landscape.jpg', 640, 480, 40, 36 * 1024, 46 * 1024, 'SPECIMEN');
   await jpegInRange('photo-square.jpg', 600, 600, 40, 36 * 1024, 46 * 1024, 'SPECIMEN');
   await jpegInRange('photo-selfie.jpg', 450, 800, 40, 36 * 1024, 46 * 1024, 'SPECIMEN');
-  await jpegInRange('photo-lowres.jpg', 280, 360, 120, 27 * 1024, 46 * 1024, 'SPEC');
+  await jpegInRange('photo-251x342.jpg', 251, 342, 140, 27 * 1024, 46 * 1024, 'SPEC');
+  await jpegInRange('photo-tiny.jpg', 180, 230, 255, 26 * 1024, 46 * 1024, 'SP');
   await jpegInRange('passport-big.jpg', 4000, 2800, 90, 2.5 * 1024 * 1024, 4 * 1024 * 1024, 'SPECIMEN PASSPORT');
   await jpegInRange('hotel.jpg', 1240, 1754, 40, 150 * 1024, 400 * 1024, 'SPECIMEN HOTEL');
   // PNG photo in 25–50 KB, portrait 360 × 463. PNG size jumps from ~11 KB to ~130 KB once the whole

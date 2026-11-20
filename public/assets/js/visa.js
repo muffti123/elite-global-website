@@ -167,6 +167,8 @@
     var btn = q(p, '[data-photo-btn]');
     q(p, '[data-photo-title]').textContent = file.size > EG.FILE_LIMITS.PHOTO_MAX ? 'Resizing…' : 'Checking…';
     q(p, '[data-photo-note]').textContent = '';
+    var tip = q(p, '[data-photo-tip]');
+    tip.textContent = ''; tip.hidden = true;
     p.busy++;
     return EG.processPhoto(file).then(function (r) {
       if (gen !== p.gen.photo || !p.el.isConnected) return;
@@ -181,6 +183,8 @@
       note.textContent = r.compressed
         ? '✓ Resized from ' + EG.fmtSize(file.size) + ' to ' + r.kb.toFixed(1) + ' KB'
         : '✓ Size ' + r.kb.toFixed(1) + ' KB — within 25–50 KB';
+      // Unusual shape (square, or outside the 35 × 45 mm ratio): accepted, with a gentle hint only
+      if (r.tip) { tip.textContent = 'Tip: a passport photo is usually 35 × 45 mm (head and shoulders, plain white background).'; tip.hidden = false; }
       btn.textContent = 'Change file';
       EG.setInvalid(btn, false);
     }, function (err) {
@@ -190,7 +194,7 @@
       q(p, '[data-photo-title]').textContent = 'Photo not accepted';
       q(p, '[data-photo-name]').textContent = file.name + ' · ' + EG.fmtSize(file.size);
       EG.setInvalid(btn, true, err.userFacing ? err.message : 'This photo could not be read. Please choose another one.');
-      if (err.userFacing && /pixels\)/.test(err.message)) $('#photoGuide').open = true; // shape/size: show the guide
+      if (err.userFacing && /pixels\)/.test(err.message)) $('#photoGuide').open = true; // blocked (landscape / too small): show the guide
       btn.textContent = 'Choose file';
     }).then(function () { p.busy--; });
   }
@@ -719,6 +723,7 @@
     var n = state.pax.length;
     form.hidden = true; $('#stepper').hidden = true; $('#stepLabel').hidden = true;
     $('#leadId').textContent = leadId;
+    $('[data-track-link]').setAttribute('href', 'track.html?id=' + encodeURIComponent(leadId));
     $('#successCount').textContent = plural(n, 'passenger', 'passengers');
     var s = $('#successPanel'); s.hidden = false;
     window.scrollTo({ top: 0, behavior: 'smooth' });

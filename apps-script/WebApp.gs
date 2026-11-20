@@ -16,11 +16,13 @@ const ACTIONS = {
   uploadPassenger: uploadPassenger_,
   uploadDocument: uploadDocument_,
   finalizeVisaApplication: finalizeVisaApplication_,
+  trackApplication: trackApplication_,
 };
 
 /**
  * Health check: opening the web app URL in a browser shows {"ok":true,...}.
- * schema = SCHEMA_VERSION written by setupEliteGlobal (3 = Lead Tracker v3 columns + Visa Applications tab).
+ * schema = SCHEMA_VERSION written by setupEliteGlobal (3 = v3 columns + Visa Applications tab;
+ * 4 = Message to Customer column).
  */
 function doGet() {
   const schema = Number(PropertiesService.getScriptProperties().getProperty('SCHEMA_VERSION') || 0);
@@ -64,6 +66,7 @@ function json_(obj) {
 }
 
 function honeypotReply_(action) {
+  if (action === 'trackApplication') return { ok: false, error: CONFIG.TRACK.NOT_FOUND }; // same as a miss
   const fake = 'EG-' + (action === 'submitContact' ? 'GE' : action === 'submitCustomRequest' ? 'CE' : 'VO') +
     '-' + ('0000' + Math.floor(Math.random() * 99999)).slice(-5);
   return action === 'createVisaApplication'

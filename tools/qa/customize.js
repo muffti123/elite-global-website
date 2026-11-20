@@ -101,6 +101,8 @@ const res = []; const ok = (n, c, i = '') => res.push(`${c ? 'PASS' : 'FAIL'}  $
     await p.waitForFunction(() => !document.querySelector('#successPanel').hidden || /status err/.test(document.querySelector('#formStatus').className), { timeout: 90000 });
     const id = await p.$eval('#leadId', e => e.textContent);
     ok('live submit → Lead ID', /^EG-CE-\d{5}$/.test(id), id + ' in ' + (Date.now() - t0) + ' ms ' + (await p.$eval('#formStatus', e => e.textContent)));
+    const tl = await p.$eval('#successPanel [data-track-link]', (e) => e.getAttribute('href'));
+    ok('success: Track this application → track.html?id=<Lead ID>', tl === 'track.html?id=' + id, tl);
     const before = dialogs;
     await p.goto(base + '/index.html', { waitUntil: 'domcontentloaded' });
     ok('no leave warning after success', dialogs === before);
