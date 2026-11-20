@@ -3,8 +3,8 @@
 **Project:** Umrah Lead Generation System — website forms + Apps Script web app + Google Sheets/Drive
 **Client:** Elite Global World Travel & Tours Ltd. (RC: 7787410)
 **Developer:** Abdulmumin (independent full-stack developer)
-**Document version:** 3.0 — supersedes v2.x (Google Forms) and the original *Project Handover Note*
-**Last updated:** 19 November 2026 (v3.0: Google Forms removed from the customer journey)
+**Document version:** 3.1 — supersedes v2.x (Google Forms) and the original *Project Handover Note*
+**Last updated:** 20 November 2026 (v3.1: round 1 client feedback — see §0.1)
 
 ---
 
@@ -22,6 +22,18 @@
 | 8 | Website: button links only | **Multi-page site**: home, `apply-visa.html`, `customize-umrah.html`, all sharing one design and one `SITE_CONFIG` |
 
 The retired Google Forms 1–3 and their response sheets stay in Drive, **closed** by `setupEliteGlobal()`.
+
+### 0.1 v3.1 — round 1 client feedback (20 Nov 2026)
+| Area | Change |
+|---|---|
+| Brand | Logo lockup: SVG emblem + live text (`brand.css`, self-hosted OFL fonts); light in the header, white-and-gold in the navy footer; links home |
+| Header | Labels never wrap; menu button below 1024 px; CTA **Apply for Visa** on every page; 320–1920 px |
+| Motion | Scroll reveal, hover lift, "Why Choose Elite Global" carousel (6 cards); all respect `prefers-reduced-motion` |
+| Content | About section rewritten around values; verified company details, Instagram; 4-person management team |
+| Contact + footer | WhatsApp / Instagram / email icons, phone and address in both; footer 4 → 2 → 1 columns |
+| Forms | Branded date picker (min today) and searchable comboboxes; **Departure Airport** (by country) replaces Departure City |
+| Visa | Camera capture; optional Flight Ticket and Hotel Booking per passenger or shared once; passport photo guide and shape check |
+| Tracker | Lead Tracker + Email, Country, Departure, Passengers, Lead Source, Application Status; new **Visa Applications** tab; Follow-up Notes staff-only |
 
 ---
 
@@ -100,9 +112,10 @@ Drive folder: **Elite Global – Lead Generation System**.
 | Full name | 2–100 characters |
 | Phone / WhatsApp | Optional `+`, then 7–20 digits; spaces, `-` and `()` allowed. "Include your country code" |
 | Email | Valid email address |
-| Country of Residence | Dropdown: Nigeria first, then all countries A–Z, then "Other" |
+| Country of Residence | Searchable combobox: Nigeria first, then all countries A–Z, then "Other" (accents ignored when typing) |
+| Departure Airport | Combobox filtered by Country of Residence. Nigeria (or no country yet): LOS, ABV, KAN, DKA, PHC, ENU, SKO, KAD, MIU, YOL, ILR, BCU, ABB, CBQ, QUO, QOW, GMO. Other countries: `airports.json` (OurAirports, public domain: scheduled service, IATA code, large airport or "International" in the name — 1,374 airports in 188 countries, 79 KB / ~26 KB gzipped, loaded on first need). Always "Other (type it)" → text 2–100 characters. Sent as the IATA code or `OTHER`; stored as e.g. "Lagos – Murtala Muhammed International Airport (LOS)" |
 | Counts, nights | Whole number 0–999 (contact form travellers: 1–999) |
-| Dates | Today (Lagos time) or later |
+| Dates | Branded date picker (keyboard: arrows, PgUp/PgDn, Home/End, Enter, Esc). Today (Lagos time) or later |
 | Free text | Up to 2,000 characters |
 
 ### 3.2 `apply-visa.html` — Request Umrah Visa Only
@@ -111,11 +124,12 @@ Drive folder: **Elite Global – Lead Generation System**.
 | Step | Fields | Required |
 |---|---|---|
 | 1. Your details | Full Name; Phone Number / WhatsApp Number; Email Address; Country of Residence | Yes |
-| | Preferred Travel Date; Departure City | Yes |
+| | Preferred Travel Date; Departure Airport | Yes |
 | | Do you have a confirmed flight ticket? (Yes/No); Have you previously travelled to Saudi Arabia? (Yes/No) | Yes |
 | | Do you currently hold a valid UK, US or Schengen visa? (Yes/No) | No |
 | | Additional Information / Special Requests; How did you hear about Elite Global? | No |
-| 2. Passengers | 1–50 cards. Each: **Full name as on passport**, **Category** (Adult (18+) · Child (2–17) · Infant (under 2)), **Passport biodata page**, **Passport photograph** | All yes |
+| 2. Passengers | 1–50 cards. Each: **Full name as on passport**, **Category** (Adult (18+) · Child (2–17) · Infant (under 2)), **Passport biodata page**, **Passport photograph** — each with "Take photo" (phones: `capture="environment"` passport, `capture="user"` photo) and "Choose file" | All yes |
+| | **Flight Ticket**, **Hotel Booking** per card (PDF/JPG/PNG, "recommended ≤ 2 MB", images compressed); "Use this file for all passengers" stores one file per application | No |
 | 3. Review | Lead summary, passenger list with counts, **consent** checkbox | Consent yes |
 
 **Passenger cards:** "Select all passports" (multi-file, also drag & drop) creates one card per file,
@@ -128,11 +142,16 @@ before leaving while there is unsaved input or an upload is running.
 | File | Accepted | Rule |
 |---|---|---|
 | Passport | PDF, JPG, PNG | PDF ≤ 5 MB, sent unchanged. Images > 1.5 MB are re-encoded in the browser to ~1 MB JPEG (long side ≤ 2400 px) when sent |
-| Photo | JPG, PNG | **25–50 KB.** Under 25 KB → rejected ("choose a clearer photo"). 25–50 KB → kept as is. Over 50 KB → compressed in the browser (JPEG quality search, then −15 % dimensions, repeat) into range; the final size is shown |
+| Photo | JPG, PNG, **portrait**: width/height 0.70–0.85 (35 × 45 mm), at least 350 × 450 px — landscape, square, too narrow (selfie/full body) or too small is refused with a friendly message and the photo guide opens | **25–50 KB.** Under 25 KB → rejected ("choose a clearer photo"). 25–50 KB → kept as is. Over 50 KB → compressed in the browser (JPEG quality search, then −15 % dimensions, repeat) into range; the final size is shown |
+| Flight ticket / hotel booking | PDF, JPG, PNG | Optional. PDF ≤ 5 MB sent unchanged; images > 1.5 MB re-encoded to ~1 MB JPEG |
 | Anything else (e.g. a text file renamed `.jpg`) | — | Rejected with a friendly message |
 
+**Photo guide** (collapsible, Passengers step): drawn SVG head-and-shoulders example at 35 × 45 mm, ✓/✗
+examples (selfie, full body, busy background, landscape) and the rules: recent, plain white background,
+face centred and looking at the camera, no selfies, no full-body shots.
+
 **Upload flow:** `createVisaApplication` (lead + passenger names/categories) → Lead ID + token →
-`uploadPassenger` once per passenger, in order, with a progress bar; network errors or "busy" replies are
+`uploadDocument` for shared documents, then `uploadPassenger` (+ `uploadDocument` for that passenger's own documents) once per passenger, in order, with a progress bar; network errors or "busy" replies are
 retried 3 times with back-off, then a **Retry** button appears for that passenger (re-uploading replaces
 the files — no duplicates) → `finalizeVisaApplication` → success screen with the Lead ID and passenger count.
 
@@ -147,7 +166,7 @@ indicator; each step validates before Next; step 7 is a review with "Edit" links
 |---|---|---|---|
 | 1. Personal Information | Full Name; Phone Number / WhatsApp Number; Email Address; Country of Residence | As §3.1 | Yes |
 | 2. Traveller and Travel Information | Number of Adults (18+) / Children (2–17) / Infants (below 2) | Whole number ≥ 0, total ≥ 1 | Yes |
-| | Preferred Departure City | Short answer | Yes |
+| | Preferred Departure Airport | Combobox by country + "Other (type it)" (§3.1) | Yes |
 | | Preferred Travel Date | Date | Yes |
 | | Do you have a confirmed flight ticket? | Yes / No | Yes |
 | | Preferred Arrival City in Saudi Arabia | Madinah / Jeddah / No preference | Yes |
@@ -195,8 +214,19 @@ Success: the form resets and shows "Your reference number is EG-GE-…".
 | 11 | Budget | Auto | Customise: chosen band. Visa: "N/A (visa only)". Contact: blank |
 | 12 | Lead Status | Staff | New Lead · Contacted · Awaiting Response · Quotation Sent · Payment Pending · Converted · Lost (colour-coded) |
 | 13 | Assigned Agent | Staff | Free text |
-| 14 | Follow-up Notes | Auto + staff | `[Auto]` summary. Visa rows start with `[Uploading k/N]` until finished, then `[Complete: N passengers]` |
+| 14 | Follow-up Notes | **Staff only** | The web app leaves it empty (leads before v3.1 keep their old `[Auto]` text) |
 | 15 | Drive Folder | Auto | Visa only: `=HYPERLINK(folder,"📁 EG-VO-…")`. Empty for other types |
+| 16 | Email | Auto | Visa, customise |
+| 17 | Country | Auto | Country of residence |
+| 18 | Departure | Auto | Departure airport label |
+| 19 | Passengers | Auto | Visa: number of passengers |
+| 20 | Lead Source | Auto | How did you hear about Elite Global? |
+| 21 | Application Status | Auto | Visa: `Uploading k/N` → `Complete: N passengers`, or `Expired` (24 h purge). Others: `Received` |
+
+Columns 16–21 were appended after Drive Folder (v3.1) and are found by header name, so existing rows,
+formulas, protections and Lead IDs never move. `setupEliteGlobal()` adds them to an existing tracker and
+fills **only empty cells** of earlier leads from their old `[Auto]` notes (notes are kept); running it
+again changes nothing.
 
 2,000 pre-formatted rows (500 more added automatically), frozen header and first three columns, filter on,
 warning-only protection on Lead ID, Date Received, Total Travellers and Drive Folder.
@@ -204,7 +234,8 @@ warning-only protection on Lead ID, Date Received, Total Travellers and Drive Fo
 ### 4.2 Detail tabs
 | Tab | One row per | Columns |
 |---|---|---|
-| `Visa Passengers` | passenger | Lead ID · No. · Full Name (as on passport) · Category · Photo (KB) · Passport File (link) · Photo File (link) · Uploaded At |
+| `Visa Applications` | visa application | Lead ID · Date Received · Full Name · Phone / WhatsApp · Email · Country · Travel Date · Departure Airport · Confirmed Flight Ticket · Travelled to Saudi Arabia Before · UK/US/Schengen Visa · Passengers · Adults · Children · Infants · Shared Flight Ticket · Shared Hotel Booking · Additional Information · How They Heard · Drive Folder |
+| `Visa Passengers` | passenger | Lead ID · No. · Full Name (as on passport) · Category · Photo (KB) · Passport File (link) · Photo File (link) · Uploaded At · Flight Ticket (link) · Hotel Booking (link; "… (all passengers)" when shared) |
 | `Custom Requests` | customise request | Lead ID · Date Received · every answer in §3.3 (25 columns; services joined, "Other: …" appended) |
 | `Contact Enquiries` | contact message | Lead ID · Date Received · Full Name · Phone / WhatsApp · Enquiry Type · Preferred Travel Date · Number of Travellers · Additional Details |
 | `System Info` | — | Owner account, Drive folder, Visa Applications folder, tracker, **web app URL**, retired forms and their real state |
@@ -218,7 +249,8 @@ Elite Global – Lead Generation System/
 ├── Elite Global – Central Lead Tracker
 ├── Visa Applications/
 │   └── EG-VO-00012 – <lead name>/
-│       ├── 01 – <passenger name>/  passport.pdf|jpg|png, photo.jpg|png
+│       ├── flight-ticket.*, hotel-booking.*   (only when shared by all passengers)
+│       ├── 01 – <passenger name>/  passport.pdf|jpg|png, photo.jpg|png, flight-ticket.*, hotel-booking.* (optional)
 │       └── 02 – <passenger name>/  …
 └── (retired, closed) Google Forms 1–3 and their response sheets
 ```
@@ -241,20 +273,24 @@ Every request: `{"action": "<name>", "hp": "<honeypot>", …}` → `{"ok":true,"
 |---|---|---|---|
 | `submitContact` | name, phone, enquiryType, travelDate?, travellers?, details? | Lead Tracker + Contact Enquiries | leadId `EG-GE-…` |
 | `submitCustomRequest` | all §3.3 answers (`services` is an array) | Lead Tracker + Custom Requests | leadId `EG-CE-…` |
-| `createVisaApplication` | lead fields §3.2, `consent:true`, `passengers:[{name, category}]` (1–50) | Drive folder, Lead Tracker row `[Uploading 0/N]`, upload state | leadId `EG-VO-…`, token |
-| `uploadPassenger` | leadId, token, index (1…N), name, category, `passport:{name,mime,b64}`, `photo:{mime,b64}` | `NN – name/` files (replaced on retry), Visa Passengers row (upsert), `[Uploading k/N]` | uploaded, total, photoKb |
-| `finalizeVisaApplication` | leadId, token | `[Complete: N passengers]`, deletes upload state | leadId (repeat-safe) |
+| `createVisaApplication` | lead fields §3.2 (`departureAirport`, `departureAirportOther`), `consent:true`, `passengers:[{name, category}]` (1–50), `docs:{shared:{ticket,hotel}, passengers:[{ticket,hotel}]}` (optional) | Drive folder, Lead Tracker row (status `Uploading 0/N`), Visa Applications row, upload state | leadId `EG-VO-…`, token |
+| `uploadPassenger` | leadId, token, index (1…N), name, category, `passport:{name,mime,b64}`, `photo:{mime,b64}` | `NN – name/` passport + photo (replaced on retry; documents kept), Visa Passengers row (upsert), status `Uploading k/N` | uploaded, total, photoKb |
+| `uploadDocument` | leadId, token, `scope` ("all" or 1…N), `kind` (ticket/hotel), name, `file:{name,mime,b64}` | `flight-ticket.*` / `hotel-booking.*` (replaced on retry), links in Visa Passengers / Visa Applications. Only documents declared at create | scope, kind |
+| `finalizeVisaApplication` | leadId, token | status `Complete: N passengers` (all passengers and declared documents arrived), deletes upload state | leadId (repeat-safe); else `missing` (0 = shared documents) |
 
 ### 5.3 Upload state
 Script Property `UPLOAD_<LeadID>` = `{t: token, n: passengers, f: folderId, k: category codes, u: uploaded
-indexes, c: created ms}` (~200 bytes). Deleted on finalize. `purgeStaleUploads_()` (run by setup and
+indexes, c: created ms, d: declared documents (one digit per slot: 0 shared, 1…N), dd: uploaded documents,
+sl: shared file links}` (~200–500 bytes). Deleted on finalize. `purgeStaleUploads_()` (run by setup and
 `cleanupTestData`) deletes entries older than **24 h**; the tracker row and folder stay so sales can follow
 up, and the customer is told the application expired.
 
 ### 5.4 Server-side rules
 - Every client rule in §3 is re-checked; list values must match `LISTS` / `COUNTRIES` exactly.
 - Files: magic bytes (`%PDF-`, `FF D8 FF`, PNG signature) must agree with the declared MIME type;
-  passport PDF ≤ 5 MB, passport image ≤ 1.6 MB, photo 24–51 KB (1 KB slack), ≤ 50 passengers, body ≤ 12 MB.
+  passport PDF ≤ 5 MB, passport image ≤ 1.6 MB, photo 24–51 KB (1 KB slack), ticket/hotel PDF ≤ 5 MB and
+  image ≤ 1.6 MB (one file per request), ≤ 50 passengers, body ≤ 12 MB.
+- Departure airport: IATA code in the list for the chosen country (`LISTS.AIRPORTS_NG` / `AIRPORTS`), or `OTHER` + text.
 - Token must match; category per passenger must match what was declared at create.
 - Rate limit: **10 create/submit calls per 10 minutes** per email (contact form: per phone), counted in
   CacheService with a hashed key.
@@ -302,19 +338,21 @@ deploying user, access anyone).
 ### 7.1 Pages and files
 | File | Purpose |
 |---|---|
-| `public/index.html` | Home: hero, about, team (hidden until filled), services, why, FAQ, CTA band, contact box, footer |
+| `public/index.html` | Home: hero, about (values), management team (portrait cards; hidden when empty), services, why (carousel), FAQ, CTA band, contact box, footer |
 | `public/apply-visa.html` | §3.2 |
 | `public/customize-umrah.html` | §3.3 |
-| `public/assets/js/config.js` | **The only place to edit:** `company` (address, phone, WhatsApp, email), `webAppUrl`, `team`. Empty values hide their element |
+| `public/assets/js/config.js` | **The only place to edit:** `company` (address, phone, WhatsApp, email, Instagram), `webAppUrl`, `team`. Empty values hide their element |
 | `public/assets/js/*.js` | `common.js` (company details, form helpers), `api.js`, `wizard.js`, `lists.js`, `image.js`, page scripts |
-| `public/assets/css/site.css`, `assets/logo.jpg` | Shared navy/gold design and logo |
+| `public/assets/css/site.css`, `assets/css/brand.css`, `assets/brand/`, `assets/fonts/` | Shared navy/gold design; logo lockup (SVG emblem + live text) |
+| `public/assets/data/airports.json` | Departure airports per country (generated by `tools/build-airports.js`) |
 
 ### 7.2 Calls to action
 | Button (exact label) | Locations | Destination | Behaviour |
 |---|---|---|---|
 | Request Umrah Visa Only | Hero, CTA band, footer | `apply-visa.html` | Same tab |
 | Customize My Umrah Experience | Hero, CTA band, footer | `customize-umrah.html` | Same tab |
-| Get in Touch / Speak with our team | Nav, About | `#contact` | Smooth scroll |
+| Apply for Visa | Header (every page) | `apply-visa.html` | Same tab |
+| Contact / Speak with our team | Nav, About | `#contact` | Smooth scroll |
 
 ### 7.3 FAQ (must stay consistent with the flow)
 Difference between Visa Only and Customize · Do I need my passport (yes for the visa application, no
@@ -323,7 +361,8 @@ automatically · What happens after I submit (reference number) · Families and 
 No mention of Google Forms or Google sign-in anywhere.
 
 ### 7.4 Quality
-- Responsive at 360 px, 768 px and 1280 px+; no sideways scrolling on any step.
+- Responsive from 320 px to 1920 px; no sideways scrolling on any step. Header labels never wrap; menu button below 1024 px.
+- Motion: scroll reveal, hover lift, carousel — all off under `prefers-reduced-motion`.
 - Accessible: labels, alt text, visible focus, step indicator with `aria-current`, live status regions.
 - SEO basics per page: title, description, favicon. No frameworks, no build step, no external JS.
 
@@ -364,6 +403,10 @@ Run `node tools/check-lists.js` and `node tools/qa/run.js static` before every s
 - [ ] Contact message → `EG-GE-…` shown; rows in Lead Tracker and Contact Enquiries
 - [ ] One customise request (all steps, "Other" service, Back/Next) → `EG-CE-…`; full Custom Requests row
 - [ ] Visa with **1**, **3** (adult/child/infant, PDF passport, PNG photo) and **12** passengers → folders `NN – name/passport.*, photo.*`, Visa Passengers rows, counts, 📁 link, `[Complete: N passengers]`
+- [ ] Photo landscape / square / selfie-ratio / < 350 × 450 px refused with the guide opening; portrait accepted
+- [ ] Departure Airport: Nigeria list, another country's list, "Other (type it)"; server rejects a code from another country
+- [ ] Visa with a shared flight ticket and one passenger's hotel booking → Drive files + Visa Passengers / Visa Applications links
+- [ ] `setupEliteGlobal` on the existing tracker: columns 16–21 + Visa Applications tab added, old rows/IDs unchanged, re-run changes nothing
 - [ ] Photo **< 25 KB** rejected; **2 MB** photo compressed to 25–50 KB; **fake .jpg (text)** rejected — in the browser and by the server
 - [ ] Forced upload failure → Retry → no duplicate row; leave-page warning during upload and with unsaved input; none after success
 - [ ] Honeypot → fake success, no row; 11th submission in 10 min with the same email/phone is refused
@@ -392,8 +435,8 @@ Run `node tools/check-lists.js` and `node tools/qa/run.js static` before every s
 | # | Open item | Owner |
 |---|---|---|
 | 1 | Switch staging → production (docs/ENVIRONMENTS.md) and re-run §10 there with one TEST of each | Developer |
-| 2 | Verified office address, phone/WhatsApp, email | Client |
-| 3 | Five team members: name, role, short profile, headshot | Client |
+| 2 | ~~Verified office address, phone/WhatsApp, email~~ — supplied (20 Nov 2026), plus Instagram | Client |
+| 3 | ~~Team members~~ — 4 supplied and published (20 Nov 2026) | Client |
 | 4 | Drive storage plan for passports (15 GB free shared with Gmail; Google One upgrade or a retention rule, e.g. delete documents N days after a lead closes) | Client |
 | 5 | Retention and deletion policy for passports and photos | Client |
 | 6 | Where the domain is hosted, and cPanel access or a DNS contact | Client |

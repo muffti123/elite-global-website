@@ -13,11 +13,13 @@ Elite-Global-World-Travel-and-Tour/
 │   ├── customize-umrah.html      ← Customize My Umrah Experience (7 steps)
 │   └── assets/
 │       ├── js/config.js          ← ⭐ the ONLY settings file: company details, webAppUrl, team
-│       ├── js/lists.js           ← answer options (must match apps-script/Config.gs)
-│       ├── js/*.js, css/site.css, logo.jpg
-│       └── team/                 ← management headshots (ceo.jpg, ...)
+│       ├── js/lists.js           ← answer options + Nigerian airports (must match apps-script/Config.gs)
+│       ├── js/*.js               ← page scripts, motion, date picker, combobox, airports, image checks
+│       ├── css/site.css, css/brand.css  ← design + logo lockup (brand/ = SVG emblem, fonts/ = logo fonts)
+│       ├── data/airports.json    ← departure airports per country (generated, see Maintenance)
+│       └── team/                 ← management portraits, 4:5 (01-…jpg, …)
 ├── apps-script/                  ← the web app (runs on Google; upload with `clasp push`)
-├── tools/                        ← check-lists.js + browser QA (dev only, never published)
+├── tools/                        ← check-lists.js, build-airports.js, browser QA + screenshots (dev only)
 ├── docs/                         ← PRD, ENVIRONMENTS (staging/production), EXECUTION_PLAN
 ├── assets/form-header.png        ← old Google Forms header (retired forms only)
 ├── netlify.toml                  ← publishes only public/
@@ -49,8 +51,9 @@ Open `public/assets/js/config.js`:
 |---|---|
 | `company.address`, `phone`, `email` | From the client (verified) |
 | `company.whatsapp` | Same number, **digits only** with country code, e.g. `2348030000000` |
+| `company.instagram` | Full profile URL, `https://www.instagram.com/…/` (icon hidden when empty) |
 | `webAppUrl` | Part 1 step 3 (ends in `/exec`) |
-| `team` | One line per manager (example in the file). Photos go in `public/assets/team/` |
+| `team` | One line per manager: name, role, bio, photo. Portraits (4:5, e.g. 800 × 1000) go in `public/assets/team/`. An empty list hides the section |
 
 Anything left as `''` hides itself, so no placeholders go live.
 
@@ -60,6 +63,7 @@ Anything left as `''` hides itself, so no placeholders go live.
 node tools/check-lists.js                       # options match the web app
 cd tools/qa && npm install && node run.js static # all pages, sends nothing
 node run.js live                                 # ⚠️ staging only: TEST leads + SPECIMEN files
+node shots.js                                    # desktop/tablet/phone screenshots → tools/qa/screenshots/
 ```
 Or by hand: `npx serve public` → http://localhost:3000, use names starting **`TEST`**, never real passports.
 Afterwards run **`cleanupTestData`** in the Apps Script editor (removes TEST rows from every tab and moves
@@ -68,6 +72,9 @@ TEST visa folders to the Drive bin).
 ## Part 4 — Put it live
 
 **Option A — client's existing host.** cPanel → File Manager → `public_html` → upload the **contents** of `public/`.
+
+**Staging today:** elite-global-staging.netlify.app is a manual deploy — drag the `public/` folder onto the
+elite-global-staging *Deploys* page. It is not connected to the repo.
 
 **Option B — GitHub + Netlify.** Netlify → *Import from GitHub* → this repo (no build command; `netlify.toml`
 publishes `public/`). Every `git push` to `main` redeploys. *Domain settings → Add custom domain* shows the
@@ -96,6 +103,9 @@ git remote -v   # 1 fetch URL (personal), 2 push URLs (personal, org)
 |---|---|
 | Change phone/email/team | Edit `public/assets/js/config.js`, commit, push |
 | Change an answer option | Change it in `apps-script/Config.gs` **and** `public/assets/js/lists.js` (and the home-page `<select>` for enquiry types) in the same commit; run `node tools/check-lists.js`; `clasp push` + update the deployment |
+| Nigerian departure airports | `AIRPORTS_NG` in `Config.gs` **and** `lists.js` (same order), then as above |
+| Refresh other countries' airports | `node tools/build-airports.js` (OurAirports, public domain) rewrites `public/assets/data/airports.json` **and** `apps-script/Airports.gs`; `node tools/check-lists.js`; commit both; `clasp push` + update the deployment |
+| Replace the logo | Swap `public/assets/brand/emblem.svg` / `emblem-white.svg`; the text is live (`brand.css`) |
 | See all links | Run `showSystemInfo` or open the tracker's System Info tab |
 | Something failed for a customer | Apps Script editor → Executions (the owner also gets an email) |
-| Unfinished visa application | Tracker notes start with `[Uploading k/N]`; the folder link shows what arrived |
+| Unfinished visa application | Lead Tracker → **Application Status** says `Uploading k/N` (`Expired` after 24 h); the folder link shows what arrived. Follow-up Notes are for staff only |
