@@ -316,3 +316,7 @@ form.track-form{display:grid;grid-template-columns:1fr;gap:16px}
 .track-result:not([hidden]){animation:trackIn .35s ease-out}
 @keyframes trackIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
 @media(prefers-reduced-motion:reduce){.track-result:not([hidden]){animation:none}}
+
+.success-actions{display:flex;flex-wrap:wrap;justify-content:center;gap:12px;margin-top:6px}
+.status .track-link{display:inline-block;margin-top:8px;font-weight:800}
+@media(max-width:620px){.success-actions .btn{width:100%}}

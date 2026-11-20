@@ -719,6 +719,7 @@
     var n = state.pax.length;
     form.hidden = true; $('#stepper').hidden = true; $('#stepLabel').hidden = true;
     $('#leadId').textContent = leadId;
+    $('[data-track-link]').setAttribute('href', 'track.html?id=' + encodeURIComponent(leadId));
     $('#successCount').textContent = plural(n, 'passenger', 'passengers');
     var s = $('#successPanel'); s.hidden = false;
     window.scrollTo({ top: 0, behavior: 'smooth' });

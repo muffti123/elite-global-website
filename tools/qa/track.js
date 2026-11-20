@@ -119,6 +119,23 @@ const replyFor = (body) => (body.action === 'trackApplication' && body.leadId ==
   ok('reduced motion: result visible, no animation', anim.shown && anim.name === 'none' && anim.op === '1', JSON.stringify(anim));
   await p.close();
 
+  // Home contact success links to the Track page (mocked submitContact)
+  p = await open(b, 'index.html', () => ({ ok: true, leadId: 'EG-GE-00042' }));
+  await p.type('input[name=name]', 'TEST Track Link'); await p.type('input[name=phone]', '+234 800 000 0042');
+  await p.select('#requestType', 'Other Travel Enquiry');
+  await p.$eval('#submitBtn', (e) => e.click()); await sleep(600);
+  const link = await p.$eval('#formStatus', (s) => { const a = s.querySelector('a[href*="track.html"]'); return a ? a.getAttribute('href') + ' | ' + a.textContent.trim() : ''; }).catch(() => '');
+  ok('home contact success: "Track this application" → track.html?id=EG-GE-00042', link === 'track.html?id=EG-GE-00042 | Track this application', link);
+  await p.close();
+
+  // Success screens of the application pages carry the link placeholder (href set with the Lead ID on success)
+  for (const pg of ['apply-visa', 'customize-umrah']) {
+    p = await open(b, pg + '.html', () => ({ ok: false }));
+    const a = await p.$eval('#successPanel [data-track-link]', (e) => e.textContent.trim()).catch(() => '');
+    ok(pg + ': success screen has "Track this application"', a === 'Track this application', a);
+    await p.close();
+  }
+
   await b.close();
   process.exit(res.some((x) => x.startsWith('FAIL')) ? 1 : 0);
 })().catch((e) => { console.error(e); process.exit(2); });

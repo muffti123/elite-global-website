@@ -57,6 +57,8 @@ const PAGES = ['index.html', 'customize-umrah.html', 'apply-visa.html', 'track.h
 
     // Header: CTA, no wrapping labels on wide screens, menu button below 1024 px
     const cta = await p.$eval('.site-header .nav-cta', (a) => ({ t: a.textContent.trim(), h: a.getAttribute('href') }));
+    const trk = await p.evaluate(() => ({ head: [...document.querySelectorAll('.site-header .links a')].filter((a) => a.getAttribute('href') === 'track.html' && a.textContent === 'Track Application').length, foot: [...document.querySelectorAll('footer a')].filter((a) => a.getAttribute('href') === 'track.html' && a.textContent === 'Track Application').length }));
+    ok(`${page}: "Track Application" in header menu and footer`, trk.head === 1 && trk.foot === 1, JSON.stringify(trk));
     ok(`${page}: header CTA "Apply for Visa" → apply-visa.html`, cta.t === 'Apply for Visa' && cta.h === 'apply-visa.html', JSON.stringify(cta));
     const wraps = [];
     for (const w of [1024, 1100, 1280, 1440, 1920]) {

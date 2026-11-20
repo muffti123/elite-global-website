@@ -187,6 +187,7 @@
     $('#stepper').hidden = true;
     $('#stepLabel').hidden = true;
     $('#leadId').textContent = leadId;
+    $('[data-track-link]').setAttribute('href', 'track.html?id=' + encodeURIComponent(leadId));
     var s = $('#successPanel');
     s.hidden = false;
     window.scrollTo({ top: 0, behavior: 'smooth' });
