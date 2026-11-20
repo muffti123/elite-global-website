@@ -134,3 +134,10 @@ fieldset.field{border:0;padding:0;margin:0;min-width:0}fieldset.field legend{fon
 @media(max-width:1023.98px){.footer-grid{grid-template-columns:repeat(2,1fr)}}
 @media(max-width:599.98px){.footer-grid{grid-template-columns:1fr}}
 @media(prefers-reduced-motion:reduce){.social a{transition:none}.social a:hover,.social a:focus-visible{transform:none}}
+
+/* ---- About: company values ---- */
+.about-copy p{font-size:16.5px}
+.value-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.value{padding:24px 20px;border:1px solid #e9edf4;border-radius:14px;background:#fff;box-shadow:0 8px 26px #0b1b4010;border-top:3px solid var(--gold)}
+.value-icon{color:#d99600;display:block}.value h3{color:var(--navy);font-size:17px;margin:10px 0 6px}.value p{font-size:14px;color:var(--muted);margin:0}
+@media(max-width:599.98px){.value-grid{grid-template-columns:1fr}}
