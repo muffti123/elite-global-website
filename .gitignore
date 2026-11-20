@@ -18,3 +18,6 @@ node_modules/
 
 # QA tooling: generated SPECIMEN files
 tools/qa/fixtures/
+
+# QA screenshots (tools/qa/shots.js)
+tools/qa/screenshots/
