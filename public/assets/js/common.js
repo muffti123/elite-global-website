@@ -11,6 +11,35 @@ window.EG = window.EG || {};
   var year = $('#year');
   if (year) year.textContent = new Date().getFullYear();
 
+  // ---- Header menu (below 1024 px the links collapse behind a menu button) ----
+  var toggle = $('.menu-toggle'), menu = $('#siteMenu');
+  if (toggle && menu) {
+    var setMenu = function (open, focusToggle) {
+      menu.classList.toggle('open', open);
+      toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+      toggle.setAttribute('aria-label', open ? 'Close menu' : 'Open menu');
+      document.body.classList.toggle('menu-open', open);
+      if (!open && focusToggle) toggle.focus();
+    };
+    var isOpen = function () { return menu.classList.contains('open'); };
+    toggle.addEventListener('click', function () {
+      setMenu(!isOpen());
+      if (isOpen()) { var first = menu.querySelector('a'); if (first) first.focus(); }
+    });
+    menu.addEventListener('click', function (e) { if (e.target.closest('a')) setMenu(false); });
+    document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && isOpen()) setMenu(false, true); });
+    document.addEventListener('click', function (e) {
+      if (isOpen() && !menu.contains(e.target) && !toggle.contains(e.target)) setMenu(false);
+    });
+    // Tabbing out of the open menu closes it
+    menu.addEventListener('focusout', function (e) {
+      if (isOpen() && e.relatedTarget && !menu.contains(e.relatedTarget) && e.relatedTarget !== toggle) setMenu(false);
+    });
+    var wide = window.matchMedia('(min-width: 1024px)');
+    var onWide = function () { if (wide.matches && isOpen()) setMenu(false); };
+    if (wide.addEventListener) wide.addEventListener('change', onWide); else wide.addListener(onWide);
+  }
+
   // ---- Company details: fill, or hide when empty -----------------------
   var waLink = co.whatsapp ? 'https://wa.me/' + String(co.whatsapp).replace(/\D/g, '') : '';
   ['address', 'phone', 'whatsapp', 'email'].forEach(function (key) {

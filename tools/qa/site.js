@@ -2,6 +2,7 @@
 const puppeteer = require('puppeteer-core');
 const [base, exe] = process.argv.slice(2);
 const res = []; const ok = (n, c, i = '') => res.push(`${c ? 'PASS' : 'FAIL'}  ${n}${i ? '  — ' + i : ''}`);
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const PAGES = ['index.html', 'customize-umrah.html', 'apply-visa.html'];
 
 (async () => {
@@ -50,7 +51,40 @@ const PAGES = ['index.html', 'customize-umrah.html', 'apply-visa.html'];
     }
     ok(`${page}: nothing sent by empty submit`, posted === 0);
 
-    await p.setViewport({ width: 360, height: 740 }); await new Promise((r) => setTimeout(r, 300));
+    // Header: CTA, no wrapping labels on wide screens, menu button below 1024 px
+    const cta = await p.$eval('.site-header .nav-cta', (a) => ({ t: a.textContent.trim(), h: a.getAttribute('href') }));
+    ok(`${page}: header CTA "Apply for Visa" → apply-visa.html`, cta.t === 'Apply for Visa' && cta.h === 'apply-visa.html', JSON.stringify(cta));
+    const wraps = [];
+    for (const w of [1024, 1100, 1280, 1440, 1920]) {
+      await p.setViewport({ width: w, height: 900 }); await sleep(120);
+      const r = await p.evaluate(() => {
+        const items = [...document.querySelectorAll('.site-header .links a, .site-header .nav-cta')].filter((a) => a.offsetParent);
+        const lines = (a) => { const r = document.createRange(); r.selectNodeContents(a); return new Set([...r.getClientRects()].map((x) => Math.round(x.top))).size; };
+        const bad = items.filter((a) => lines(a) !== 1).map((a) => a.textContent);
+        const nav = document.querySelector('.site-header .nav');
+        const toggle = document.querySelector('.menu-toggle');
+        const tops = new Set(items.map((a) => Math.round(a.getBoundingClientRect().top + a.offsetHeight / 2)));
+        return { bad, overflow: nav.scrollWidth > nav.clientWidth + 1, toggle: !!toggle.offsetParent, rows: tops.size };
+      });
+      if (r.bad.length || r.overflow || r.toggle || r.rows > 1) wraps.push(w + ':' + JSON.stringify(r));
+    }
+    ok(`${page}: nav labels on one line, no menu button (1024–1920px)`, wraps.length === 0, wraps.join(' '));
+    await p.setViewport({ width: 820, height: 1000 }); await sleep(150);
+    const m0 = await p.evaluate(() => ({ toggle: !!document.querySelector('.menu-toggle').offsetParent, menu: !!document.querySelector('#siteMenu').offsetParent }));
+    await p.click('.menu-toggle'); await sleep(250);
+    const m1 = await p.evaluate(() => ({ exp: document.querySelector('.menu-toggle').getAttribute('aria-expanded'), menu: !!document.querySelector('#siteMenu').offsetParent, focus: document.activeElement.closest('#siteMenu') !== null }));
+    await p.keyboard.press('Escape'); await sleep(150);
+    const m2 = await p.evaluate(() => ({ exp: document.querySelector('.menu-toggle').getAttribute('aria-expanded'), menu: !!document.querySelector('#siteMenu').offsetParent, focus: document.activeElement.classList.contains('menu-toggle') }));
+    ok(`${page}: menu button below 1024px opens/closes (Esc)`, m0.toggle && !m0.menu && m1.exp === 'true' && m1.menu && m1.focus && m2.exp === 'false' && !m2.menu && m2.focus, JSON.stringify([m0, m1, m2]));
+
+    const scroll = [];
+    for (const w of [320, 360, 768, 1024, 1440, 1920]) {
+      await p.setViewport({ width: w, height: 800 }); await sleep(150);
+      const sw = await p.evaluate(() => document.documentElement.scrollWidth);
+      if (sw > w) scroll.push(w + '→' + sw);
+    }
+    ok(`${page}: no horizontal scroll 320–1920px`, scroll.length === 0, scroll.join(', '));
+    await p.setViewport({ width: 360, height: 740 }); await sleep(300);
     const sw = await p.evaluate(() => document.documentElement.scrollWidth);
     ok(`${page}: no horizontal scroll at 360px`, sw <= 360, 'scrollWidth=' + sw);
     ok(`${page}: no console errors`, errors.length === 0, errors.join(' | '));
