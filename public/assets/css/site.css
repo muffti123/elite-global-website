@@ -96,7 +96,7 @@ fieldset.field{border:0;padding:0;margin:0;min-width:0}fieldset.field legend{fon
 .thumb img{width:100%;height:100%;object-fit:cover}
 .filebox .meta{font-size:13px;color:var(--muted);min-width:0;flex:1}.filebox .meta b{display:block;color:var(--navy);font-size:14px}
 .filebox .fname{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.filebox .note{display:block;margin-top:3px}.filebox .note.ok{color:var(--ok);font-weight:700}.filebox .note.warn{color:#a04a00;font-weight:700}
+.filebox .note{display:block;margin-top:3px}.filebox .note.ok{color:var(--ok);font-weight:700}.filebox .note.warn{color:#a04a00;font-weight:700}.filebox .note.tip{color:var(--muted,#55607a);font-size:13px}.filebox .note[hidden]{display:none}
 .filebox .btn{padding:9px 12px;font-size:13px;margin-top:6px;width:auto}
 .pax-tools{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-top:16px}
 .counter{font-weight:800;color:var(--navy)}

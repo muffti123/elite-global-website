@@ -142,7 +142,7 @@ before leaving while there is unsaved input or an upload is running.
 | File | Accepted | Rule |
 |---|---|---|
 | Passport | PDF, JPG, PNG | PDF ≤ 5 MB, sent unchanged. Images > 1.5 MB are re-encoded in the browser to ~1 MB JPEG (long side ≤ 2400 px) when sent |
-| Photo | JPG, PNG, **portrait**: width/height 0.70–0.85 (35 × 45 mm), at least 350 × 450 px — landscape, square, too narrow (selfie/full body) or too small is refused with a friendly message and the photo guide opens | **25–50 KB.** Under 25 KB → rejected ("choose a clearer photo"). 25–50 KB → kept as is. Over 50 KB → compressed in the browser (JPEG quality search, then −15 % dimensions, repeat) into range; the final size is shown |
+| Photo | JPG, PNG. **Blocked only if landscape (wider than tall) or smaller than 200 × 250 px** — friendly message and the photo guide opens. Everything else is accepted; a square photo or a portrait ratio outside 0.70–0.85 shows a non-blocking tip under the photo ("Tip: a passport photo is usually 35 × 45 mm (head and shoulders, plain white background).") and the guide stays closed (v3.2.1, client feedback: real 251 × 342 exports were refused) | **25–50 KB.** Under 25 KB → rejected ("choose a clearer photo"). 25–50 KB → kept as is. Over 50 KB → compressed in the browser (JPEG quality search, then −15 % dimensions, repeat) into range; the final size is shown |
 | Flight ticket / hotel booking | PDF, JPG, PNG | Optional. PDF ≤ 5 MB sent unchanged; images > 1.5 MB re-encoded to ~1 MB JPEG |
 | Anything else (e.g. a text file renamed `.jpg`) | — | Rejected with a friendly message |
 
@@ -442,7 +442,7 @@ Run `node tools/check-lists.js` and `node tools/qa/run.js static` before every s
 - [ ] Contact message → `EG-GE-…` shown; rows in Lead Tracker and Contact Enquiries
 - [ ] One customise request (all steps, "Other" service, Back/Next) → `EG-CE-…`; full Custom Requests row
 - [ ] Visa with **1**, **3** (adult/child/infant, PDF passport, PNG photo) and **12** passengers → folders `NN – name/passport.*, photo.*`, Visa Passengers rows, counts, 📁 link, `[Complete: N passengers]`
-- [ ] Photo landscape / square / selfie-ratio / < 350 × 450 px refused with the guide opening; portrait accepted
+- [ ] Photo landscape / < 200 × 250 px refused with the guide opening; 251 × 342 portrait accepted; square / selfie-ratio accepted with the tip (guide stays closed)
 - [ ] Departure Airport: Nigeria list, another country's list, "Other (type it)"; server rejects a code from another country
 - [ ] Visa with a shared flight ticket and one passenger's hotel booking → Drive files + Visa Passengers / Visa Applications links
 - [ ] `setupEliteGlobal` on the existing tracker: columns 16–21 + Visa Applications tab added, old rows/IDs unchanged, re-run changes nothing

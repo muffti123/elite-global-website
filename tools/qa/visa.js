@@ -78,17 +78,26 @@ const cardInvalid = async (p, i) => (await cards(p))[i].$$eval('.field.invalid',
     const c0 = (await cards(p))[0];
     await (await c0.$('[data-photo-input]')).uploadFile(fx('photo-20kb.jpg')); await waitIdle(p);
     ok('<25 KB photo rejected', /at least 25 KB/.test(await cardText(p, 0, '[data-photo-field] .err-msg')) && (await cardInvalid(p, 0)) >= 1, await cardText(p, 0, '[data-photo-field] .err-msg'));
-    // Passport photo shape: portrait 35 × 45 mm, ≥ 350 × 450 px — anything else is refused kindly
+    // Passport photo shape: only landscape and < 200 × 250 px are blocked (the guide opens);
+    // square / unusual portrait ratios are accepted with a non-blocking tip (the guide stays closed)
     const guide0 = await p.$eval('#photoGuide', (d) => ({ open: d.open, svg: d.querySelectorAll('svg[role=img]').length, rules: d.querySelector('.guide-rules').textContent }));
-    ok('photo guide: drawn examples + rules, closed by default', !guide0.open && guide0.svg === 6 && /recent/i.test(guide0.rules) && /plain white/i.test(guide0.rules) && /centred/i.test(guide0.rules) && /looking at the camera/i.test(guide0.rules) && /no selfies/i.test(guide0.rules) && /no full-body/i.test(guide0.rules), JSON.stringify(guide0).slice(0, 160));
-    for (const [file, re] of [['photo-landscape.jpg', /landscape/], ['photo-square.jpg', /square/], ['photo-selfie.jpg', /too tall and narrow/], ['photo-lowres.jpg', /too small \(280 × 360 pixels\)/]]) {
+    ok('photo guide: drawn examples + rules, closed by default', !guide0.open && guide0.svg === 6 && /recent/i.test(guide0.rules) && /plain white/i.test(guide0.rules) && /centred/i.test(guide0.rules) && /looking at the camera/i.test(guide0.rules) && /no selfies/i.test(guide0.rules) && /no full-body/i.test(guide0.rules) && /at least 200 × 250 pixels/.test(guide0.rules), JSON.stringify(guide0).slice(0, 160));
+    const TIP = 'Tip: a passport photo is usually 35 × 45 mm (head and shoulders, plain white background).';
+    const tipOf = () => p.evaluate(() => { const t = document.querySelectorAll('#paxList [data-photo-tip]')[0]; return t.hidden ? '' : t.textContent; });
+    for (const [file, wantTip] of [['photo-251x342.jpg', false], ['photo-square.jpg', true], ['photo-selfie.jpg', true]]) {
+      await (await c0.$('[data-photo-input]')).uploadFile(fx(file)); await waitIdle(p);
+      const title = await cardText(p, 0, '[data-photo-title]'), tip = await tipOf();
+      ok('photo accepted: ' + file + (wantTip ? ' (with tip)' : ''), /^Photo · \d/.test(title) && !(await (await cards(p))[0].$eval('[data-photo-field]', (e) => e.classList.contains('invalid'))) && tip === (wantTip ? TIP : ''), title + ' / tip="' + tip + '"');
+    }
+    ok('photo guide stays closed for tips', !(await p.$eval('#photoGuide', (d) => d.open)));
+    for (const [file, re] of [['photo-landscape.jpg', /landscape/], ['photo-tiny.jpg', /too small \(180 × 230 pixels\).*at least 200 × 250 pixels/]]) {
       await (await c0.$('[data-photo-input]')).uploadFile(fx(file)); await waitIdle(p);
       const msg = await cardText(p, 0, '[data-photo-field] .err-msg');
-      ok('photo shape rejected: ' + file, re.test(msg) && (await cardText(p, 0, '[data-photo-title]')) === 'Photo not accepted', msg);
+      ok('photo rejected: ' + file, re.test(msg) && (await cardText(p, 0, '[data-photo-title]')) === 'Photo not accepted' && (await tipOf()) === '', msg);
     }
-    ok('photo guide opens after a shape problem', await p.$eval('#photoGuide', (d) => d.open));
+    ok('photo guide opens after a blocked photo', await p.$eval('#photoGuide', (d) => d.open));
     await (await c0.$('[data-photo-input]')).uploadFile(fx('photo-40kb.jpg')); await waitIdle(p);
-    ok('portrait 35 × 45 photo accepted', /^Photo · \d/.test(await cardText(p, 0, '[data-photo-title]')), await cardText(p, 0, '[data-photo-title]'));
+    ok('portrait 35 × 45 photo accepted, no tip', /^Photo · \d/.test(await cardText(p, 0, '[data-photo-title]')) && (await tipOf()) === '', await cardText(p, 0, '[data-photo-title]'));
     await (await c0.$('[data-photo-input]')).uploadFile(fx('photo-2mb.jpg')); await waitIdle(p);
     const t2 = await cardText(p, 0, '[data-photo-title]'); const kb = parseFloat(t2.replace(/[^\d.]/g, ''));
     ok('2 MB photo compressed into 25–50 KB', kb >= 25 && kb <= 50, t2 + ' / ' + (await cardText(p, 0, '[data-photo-note]')));
