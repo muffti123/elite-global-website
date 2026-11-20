@@ -11,7 +11,7 @@
  *   4. Put the /exec URL in public/assets/js/config.js → webAppUrl
  *
  *  FUNCTIONS YOU CAN RUN:
- *   setupEliteGlobal()   – creates or upgrades the folder, tracker tabs, closes retired forms
+ *   setupEliteGlobal()   – creates or upgrades the folder, tracker columns/tabs, closes retired forms
  *   showSystemInfo()     – prints the folder, tracker and web app URLs in the log
  *   cleanupTestData()    – removes every lead whose name starts with "TEST" (all tabs + Drive)
  *   setOwnerEmail()      – stores the expected owner account for this environment
@@ -61,7 +61,7 @@ function setupEliteGlobal() {
   // 5. Housekeeping + info
   purgeStaleUploads_();
   writeSystemInfo_();
-  p.setProperties({ SETUP_DONE: 'yes', SCHEMA_VERSION: '2' });
+  p.setProperties({ SETUP_DONE: 'yes', SCHEMA_VERSION: '3' });
 
   Logger.log('✅ SETUP COMPLETE');
   showSystemInfo();
@@ -86,7 +86,7 @@ function spreadsheetOrNull_(id) {
 function buildTracker_() {
   const ss = SpreadsheetApp.create(CONFIG.TRACKER_NAME);
   const sh = ss.getSheets()[0].setName(CONFIG.TRACKER_TAB);
-  const H = CONFIG.HEADERS;
+  const H = CONFIG.HEADERS.slice(0, CONFIG.FOLDER_COL); // v3 columns are added by upgradeTracker_
   const rows = CONFIG.TRACKER_ROWS;
 
   // Grid size
@@ -137,14 +137,17 @@ function buildTracker_() {
   return ss;
 }
 
-/** Brings an existing tracker up to date: 15th "Drive Folder" column + detail tabs. Safe to repeat. */
+/**
+ * Brings an existing tracker up to date: 15th "Drive Folder" column, v3 columns (with a blanks-only
+ * backfill from old notes) and the detail tabs. Safe to repeat; never moves rows or Lead IDs.
+ */
 function upgradeTracker_(ss) {
   const sh = ss.getSheetByName(CONFIG.TRACKER_TAB);
   if (!sh) throw new Error('The tracker has no "' + CONFIG.TRACKER_TAB + '" tab. Restore it or rebuild the tracker.');
   const H = CONFIG.HEADERS;
   const col = CONFIG.FOLDER_COL;
 
-  if (sh.getMaxColumns() < H.length) sh.insertColumnsAfter(sh.getMaxColumns(), H.length - sh.getMaxColumns());
+  if (sh.getMaxColumns() < col) sh.insertColumnsAfter(sh.getMaxColumns(), col - sh.getMaxColumns());
   if (sh.getRange(1, col).getValue() !== H[col - 1]) {
     sh.getRange(1, col).setValue(H[col - 1])
       .setBackground(CONFIG.NAVY).setFontColor('#ffffff').setFontWeight('bold')
@@ -154,17 +157,104 @@ function upgradeTracker_(ss) {
       .setDescription('Drive Folder is generated automatically').setWarningOnly(true);
     Logger.log('Added "' + H[col - 1] + '" column to the Lead Tracker.');
   }
-  // Make the sales filter cover every column
+  addV3Columns_(sh);
+  backfillV3Columns_(sh);
+
+  // Make the sales filter cover every web-app column
+  const lastCol = Math.max.apply(null, H.map(function (h) { return trackerCols_(sh)[h]; }));
   const filter = sh.getFilter();
-  if (!filter || filter.getRange().getNumColumns() < H.length) {
+  if (!filter || filter.getRange().getNumColumns() < lastCol) {
     if (filter) filter.remove();
-    sh.getRange(1, 1, sh.getMaxRows(), H.length).createFilter();
+    sh.getRange(1, 1, sh.getMaxRows(), lastCol).createFilter();
   }
 
   // Detail tabs, in order after the Lead Tracker
-  [CONFIG.TABS.PASSENGERS, CONFIG.TABS.CUSTOM, CONFIG.TABS.CONTACT].forEach(function (tab, i) {
+  [CONFIG.TABS.VISA, CONFIG.TABS.PASSENGERS, CONFIG.TABS.CUSTOM, CONFIG.TABS.CONTACT].forEach(function (tab, i) {
     ensureTab_(ss, tab, i + 1);
   });
+}
+
+/**
+ * v3: Email, Country, Departure, Passengers, Lead Source, Application Status. Each missing header is
+ * added in the first free column after the existing headers, so no existing column, row, formula,
+ * protection or Lead ID moves. Safe to repeat: headers that exist (anywhere) are left alone.
+ */
+function addV3Columns_(sh) {
+  const head = sh.getRange(1, 1, 1, sh.getMaxColumns()).getValues()[0];
+  let last = 0;
+  head.forEach(function (h, i) { if (h !== '') last = i + 1; });
+  const rows = sh.getMaxRows() - 1;
+  Object.keys(CONFIG.V3_COLS).forEach(function (name) {
+    if (head.indexOf(name) !== -1) return;
+    last += 1;
+    if (sh.getMaxColumns() < last) sh.insertColumnsAfter(sh.getMaxColumns(), last - sh.getMaxColumns());
+    const spec = CONFIG.V3_COLS[name];
+    sh.getRange(1, last).setValue(name)
+      .setBackground(CONFIG.NAVY).setFontColor('#ffffff').setFontWeight('bold')
+      .setVerticalAlignment('middle').setHorizontalAlignment('center').setWrap(true);
+    sh.setColumnWidth(last, spec.width);
+    const body = sh.getRange(2, last, rows, 1);
+    if (spec.format) body.setNumberFormat(spec.format);
+    if (spec.align) body.setHorizontalAlignment(spec.align);
+    if (spec.auto) body.protect().setDescription(name + ' is updated automatically').setWarningOnly(true);
+    head[last - 1] = name;
+    Logger.log('Added "' + name + '" column to the Lead Tracker.');
+  });
+}
+
+/**
+ * Fills the v3 columns of leads created before v3 from their old "[Auto] Email: … | Country: …"
+ * Follow-up Notes. Only empty cells are filled and the notes are kept as they are, so running it
+ * again changes nothing.
+ */
+function backfillV3Columns_(sh) {
+  const cols = trackerCols_(sh);
+  const last = sh.getLastRow();
+  if (last < 2) return;
+  const n = last - 1;
+  const read = function (h) { return sh.getRange(2, cols[h], n, 1).getValues(); };
+  const ids = read('Lead ID'), cats = read('Lead Category'), notes = read('Follow-up Notes');
+  const targets = ['Email', 'Country', 'Departure', 'Passengers', 'Lead Source', 'Application Status'];
+  const data = {};
+  targets.forEach(function (h) { data[h] = read(h); });
+  const raw = function (text, label) {
+    const m = new RegExp('(?:^|\\| |\\] )' + label + ': ([^|]+?)(?: \\||$)').exec(text);
+    return m ? m[1].split('  ')[0].trim() : ''; // stop at a double space (staff text typed after it)
+  };
+  // List answers must start with a known option, so staff text added after them is never copied.
+  const fromList = function (value, list) {
+    return list.filter(function (o) { return value.indexOf(o) === 0; })
+      .sort(function (a, b) { return b.length - a.length; })[0] || '';
+  };
+  const pick = function (text, label) {
+    const v = raw(text, label);
+    if (label === 'Email') { const m = /[^\s@|]+@[^\s@|]+\.[^\s@|]+/.exec(v); return m ? m[0].toLowerCase() : ''; }
+    if (label === 'Country') return fromList(v, COUNTRIES);
+    if (label === 'Source') return fromList(v, LISTS.HEARD);
+    if (label === 'Passengers') return /^\d+/.test(v) ? v.match(/^\d+/)[0] : '';
+    return v;
+  };
+  let filled = 0;
+  for (let i = 0; i < n; i++) {
+    if (ids[i][0] === '') continue;
+    const t = String(notes[i][0] || '');
+    const tag = /^\[(Uploading \d+\/\d+|Complete: \d+ passengers?)\]/.exec(t);
+    const found = {
+      'Email': pick(t, 'Email'),
+      'Country': pick(t, 'Country'),
+      'Departure': pick(t, 'Departure'),
+      'Passengers': pick(t, 'Passengers'),
+      'Lead Source': pick(t, 'Source'),
+      'Application Status': tag ? tag[1] : (cats[i][0] && cats[i][0] !== CONFIG.FORMS.VISA.category ? CONFIG.STATUS.RECEIVED : ''),
+    };
+    if (found['Passengers'] !== '') found['Passengers'] = Number(found['Passengers']) || '';
+    targets.forEach(function (h) {
+      if (data[h][i][0] === '' && found[h] !== '') { data[h][i][0] = found[h]; filled++; }
+    });
+  }
+  if (!filled) return;
+  targets.forEach(function (h) { sh.getRange(2, cols[h], n, 1).setValues(data[h]); });
+  Logger.log('Filled ' + filled + ' empty v3 cell(s) from the notes of earlier leads (notes kept).');
 }
 
 function ensureTab_(ss, tab, position) {

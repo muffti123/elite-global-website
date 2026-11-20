@@ -26,12 +26,42 @@ const CONFIG = {
     'Lead ID', 'Date Received', 'Customer Name', 'Phone Number', 'Lead Category',
     'Adults', 'Children', 'Infants', 'Total Travellers', 'Travel Date',
     'Budget', 'Lead Status', 'Assigned Agent', 'Follow-up Notes', 'Drive Folder',
+    // v3 (round 1): appended after Drive Folder so existing rows never move.
+    'Email', 'Country', 'Departure', 'Passengers', 'Lead Source', 'Application Status',
   ],
-  NOTES_COL: 14,
+  // Columns 1–15 keep their fixed positions; the v3 columns are found by header name.
+  NOTES_COL: 14,      // Follow-up Notes: staff only (the web app no longer writes here)
   FOLDER_COL: 15,
+  V3_COLS: {
+    'Email': { width: 210, format: '@' },
+    'Country': { width: 140 },
+    'Departure': { width: 260 },
+    'Passengers': { width: 95, format: '0', align: 'center' },
+    'Lead Source': { width: 120 },
+    'Application Status': { width: 190, auto: true },
+  },
+  // Application Status values written by the web app
+  STATUS: {
+    RECEIVED: 'Received',
+    EXPIRED: 'Expired',
+    uploading: function (done, total) { return 'Uploading ' + done + '/' + total; },
+    complete: function (n) { return 'Complete: ' + n + (n === 1 ? ' passenger' : ' passengers'); },
+  },
 
   // Detail tabs in the Central Lead Tracker (one row per lead / passenger)
   TABS: {
+    // One row per visa application, one column per answer
+    VISA: {
+      name: 'Visa Applications',
+      headers: ['Lead ID', 'Date Received', 'Full Name', 'Phone / WhatsApp', 'Email', 'Country',
+        'Travel Date', 'Departure', 'Confirmed Flight Ticket', 'Travelled to Saudi Arabia Before',
+        'UK/US/Schengen Visa', 'Passengers', 'Adults', 'Children', 'Infants', 'Shared Flight Ticket',
+        'Shared Hotel Booking', 'Additional Information', 'How They Heard', 'Drive Folder'],
+      widths: [120, 140, 190, 150, 210, 130, 110, 260, 110, 130, 110, 90, 70, 75, 70, 150, 150, 320, 120, 150],
+      textCols: [4],
+      dateCols: [2, 7],
+      folderCol: 20,
+    },
     PASSENGERS: {
       name: 'Visa Passengers',
       headers: ['Lead ID', 'No.', 'Full Name (as on passport)', 'Category', 'Photo (KB)',

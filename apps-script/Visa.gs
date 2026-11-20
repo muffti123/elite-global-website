@@ -53,25 +53,25 @@ function createVisaApplication_(d) {
   saveUploadState_(leadId, { t: token, n: list.length, f: folder.getId(), k: codes, u: [], c: Date.now() });
 
   withLock_(function () {
+    const now = new Date();
     appendTrackerRow_({
-      leadId: leadId, date: new Date(), name: a.name, phone: a.phone,
+      leadId: leadId, date: now, name: a.name, phone: a.phone,
       category: CONFIG.FORMS.VISA.category,
       adults: counts[0], children: counts[1], infants: counts[2],
       travelDate: a.travelDate, budget: 'N/A (visa only)',
       folderUrl: folder.getUrl(),
-      notesPrefix: uploadTag_(0, list.length) + ' ',
-      notes: [
-        'Email: ' + a.email,
-        'Country: ' + a.country,
-        'Departure: ' + a.departureCity,
-        'Flight ticket: ' + a.flightTicket,
-        'Been to KSA: ' + a.priorKsa,
-        'UK/US/Schengen visa: ' + v_(a.westernVisa),
-        'Passengers: ' + list.length,
-        a.extraInfo ? 'Requests: ' + a.extraInfo : '',
-        a.heard ? 'Source: ' + a.heard : '',
-      ],
+      email: a.email, country: a.country, departure: a.departureCity,
+      passengers: list.length, source: a.heard,
+      status: CONFIG.STATUS.uploading(0, list.length),
     });
+    const tab = CONFIG.TABS.VISA;
+    const row = appendDetailRow_(tab, [
+      leadId, now, a.name, a.phone, a.email, a.country, parseDate_(a.travelDate), a.departureCity,
+      a.flightTicket, a.priorKsa, a.westernVisa, list.length, counts[0], counts[1], counts[2],
+      '', '', a.extraInfo, a.heard, '',
+    ]);
+    trackerSS_().getSheetByName(tab.name).getRange(row, tab.folderCol)
+      .setFormula('=HYPERLINK("' + folder.getUrl() + '","📁 ' + leadId + '")');
   });
 
   console.log('createVisaApplication ok ' + leadId + ' passengers=' + list.length);
@@ -126,7 +126,7 @@ function uploadPassenger_(d) {
       '=HYPERLINK("' + phFile.getUrl() + '","photo.' + photo.type.ext + '")',
       new Date(),
     ]);
-    setTrackerUploadTag_(leadId, uploadTag_(s.u.length, s.n));
+    setApplicationStatus_(leadId, CONFIG.STATUS.uploading(s.u.length, s.n));
     return s;
   });
 
@@ -143,7 +143,7 @@ function finalizeVisaApplication_(d) {
   if (!/^EG-VO-\d{5}$/.test(leadId)) fail_(EXPIRED_MSG);
 
   // A repeated finalize (e.g. the first reply was lost) is fine once the lead is complete.
-  if (!getUploadState_(leadId) && /^\[Complete:/.test(trackerNotes_(leadId))) {
+  if (!getUploadState_(leadId) && isComplete_(leadId)) {
     return { ok: true, leadId: leadId };
   }
   const st = requireUploadState_(leadId, d.token);
@@ -154,7 +154,7 @@ function finalizeVisaApplication_(d) {
       null, { missing: missing });
   }
   withLock_(function () {
-    setTrackerUploadTag_(leadId, '[Complete: ' + st.n + (st.n === 1 ? ' passenger]' : ' passengers]'));
+    setApplicationStatus_(leadId, CONFIG.STATUS.complete(st.n));
     deleteUploadState_(leadId);
   });
   console.log('finalizeVisaApplication ok ' + leadId);
@@ -205,6 +205,7 @@ function purgeStaleUploads_() {
     if (!created || Date.now() - created > CONFIG.LIMITS.UPLOAD_TTL_MS) {
       p.deleteProperty(key);
       removed++;
+      try { markExpired_(key.slice('UPLOAD_'.length)); } catch (e) { /* tracker row gone */ }
     }
   });
   Logger.log('Upload state: removed ' + removed + ' entr' + (removed === 1 ? 'y' : 'ies') + ' older than 24 h.');
@@ -266,20 +267,19 @@ function upsertPassengerRow_(leadId, idx, values) {
   sh.getRange(row, 1, 1, values.length).setValues([values]);
 }
 
-function uploadTag_(done, total) { return '[Uploading ' + done + '/' + total + ']'; }
-
-function trackerNotes_(leadId) {
+/**
+ * True when the application finished: Application Status "Complete: …", or (applications that
+ * were finished before v3) the old "[Complete: …]" tag at the start of Follow-up Notes.
+ */
+function isComplete_(leadId) {
+  if (/^Complete:/.test(applicationStatus_(leadId))) return true;
   const sh = trackerSheet_();
   const row = findLeadRow_(sh, leadId);
-  return row ? String(sh.getRange(row, CONFIG.NOTES_COL).getValue()) : '';
+  return row ? /^\[Complete:/.test(String(sh.getRange(row, CONFIG.NOTES_COL).getValue())) : false;
 }
 
-/** Replaces the [Uploading k/N] / [Complete: N passengers] tag at the start of the tracker notes. */
-function setTrackerUploadTag_(leadId, tag) {
-  const sh = trackerSheet_();
-  const row = findLeadRow_(sh, leadId);
-  if (!row) return;
-  const cell = sh.getRange(row, CONFIG.NOTES_COL);
-  const rest = String(cell.getValue()).replace(/^\[(Uploading \d+\/\d+|Complete: \d+ passengers?)\]\s*/, '');
-  cell.setValue(tag + ' ' + rest);
+/** Abandoned application (upload state purged after 24 h): status → Expired, unless it completed. */
+function markExpired_(leadId) {
+  if (!/^EG-VO-\d{5}$/.test(leadId) || isComplete_(leadId)) return;
+  setApplicationStatus_(leadId, CONFIG.STATUS.EXPIRED);
 }

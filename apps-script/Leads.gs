@@ -45,33 +45,72 @@ function findLeadRow_(sh, leadId) {
 }
 
 /**
+ * Column number of every Lead Tracker header, found by name in row 1 (the v3 columns were appended
+ * after Drive Folder, and staff may have added their own columns further right).
+ */
+function trackerCols_(sh) {
+  const head = sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0];
+  const cols = {};
+  head.forEach(function (h, i) { if (h !== '' && !cols[h]) cols[h] = i + 1; });
+  const missing = CONFIG.HEADERS.filter(function (h) { return !cols[h]; });
+  if (missing.length) throw new Error('Lead Tracker is missing ' + missing.join(', ') + '. Run setupEliteGlobal().');
+  return cols;
+}
+
+/**
  * Appends one lead to the Lead Tracker tab. Call inside withLock_.
- * r = {leadId, date, name, phone, category, adults, children, infants, travelDate, budget, notes[], folderUrl?}
+ * r = {leadId, date, name, phone, category, adults, children, infants, travelDate, budget, folderUrl?,
+ *      email?, country?, departure?, passengers?, source?, status}
+ * Follow-up Notes is left empty: it belongs to staff. The answers live in the detail tabs.
  */
 function appendTrackerRow_(r) {
   const sh = trackerSheet_();
+  const cols = trackerCols_(sh);
   const row = nextEmptyRow_(sh);
-  const folderCell = r.folderUrl
-    ? '=HYPERLINK("' + r.folderUrl + '","📁 ' + r.leadId + '")'
-    : '';
-  sh.getRange(row, 1, 1, CONFIG.HEADERS.length).setValues([[
-    r.leadId,
-    r.date,
-    safeCell_(r.name),
-    String(r.phone || ''), // column is plain-text formatted
-    r.category,
-    r.adults,
-    r.children,
-    r.infants,
-    '=IF(COUNT(F' + row + ':H' + row + ')=0,"",F' + row + '+G' + row + '+H' + row + ')',
-    parseDate_(r.travelDate),
-    safeCell_(r.budget || ''),
-    'New Lead',
-    '',
-    safeCell_((r.notesPrefix || '') + '[Auto] ' + r.notes.filter(String).join(' | ')),
-    folderCell,
-  ]]);
+  const v = {
+    'Lead ID': r.leadId,
+    'Date Received': r.date,
+    'Customer Name': safeCell_(r.name),
+    'Phone Number': String(r.phone || ''), // column is plain-text formatted
+    'Lead Category': r.category,
+    'Adults': r.adults,
+    'Children': r.children,
+    'Infants': r.infants,
+    'Total Travellers': '=IF(COUNT(F' + row + ':H' + row + ')=0,"",F' + row + '+G' + row + '+H' + row + ')',
+    'Travel Date': parseDate_(r.travelDate),
+    'Budget': safeCell_(r.budget || ''),
+    'Lead Status': 'New Lead',
+    'Assigned Agent': '',
+    'Follow-up Notes': '',
+    'Drive Folder': r.folderUrl ? '=HYPERLINK("' + r.folderUrl + '","📁 ' + r.leadId + '")' : '',
+    'Email': String(r.email || ''),
+    'Country': safeCell_(r.country || ''),
+    'Departure': safeCell_(r.departure || ''),
+    'Passengers': r.passengers === undefined ? '' : r.passengers,
+    'Lead Source': safeCell_(r.source || ''),
+    'Application Status': r.status || CONFIG.STATUS.RECEIVED,
+  };
+  // Write the contiguous block of web-app columns; staff columns outside it are untouched.
+  const last = Math.max.apply(null, CONFIG.HEADERS.map(function (h) { return cols[h]; }));
+  const current = sh.getRange(row, 1, 1, last).getValues()[0];
+  CONFIG.HEADERS.forEach(function (h) { current[cols[h] - 1] = v[h]; });
+  sh.getRange(row, 1, 1, last).setValues([current]);
   return row;
+}
+
+/** Sets the Application Status of a lead (e.g. "Uploading 2/5", "Complete: 5 passengers", "Expired"). */
+function setApplicationStatus_(leadId, status) {
+  const sh = trackerSheet_();
+  const row = findLeadRow_(sh, leadId);
+  if (!row) return;
+  sh.getRange(row, trackerCols_(sh)['Application Status']).setValue(status);
+}
+
+/** Current Application Status of a lead ('' when not found). */
+function applicationStatus_(leadId) {
+  const sh = trackerSheet_();
+  const row = findLeadRow_(sh, leadId);
+  return row ? String(sh.getRange(row, trackerCols_(sh)['Application Status']).getValue()) : '';
 }
 
 /** Appends a row to a detail tab (CONFIG.TABS.*). Strings are made formula-safe. Call inside withLock_. */
@@ -126,11 +165,6 @@ function toInt_(v) {
   return isNaN(n) ? '' : n;
 }
 
-function v_(val, fallback) {
-  if (val === undefined || val === null || val === '') return fallback === undefined ? '—' : fallback;
-  return val;
-}
-
 function parseDate_(s) {
   if (!s) return '';
   const m = String(s).match(/^(\d{4})-(\d{2})-(\d{2})$/);
@@ -158,12 +192,8 @@ function submitContact_(d) {
       leadId: leadId, date: now, name: a.name, phone: a.phone,
       category: CONFIG.FORMS.CONTACT.category,
       adults: a.travellers, children: '', infants: '', // website only collects a total
-      travelDate: a.travelDate, budget: '',
-      notes: [
-        'Enquiry: ' + a.enquiryType,
-        a.travellers !== '' ? 'Travellers: ' + a.travellers + ' (age split not given — counted under Adults)' : '',
-        a.details ? 'Details: ' + a.details : '',
-      ],
+      travelDate: a.travelDate, budget: '', // website only collects a total (counted under Adults)
+      status: CONFIG.STATUS.RECEIVED,
     });
     appendDetailRow_(CONFIG.TABS.CONTACT, [
       leadId, now, a.name, a.phone, a.enquiryType, parseDate_(a.travelDate), a.travellers, a.details,
@@ -216,21 +246,8 @@ function submitCustomRequest_(d) {
       category: CONFIG.FORMS.CUSTOM.category,
       adults: a.adults, children: a.children, infants: a.infants,
       travelDate: a.travelDate, budget: a.budget,
-      notes: [
-        'Email: ' + a.email,
-        'Country: ' + a.country,
-        'Departure: ' + a.departureCity,
-        'Arrive: ' + a.arrivalCity,
-        'Nights Madinah/Makkah: ' + a.nightsMadinah + '/' + a.nightsMakkah,
-        'Hotel: ' + a.hotelCategory + ', ' + a.haramDistance + (a.preferredHotel ? ' (' + a.preferredHotel + ')' : ''),
-        'Visa help: ' + a.visaAssist,
-        'Flight ticket: ' + a.flightTicket,
-        services.length ? 'Services: ' + services.join(', ') : '',
-        a.experience ? 'Experience: ' + a.experience : '',
-        a.hotelOrAirline ? 'Pref. hotel/airline: ' + a.hotelOrAirline : '',
-        a.special ? 'Requests: ' + a.special : '',
-        a.heard ? 'Source: ' + a.heard : '',
-      ],
+      email: a.email, country: a.country, departure: a.departureCity, source: a.heard,
+      status: CONFIG.STATUS.RECEIVED,
     });
     appendDetailRow_(CONFIG.TABS.CUSTOM, [
       leadId, now, a.name, a.phone, a.email, a.country, a.adults, a.children, a.infants,
