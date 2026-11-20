@@ -3,8 +3,8 @@
 **Project:** Umrah Lead Generation System — website forms + Apps Script web app + Google Sheets/Drive
 **Client:** Elite Global World Travel & Tours Ltd. (RC: 7787410)
 **Developer:** Abdulmumin (independent full-stack developer)
-**Document version:** 3.1 — supersedes v2.x (Google Forms) and the original *Project Handover Note*
-**Last updated:** 20 November 2026 (v3.1: round 1 client feedback — see §0.1)
+**Document version:** 3.2 — supersedes v2.x (Google Forms) and the original *Project Handover Note*
+**Last updated:** 20 November 2026 (v3.2: Track my application — §3.5; v3.1: round 1 client feedback — §0.1)
 
 ---
 
@@ -184,6 +184,41 @@ indicator; each step validates before Next; step 7 is a review with "Edit" links
 has been successfully received. Your reference number is *EG-CE-…*. Our travel consultants will review your
 preferences and contact you to discuss the best arrangements for your journey.
 
+### 3.5 `track.html` — Track my application (v3.2)
+A public page (`noindex`) where a customer checks progress with the **reference number** (EG-VO/CE/GE-#####,
+case-insensitive, trimmed) and the **email or phone number used on the application**. `track.html?id=EG-VO-00012`
+prefills the reference; the email/phone is only ever sent in the POST body, never in a URL. Linked from the
+header menu and footer ("Track Application") on every page and from all three success screens
+("Track this application" → `track.html?id=<Lead ID>`).
+
+**Matching:** email case-insensitive against the lead's Email; phone by digits, with `0XXXXXXXXXX`, `+234 XXX…`,
+`234…` and `00234…` treated as the same Nigerian number (fewer than 7 digits never match). General enquiries
+have no email, so they match by phone only.
+
+**Privacy:** an unknown reference, a wrong email/phone, a malformed reference, a rate limit and the honeypot
+all return the **same** message — *"We couldn't find an application with those details. Please check your
+reference number and the email or phone number you used."* — so references cannot be guessed. Limits:
+**5 lookups per reference and 20 per email/phone value per 10 minutes** (hashed keys in CacheService). The reply
+contains only: reference, service type, date received (date only), customer stage, description, next step, the
+staff *Message to Customer* (plain text, max 300 characters) and, for visa applications, the upload line. Never
+name, phone, email, passport data, answers, Drive links, notes or the assigned agent. The contact is never logged.
+
+**Customer stages** (approved; `CONFIG.TRACK` in `Config.gs`). Lost wins, then an expired visa upload:
+| Lead Status (staff) | Stage shown | Description | Next step |
+|---|---|---|---|
+| New Lead (or blank) | Received | We have received your request and it is in our queue. | A member of our team will contact you shortly by phone or WhatsApp. |
+| Contacted | In progress | Our team has been in touch with you about this request. | Reply to our message, or contact us if you have any questions. |
+| Awaiting Response | Waiting for your reply | We are waiting for information or a reply from you. | Please reply to our last message, or contact us on WhatsApp or by phone. |
+| Quotation Sent | Quotation sent | We have sent you a quotation for your request. | Please review it and let us know if you would like to go ahead. |
+| Payment Pending | Awaiting payment | Your arrangements are ready to continue once payment is received. | Please complete payment as agreed with our team. Contact us if you need the details again. |
+| Converted | Confirmed | Your request is confirmed. Thank you for choosing Elite Global. | Our team will keep you updated on the next steps of your journey. |
+| Lost | Closed | This request is closed. | Contact us if you have questions. |
+| *(visa, Application Status Expired)* | Upload not finished | Upload not finished — please contact us or apply again. | Contact us on WhatsApp or by phone, or start a new application. |
+
+Visa upload line: `Complete: N` → "All N passengers' documents received" (1: "All documents for your 1 passenger
+received"); `Uploading k/N` → "Upload not finished (k of N passengers received)"; `Expired` → "Upload not finished".
+Service type: Visa only · Customised Umrah · General enquiry.
+
 ### 3.4 Contact box on `index.html`
 | Field | Type | Required |
 |---|---|---|
@@ -222,8 +257,9 @@ Success: the form resets and shows "Your reference number is EG-GE-…".
 | 19 | Passengers | Auto | Visa: number of passengers |
 | 20 | Lead Source | Auto | How did you hear about Elite Global? |
 | 21 | Application Status | Auto | Visa: `Uploading k/N` → `Complete: N passengers`, or `Expired` (24 h purge). Others: `Received` |
+| 22 | Message to Customer | **Staff** | Optional short message shown to the customer on track.html (plain text, first 300 characters). Header note: "Visible to the customer on the Track page — keep it short and professional" (v3.2) |
 
-Columns 16–21 were appended after Drive Folder (v3.1) and are found by header name, so existing rows,
+Columns 16–22 were appended after Drive Folder (v3.1, v3.2) and are found by header name, so existing rows,
 formulas, protections and Lead IDs never move. `setupEliteGlobal()` adds them to an existing tracker and
 fills **only empty cells** of earlier leads from their old `[Auto]` notes (notes are kept); running it
 again changes nothing.
@@ -263,7 +299,7 @@ File extensions follow the file's **real** type (magic bytes), never the custome
 ### 5.1 Transport
 `POST <web app /exec URL>` with a `text/plain;charset=utf-8` JSON body (a "simple" request: no CORS
 preflight). Apps Script answers with a 302 to `script.googleusercontent.com`, which serves the JSON with
-`Access-Control-Allow-Origin: *`. `GET` returns a health check `{"ok":true,"service":…,"version":1,"schema":3}` (schema = tracker version written by `setupEliteGlobal`).
+`Access-Control-Allow-Origin: *`. `GET` returns a health check `{"ok":true,"service":…,"version":1,"schema":4}` (schema = tracker version written by `setupEliteGlobal`: 3 = v3 columns + Visa Applications tab, 4 = Message to Customer).
 
 Every request: `{"action": "<name>", "hp": "<honeypot>", …}` → `{"ok":true,"leadId":…}` or
 `{"ok":false,"error":"<friendly>","field"?:"<name>","missing"?:[…]}`.
@@ -276,6 +312,7 @@ Every request: `{"action": "<name>", "hp": "<honeypot>", …}` → `{"ok":true,"
 | `createVisaApplication` | lead fields §3.2 (`departureAirport`, `departureAirportOther`), `consent:true`, `passengers:[{name, category}]` (1–50), `docs:{shared:{ticket,hotel}, passengers:[{ticket,hotel}]}` (optional) | Drive folder, Lead Tracker row (status `Uploading 0/N`), Visa Applications row, upload state | leadId `EG-VO-…`, token |
 | `uploadPassenger` | leadId, token, index (1…N), name, category, `passport:{name,mime,b64}`, `photo:{mime,b64}` | `NN – name/` passport + photo (replaced on retry; documents kept), Visa Passengers row (upsert), status `Uploading k/N` | uploaded, total, photoKb |
 | `uploadDocument` | leadId, token, `scope` ("all" or 1…N), `kind` (ticket/hotel), name, `file:{name,mime,b64}` | `flight-ticket.*` / `hotel-booking.*` (replaced on retry), links in Visa Passengers / Visa Applications. Only documents declared at create | scope, kind |
+| `trackApplication` | leadId, contact (email or phone) | nothing (read-only) | §3.5 fields only, or the generic not-found message |
 | `finalizeVisaApplication` | leadId, token | status `Complete: N passengers` (all passengers and declared documents arrived), deletes upload state | leadId (repeat-safe); else `missing` (0 = shared documents) |
 
 ### 5.3 Upload state
@@ -292,6 +329,7 @@ up, and the customer is told the application expired.
   image ≤ 1.6 MB (one file per request), ≤ 50 passengers, body ≤ 12 MB.
 - Departure airport: IATA code in the list for the chosen country (`LISTS.AIRPORTS_NG` / `AIRPORTS`), or `OTHER` + text.
 - Token must match; category per passenger must match what was declared at create.
+- Tracking: 5 lookups per reference and 20 per email/phone per 10 minutes; every miss looks the same (§3.5).
 - Rate limit: **10 create/submit calls per 10 minutes** per email (contact form: per phone), counted in
   CacheService with a hashed key.
 - `LockService` only around Lead ID + row writes + upload-state updates — never around Drive uploads.
@@ -340,6 +378,7 @@ deploying user, access anyone).
 |---|---|
 | `public/index.html` | Home: hero, about (values), management team (portrait cards; hidden when empty), services, why (carousel), FAQ, CTA band, contact box, footer |
 | `public/apply-visa.html` | §3.2 |
+| `public/track.html` | §3.5 Track my application (noindex) |
 | `public/customize-umrah.html` | §3.3 |
 | `public/assets/js/config.js` | **The only place to edit:** `company` (address, phone, WhatsApp, email, Instagram), `webAppUrl`, `team`. Empty values hide their element |
 | `public/assets/js/*.js` | `common.js` (company details, form helpers), `api.js`, `wizard.js`, `lists.js`, `image.js`, page scripts |
@@ -412,6 +451,8 @@ Run `node tools/check-lists.js` and `node tools/qa/run.js static` before every s
 - [ ] Honeypot → fake success, no row; 11th submission in 10 min with the same email/phone is refused
 - [ ] Unfinished application backdated 25 h (`testBackdateUpload`) is purged by setup and then "expired"
 - [ ] All pages: no console errors, no Google Forms URLs, no horizontal scroll at 360 px, checked on Android Chrome, iPhone Safari and desktop
+- [ ] Track page: prefill from `?id=`, track by email (any case) and by phone (0… and +234…), wrong contact and unknown reference get the same message, 6th lookup per reference refused, staff message shown as text
+- [ ] `setupEliteGlobal` adds Message to Customer; health check shows `"schema":4`
 - [ ] `cleanupTestData()` run: TEST rows gone from 4 tabs, TEST visa folders in the Drive bin
 - [ ] Sharing on the tracker and the Visa Applications folder checked (named staff only)
 
