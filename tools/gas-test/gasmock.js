@@ -55,6 +55,7 @@ module.exports = function (dir) {
     },
     setNumberFormat: chain, setBackground: chain, setFontColor: chain, setFontWeight: chain, setVerticalAlignment: chain,
     setHorizontalAlignment: chain, setWrap: chain, setDataValidation: chain,
+    setNote(n) { this.sh.notes = this.sh.notes || {}; this.sh.notes[this.r + ',' + this.c] = n; return this; },
   };
   const ss = { sheets: [], getSheetByName(n) { return this.sheets.find((s) => s.name === n) || null; },
     getSheets() { return this.sheets; }, insertSheet(n, pos) { const s = new Sheet(n, 1000, 26); this.sheets.splice(pos === undefined ? this.sheets.length : pos, 0, s); return s; },

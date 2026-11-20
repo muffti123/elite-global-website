@@ -89,6 +89,7 @@ function appendTrackerRow_(r) {
     'Passengers': r.passengers === undefined ? '' : r.passengers,
     'Lead Source': safeCell_(r.source || ''),
     'Application Status': r.status || CONFIG.STATUS.RECEIVED,
+    'Message to Customer': '', // staff only; shown on track.html
   };
   // Write the contiguous block of web-app columns; staff columns outside it are untouched.
   const last = Math.max.apply(null, CONFIG.HEADERS.map(function (h) { return cols[h]; }));

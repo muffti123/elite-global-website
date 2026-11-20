@@ -44,6 +44,7 @@ ctx.upgradeTracker_(ss);
 ok('migration is idempotent (second run changes nothing)', JSON.stringify(tr.cells) === snap1);
 const head = []; for (let c = 1; c <= tr.getMaxColumns(); c++) head.push(tr.get(1, c));
 ok('v3 headers appended P–U in order', head.slice(15, 21).join('|') === 'Email|Country|Departure|Passengers|Lead Source|Application Status', head.slice(15).join('|'));
+ok('v4: Message to Customer appended as column V with its note', head[21] === 'Message to Customer' && /Visible to the customer on the Track page/.test((tr.notes || {})['1,22']), head[21]);
 ok('first 15 columns and Lead IDs unchanged', H2.every((h, i) => tr.get(1, i + 1) === h) && [2, 3, 4].map((r) => tr.get(r, 1)).join() === 'EG-VO-00001,EG-CE-00002,EG-GE-00003');
 ok('old notes kept as they were', tr.get(3, 14) === staffNote && /^\[Complete/.test(tr.get(2, 14)));
 const row = (r) => [16, 17, 18, 19, 20, 21].map((c) => tr.get(r, c));
@@ -55,6 +56,9 @@ ok('tabs: Visa Applications added after Lead Tracker', ss.sheets.map((s) => s.na
 tr.set(4, 17, 'Typed by staff');
 ctx.upgradeTracker_(ss);
 ok('re-run keeps staff-entered values', tr.get(4, 17) === 'Typed by staff');
+
+ok('schema version 4', C.SCHEMA_VERSION === '4');
+ok('health check reports the stored schema', (() => { props.SCHEMA_VERSION = '4'; return JSON.parse(ctx.doGet()).schema === 4; })());
 
 // --- new leads ---------------------------------------------------------------------------------
 const today = new Date(); const future = new Date(today.getTime() + 40 * 864e5).toISOString().slice(0, 10);

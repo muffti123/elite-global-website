@@ -28,18 +28,23 @@ const CONFIG = {
     'Budget', 'Lead Status', 'Assigned Agent', 'Follow-up Notes', 'Drive Folder',
     // v3 (round 1): appended after Drive Folder so existing rows never move.
     'Email', 'Country', 'Departure', 'Passengers', 'Lead Source', 'Application Status',
+    // v4 (round 2): written by staff, shown to the customer on track.html
+    'Message to Customer',
   ],
-  // Columns 1–15 keep their fixed positions; the v3 columns are found by header name.
+  // Columns 1–15 keep their fixed positions; columns added later are found by header name.
   NOTES_COL: 14,      // Follow-up Notes: staff only (the web app no longer writes here)
   FOLDER_COL: 15,
-  V3_COLS: {
+  EXTRA_COLS: {
     'Email': { width: 210, format: '@' },
     'Country': { width: 140 },
     'Departure': { width: 260 },
     'Passengers': { width: 95, format: '0', align: 'center' },
     'Lead Source': { width: 120 },
     'Application Status': { width: 190, auto: true },
+    'Message to Customer': { width: 320, wrap: true, max: 300,
+      note: 'Visible to the customer on the Track page — keep it short and professional' },
   },
+  SCHEMA_VERSION: '4',
   // Application Status values written by the web app
   STATUS: {
     RECEIVED: 'Received',
