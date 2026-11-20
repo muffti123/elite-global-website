@@ -263,7 +263,7 @@ File extensions follow the file's **real** type (magic bytes), never the custome
 ### 5.1 Transport
 `POST <web app /exec URL>` with a `text/plain;charset=utf-8` JSON body (a "simple" request: no CORS
 preflight). Apps Script answers with a 302 to `script.googleusercontent.com`, which serves the JSON with
-`Access-Control-Allow-Origin: *`. `GET` returns a health check `{"ok":true,"service":…,"version":1}`.
+`Access-Control-Allow-Origin: *`. `GET` returns a health check `{"ok":true,"service":…,"version":1,"schema":3}` (schema = tracker version written by `setupEliteGlobal`).
 
 Every request: `{"action": "<name>", "hp": "<honeypot>", …}` → `{"ok":true,"leadId":…}` or
 `{"ok":false,"error":"<friendly>","field"?:"<name>","missing"?:[…]}`.

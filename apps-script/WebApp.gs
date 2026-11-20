@@ -18,9 +18,13 @@ const ACTIONS = {
   finalizeVisaApplication: finalizeVisaApplication_,
 };
 
-/** Health check: opening the web app URL in a browser shows {"ok":true,...}. */
+/**
+ * Health check: opening the web app URL in a browser shows {"ok":true,...}.
+ * schema = SCHEMA_VERSION written by setupEliteGlobal (3 = Lead Tracker v3 columns + Visa Applications tab).
+ */
 function doGet() {
-  return json_({ ok: true, service: 'Elite Global lead API', version: API_VERSION });
+  const schema = Number(PropertiesService.getScriptProperties().getProperty('SCHEMA_VERSION') || 0);
+  return json_({ ok: true, service: 'Elite Global lead API', version: API_VERSION, schema: schema });
 }
 
 function doPost(e) {
