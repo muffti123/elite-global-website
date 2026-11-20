@@ -14,7 +14,7 @@ const [url, exe] = process.argv.slice(2);
   await p.type('input[name=travellers]', '3');
   await p.type('textarea[name=details]', 'Automated staging check. Safe to delete.');
   const t0 = Date.now();
-  await p.click('#submitBtn');
+  await p.$eval('#submitBtn', (e) => e.click()); // the form slides in on scroll; a mouse click can miss it
   await p.waitForFunction(() => /status (ok|err)/.test(document.querySelector('#formStatus').className), { timeout: 60000 });
   const st = await p.$eval('#formStatus', e => ({ cls: e.className, text: e.textContent.trim(), id: (e.querySelector('[data-lead-id]') || {}).textContent }));
   console.log((/ok/.test(st.cls) && /^EG-GE-\d{5}$/.test(st.id) ? 'PASS' : 'FAIL') + '  contact submit → ' + st.id + ' in ' + (Date.now() - t0) + ' ms  — ' + st.text.slice(0, 120));

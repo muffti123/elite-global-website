@@ -222,12 +222,14 @@ const cardInvalid = async (p, i) => (await cards(p))[i].$$eval('.field.invalid',
       const retryShown = !(await p.$eval('#retryAllBtn', (e) => e.hidden));
       ok('forced failure on #2 shows Retry', retryShown && blocked >= 4, 'blocked attempts=' + blocked + ', after ' + ms + ' ms');
       const st = await p.$$eval('#upList .st', (s) => s.map((x) => x.textContent));
-      ok('others uploaded, #2 failed', st[0] === 'Uploaded ✓' && st[2] === 'Uploaded ✓' && st[1] !== 'Uploaded ✓', st.join(' | '));
+      // row 1 is the shared flight ticket, then passengers 1–3
+      const names = await p.$$eval('#upList li > span:first-child', (s) => s.map((x) => x.textContent));
+      ok('shared ticket uploaded first, others uploaded, #2 failed', /^Shared flight ticket/.test(names[0]) && st[0] === 'Uploaded ✓' && st[1] === 'Uploaded ✓' && st[3] === 'Uploaded ✓' && st[2] !== 'Uploaded ✓', names.join(' / ') + ' → ' + st.join(' | '));
       // leaving now must warn (upload in progress / unfinished)
       const rl = p.reload({ timeout: 3000 }).catch(() => {}); await sleep(1200); await rl;
       ok('leave-page warning during unfinished upload', p.dialogs >= 1 || warned, 'dialogs=' + p.dialogs);
       failing = false;
-      await p.click('#upList li:nth-child(2) button');
+      await p.$eval('#upList li:nth-child(3) button', (e) => e.click());
       await p.waitForFunction(() => !document.querySelector('#successPanel').hidden || !document.querySelector('#retryAllBtn').hidden, { timeout: 300000 });
       const id = await p.$eval('#leadId', (e) => e.textContent);
       ok('retry → success (3 passengers)', /^EG-VO-\d{5}$/.test(id) && !(await p.$eval('#successPanel', (e) => e.hidden)), id + ' · ' + (await p.$eval('#successCount', (e) => e.textContent)));
