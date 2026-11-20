@@ -1,0 +1,46 @@
+/* =====================================================================
+   Elite Global — logo lockup: SVG emblem + live text (not a flattened image)
+   Positions and sizes are measured from the original logo artwork, so the
+   proportions match it. Scale everything with ONE variable:
+       .eg-brand { --brand: 4px; }   →  ≈ 225 × 142 px
+   Variants: .eg-brand--light (white header) · .eg-brand--dark (navy footer)
+   Fonts (SIL Open Font License, self-hosted, ~80 KB total):
+     Roboto Condensed 800 (ELITE) · Carlito 400/700 (subtitle, RC badge) · Montserrat 500 (tagline)
+   ===================================================================== */
+@font-face{font-family:"EG Display";font-weight:800;font-display:swap;src:url("../fonts/roboto-condensed-latin-800-normal.woff2") format("woff2")}
+@font-face{font-family:"EG Sub";font-weight:400;font-display:swap;src:url("../fonts/carlito-latin-400-normal.woff2") format("woff2")}
+@font-face{font-family:"EG Sub";font-weight:700;font-display:swap;src:url("../fonts/carlito-latin-700-normal.woff2") format("woff2")}
+@font-face{font-family:"EG Tag";font-weight:500;font-display:swap;src:url("../fonts/montserrat-latin-500-normal.woff2") format("woff2")}
+
+.eg-brand{
+  --brand:4px;
+  --eg-navy:#04154B; --eg-gold:#F3A60E; --eg-text:#333333;
+  position:relative; display:inline-block; flex:0 0 auto; vertical-align:middle;
+  width:calc(var(--brand)*56.2); height:calc(var(--brand)*35.6); text-decoration:none; line-height:1;
+  -webkit-font-smoothing:antialiased;
+}
+.eg-brand > *{position:absolute; white-space:nowrap; line-height:1; margin:0}
+.eg-brand__mark{left:0; top:0; width:calc(var(--brand)*19.4); height:calc(var(--brand)*21.8); display:block}
+.eg-brand__mark--dark{display:none}
+.eg-brand__rc{left:calc(var(--brand)*2.4); top:calc(var(--brand)*22.4); width:calc(var(--brand)*15.9); height:calc(var(--brand)*3.3); border-radius:calc(var(--brand)*0.9);
+  background:var(--eg-gold); color:#fff; font-family:"EG Sub",Calibri,Arial,sans-serif; font-weight:700;
+  font-size:calc(var(--brand)*2.4); letter-spacing:.03em; display:flex; align-items:center; justify-content:center}
+.eg-brand__name{left:calc(var(--brand)*24.3); top:calc(var(--brand)*1.785); font-family:"EG Display","Arial Narrow",Arial,sans-serif;
+  font-weight:800; font-size:calc(var(--brand)*12.917); letter-spacing:.0235em; color:var(--eg-navy)}
+.eg-brand__sub1, .eg-brand__sub2{font-family:"EG Sub",Calibri,Arial,sans-serif; font-weight:400;
+  font-size:calc(var(--brand)*4.366); color:var(--eg-text)}
+.eg-brand__sub1{left:calc(var(--brand)*27.4); top:calc(var(--brand)*14.489); letter-spacing:.018em}
+.eg-brand__sub2{left:calc(var(--brand)*23.2); top:calc(var(--brand)*19.489); letter-spacing:-.003em}
+.eg-brand__rule{left:calc(var(--brand)*1.6); width:calc(var(--brand)*54.6); height:calc(var(--brand)*0.25); background:var(--eg-gold)}
+.eg-brand__rule--top{top:calc(var(--brand)*29.7)}
+.eg-brand__rule--bottom{top:calc(var(--brand)*35.3)}
+.eg-brand__tag{left:calc(var(--brand)*4.0); top:calc(var(--brand)*31.062); font-family:"EG Tag",Arial,sans-serif; font-weight:500;
+  font-size:calc(var(--brand)*2.917); letter-spacing:.015em; color:var(--eg-navy)}
+
+/* Navy footer: white lettering, gold kept */
+.eg-brand--dark{--eg-navy:#FFFFFF; --eg-text:#E6EBF5}
+.eg-brand--dark .eg-brand__mark--light{display:none}
+.eg-brand--dark .eg-brand__mark--dark{display:block}
+
+/* Keyboard focus ring around the whole lockup */
+.eg-brand:focus-visible{outline:3px solid var(--eg-gold); outline-offset:6px; border-radius:8px}

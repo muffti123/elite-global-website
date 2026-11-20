@@ -24,6 +24,18 @@ const PAGES = ['index.html', 'customize-umrah.html', 'apply-visa.html'];
     ok(`${page}: no [Add …]/[Full Name] placeholders`, ph.length === 0, ph.join(', '));
     ok(`${page}: webAppUrl is an /exec URL`, await p.evaluate(() => window.EG && window.EG.apiReady && window.EG.apiReady()));
 
+    // Logo lockup (logo kit): header light + footer dark, both link home; no old logo image
+    const brand = await p.evaluate(() => ({
+      head: [...document.querySelectorAll('.site-header .eg-brand.eg-brand--light')].map((a) => a.getAttribute('href')),
+      foot: [...document.querySelectorAll('footer .eg-brand.eg-brand--dark')].map((a) => a.getAttribute('href')),
+      css: [...document.styleSheets].some((s) => /brand\.css$/.test(s.href || '')),
+      w: (document.querySelector('.site-header .eg-brand') || {}).offsetWidth,
+      fontOk: document.fonts.check('800 20px "EG Display"'),
+    }));
+    ok(`${page}: logo lockup in header + footer → index.html`, brand.head.join() === 'index.html' && brand.foot.join() === 'index.html' && brand.css, JSON.stringify(brand));
+    ok(`${page}: brand font loaded`, brand.fontOk);
+    ok(`${page}: no old logo image`, !/logo\.jpg|data:image\/(jpe?g|png);base64/.test(html));
+
     if (page === 'index.html') {
       const ctas = await p.$$eval('.hero .btn, .cta-band .btn', (as) => as.map((a) => ({ t: a.textContent.trim(), h: a.getAttribute('href'), target: a.target })));
       const want = { 'Request Umrah Visa Only': 'apply-visa.html', 'Customize My Umrah Experience': 'customize-umrah.html' };
