@@ -14,6 +14,7 @@ const ACTIONS = {
   submitCustomRequest: submitCustomRequest_,
   createVisaApplication: createVisaApplication_,
   uploadPassenger: uploadPassenger_,
+  uploadDocument: uploadDocument_,
   finalizeVisaApplication: finalizeVisaApplication_,
 };
 

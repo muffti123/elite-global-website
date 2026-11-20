@@ -2,6 +2,7 @@
  * Umrah visa applications (apply-visa.html):
  *   createVisaApplication → Lead ID + upload token
  *   uploadPassenger (one request per passenger, safe to retry)
+ *   uploadDocument  (optional flight ticket / hotel booking: per passenger, or once for all)
  *   finalizeVisaApplication
  * Upload state lives in Script Properties under UPLOAD_<LeadID> until finalize, or until
  * purgeStaleUploads_() removes it after 24 h. Never log names, answers or file contents.
@@ -43,6 +44,7 @@ function createVisaApplication_(d) {
     return String(c);
   }).join('');
 
+  const docs = docsDeclared_(d.docs, list.length);
   rateLimit_('email:' + a.email);
 
   const leadId = withLock_(function () { return nextLeadId_(CONFIG.FORMS.VISA.idPrefix); });
@@ -50,7 +52,7 @@ function createVisaApplication_(d) {
   // Drive work happens outside the lock
   const folder = visaRootFolder_().createFolder(leadId + ' – ' + folderSafe_(a.name));
   const token = Utilities.getUuid();
-  saveUploadState_(leadId, { t: token, n: list.length, f: folder.getId(), k: codes, u: [], c: Date.now() });
+  saveUploadState_(leadId, { t: token, n: list.length, f: folder.getId(), k: codes, u: [], c: Date.now(), d: docs, dd: [], sl: {} });
 
   withLock_(function () {
     const now = new Date();
@@ -109,8 +111,7 @@ function uploadPassenger_(d) {
   // Drive work (outside the lock). Existing files for this passenger are replaced.
   const nn = ('0' + idx).slice(-2);
   const sub = passengerFolder_(DriveApp.getFolderById(st.f), nn, name);
-  const old = sub.getFiles();
-  while (old.hasNext()) old.next().setTrashed(true);
+  trashNamed_(sub, ['passport', 'photo']);
   const pFile = sub.createFile(Utilities.newBlob(passport.bytes, passport.type.mime, 'passport.' + passport.type.ext));
   const phFile = sub.createFile(Utilities.newBlob(photo.bytes, photo.type.mime, 'photo.' + photo.type.ext));
   const kb = Math.round(photo.bytes.length / 102.4) / 10;
@@ -120,11 +121,12 @@ function uploadPassenger_(d) {
     if (!s) fail_(EXPIRED_MSG);
     if (s.u.indexOf(idx) === -1) s.u.push(idx);
     saveUploadState_(leadId, s);
+    const shared = function (c) { return s.sl && s.sl[c] ? sharedLink_(s.sl[c]) : undefined; };
     upsertPassengerRow_(leadId, idx, [
       leadId, idx, safeCell_(name), cat, kb,
       '=HYPERLINK("' + pFile.getUrl() + '","passport.' + passport.type.ext + '")',
       '=HYPERLINK("' + phFile.getUrl() + '","photo.' + photo.type.ext + '")',
-      new Date(),
+      new Date(), shared('t'), shared('h'),
     ]);
     setApplicationStatus_(leadId, CONFIG.STATUS.uploading(s.u.length, s.n));
     return s;
@@ -133,6 +135,66 @@ function uploadPassenger_(d) {
   console.log('uploadPassenger ok ' + leadId + ' #' + idx + ' passport=' + passport.type.ext + '/' +
     passport.bytes.length + 'B photo=' + photo.type.ext + '/' + photo.bytes.length + 'B');
   return { ok: true, leadId: leadId, index: idx, photoKb: kb, uploaded: cur.u.length, total: cur.n };
+}
+
+// ---------------------------------------------------------------------
+// ACTION: uploadDocument — optional flight ticket / hotel booking. scope "all" stores one file at the
+// application folder root for every passenger; scope N stores it in "NN – name/". Repeating replaces it.
+// ---------------------------------------------------------------------
+function uploadDocument_(d) {
+  const L = CONFIG.LIMITS;
+  const leadId = str_(d.leadId, 20);
+  const st = requireUploadState_(leadId, d.token);
+  const code = d.kind === 'ticket' ? 't' : d.kind === 'hotel' ? 'h' : fail_('Invalid document type.', 'kind');
+  const doc = CONFIG.DOCS[code];
+  const scope = d.scope === 'all' ? 0 : Number(d.scope);
+  if (!Number.isInteger(scope) || scope < 0 || scope > st.n) fail_('Invalid passenger number.', 'scope');
+  if (!docDeclared_(st, scope, code)) {
+    fail_('This document was not part of your application. Please start a new application.', 'kind');
+  }
+  const file = checkFile_(d.file, ['pdf', 'jpg', 'png'], 'file', doc.label);
+  if (file.type.ext === 'pdf' && file.bytes.length > L.DOC_PDF_MAX) fail_('PDF files must be 5 MB or smaller.', 'file');
+  if (file.type.ext !== 'pdf' && file.bytes.length > L.DOC_IMG_MAX) {
+    fail_('The image is too large. Please choose it again so it can be resized.', 'file');
+  }
+
+  // Drive work (outside the lock)
+  const app = DriveApp.getFolderById(st.f);
+  const nn = ('0' + scope).slice(-2);
+  const folder = scope === 0 ? app : passengerFolder_(app, nn, vName_(d.name, 'name', 'the passenger\'s full name'));
+  trashNamed_(folder, [doc.file]);
+  const name = doc.file + '.' + file.type.ext;
+  const f = folder.createFile(Utilities.newBlob(file.bytes, file.type.mime, name));
+
+  withLock_(function () {
+    const s = getUploadState_(leadId);
+    if (!s) fail_(EXPIRED_MSG);
+    s.dd = s.dd || [];
+    if (s.dd.indexOf(scope + code) === -1) s.dd.push(scope + code);
+    if (scope === 0) { s.sl = s.sl || {}; s.sl[code] = [f.getUrl(), name]; }
+    saveUploadState_(leadId, s);
+    const ss = trackerSS_();
+    if (scope === 0) {
+      // Visa Applications: Shared … column; Visa Passengers: every passenger row of this lead
+      const tab = CONFIG.TABS.VISA;
+      const va = ss.getSheetByName(tab.name);
+      const row = va ? findLeadRow_(va, leadId) : 0;
+      if (row) va.getRange(row, tab.sharedCols[code]).setFormula('=HYPERLINK("' + f.getUrl() + '","' + name + '")');
+      const ps = ss.getSheetByName(CONFIG.TABS.PASSENGERS.name);
+      const col = CONFIG.TABS.PASSENGERS.headers.indexOf(doc.col) + 1;
+      if (ps && ps.getLastRow() > 1) {
+        ps.getRange(2, 1, ps.getLastRow() - 1, 1).createTextFinder(leadId).matchEntireCell(true).findAll()
+          .forEach(function (h) { ps.getRange(h.getRow(), col).setFormula(sharedLink_(s.sl[code])); });
+      }
+    } else {
+      const v = new Array(CONFIG.TABS.PASSENGERS.headers.length);
+      v[0] = leadId; v[1] = scope;
+      v[CONFIG.TABS.PASSENGERS.headers.indexOf(doc.col)] = '=HYPERLINK("' + f.getUrl() + '","' + name + '")';
+      upsertPassengerRow_(leadId, scope, v);
+    }
+  });
+  console.log('uploadDocument ok ' + leadId + ' ' + (scope || 'all') + '/' + code + ' ' + file.type.ext + '/' + file.bytes.length + 'B');
+  return { ok: true, leadId: leadId, scope: scope || 'all', kind: doc.kind };
 }
 
 // ---------------------------------------------------------------------
@@ -149,8 +211,11 @@ function finalizeVisaApplication_(d) {
   const st = requireUploadState_(leadId, d.token);
   const missing = [];
   for (let i = 1; i <= st.n; i++) if (st.u.indexOf(i) === -1) missing.push(i);
+  // declared documents (0 = the shared documents)
+  docsMissing_(st).forEach(function (i) { if (missing.indexOf(i) === -1) missing.push(i); });
+  missing.sort(function (x, y) { return x - y; });
   if (missing.length) {
-    fail_('Some passengers have not finished uploading (' + missing.join(', ') + '). Please retry them.',
+    fail_('Some uploads have not finished (' + missing.map(function (i) { return i || 'shared documents'; }).join(', ') + '). Please retry them.',
       null, { missing: missing });
   }
   withLock_(function () {
@@ -162,8 +227,60 @@ function finalizeVisaApplication_(d) {
 }
 
 // ---------------------------------------------------------------------
+// OPTIONAL DOCUMENTS
+// Upload state d: one digit per slot (slot 0 = shared, 1…n = passengers): 0 none, 1 ticket, 2 hotel,
+// 3 both. dd: uploaded keys such as "0t", "3h". sl: shared file {t|h: [url, name]}.
+// ---------------------------------------------------------------------
+/** Validates the optional {shared:{ticket,hotel}, passengers:[{ticket,hotel}]} declaration → digits. */
+function docsDeclared_(docs, n) {
+  if (docs === undefined || docs === null) return '0'.repeat(n + 1);
+  if (typeof docs !== 'object') fail_('Invalid request.');
+  const sh = docs.shared || {};
+  const pax = Array.isArray(docs.passengers) ? docs.passengers : [];
+  if (pax.length && pax.length !== n) fail_('Invalid request.');
+  const digit = function (o, skip) {
+    o = o || {};
+    return String((o.ticket === true && !skip.t ? 1 : 0) + (o.hotel === true && !skip.h ? 2 : 0));
+  };
+  const shared = { t: sh.ticket === true, h: sh.hotel === true };
+  let out = digit(sh, {});
+  for (let i = 0; i < n; i++) out += digit(pax[i], shared); // a shared document is stored once only
+  return out;
+}
+
+function docDeclared_(st, slot, code) {
+  const v = Number(String(st.d || '').charAt(slot) || 0);
+  return code === 't' ? (v & 1) === 1 : (v & 2) === 2;
+}
+
+/** Slots (0 = shared) with a declared document that has not arrived yet. */
+function docsMissing_(st) {
+  const out = [];
+  const d = String(st.d || '');
+  for (let slot = 0; slot < d.length; slot++) {
+    ['t', 'h'].forEach(function (c) {
+      if (docDeclared_(st, slot, c) && (st.dd || []).indexOf(slot + c) === -1 && out.indexOf(slot) === -1) out.push(slot);
+    });
+  }
+  return out;
+}
+
+function sharedLink_(entry) { return '=HYPERLINK("' + entry[0] + '","' + entry[1] + ' (all passengers)")'; }
+
+/** Moves files called <base>.<ext> (any extension) in the folder to the bin, for each base. */
+function trashNamed_(folder, bases) {
+  const it = folder.getFiles();
+  while (it.hasNext()) {
+    const f = it.next();
+    const base = String(f.getName()).replace(/\.[^.]*$/, '');
+    if (bases.indexOf(base) !== -1) f.setTrashed(true);
+  }
+}
+
+// ---------------------------------------------------------------------
 // UPLOAD STATE (Script Properties: UPLOAD_<LeadID>)
-// {t: token, n: passengers, f: folderId, k: category codes, u: uploaded indexes, c: created ms}
+// {t: token, n: passengers, f: folderId, k: category codes, u: uploaded indexes, c: created ms,
+//  d / dd / sl: optional documents (see above)}
 // ---------------------------------------------------------------------
 function uploadKey_(leadId) { return 'UPLOAD_' + leadId; }
 
@@ -251,7 +368,10 @@ function passengerFolder_(appFolder, nn, name) {
   return appFolder.createFolder(wanted);
 }
 
-/** Writes or replaces the Visa Passengers row for (leadId, index). Call inside withLock_. */
+/**
+ * Writes the Visa Passengers row for (leadId, index). Call inside withLock_.
+ * undefined entries keep what is already in the row (e.g. a document uploaded separately).
+ */
 function upsertPassengerRow_(leadId, idx, values) {
   const sh = trackerSS_().getSheetByName(CONFIG.TABS.PASSENGERS.name);
   if (!sh) throw new Error('Tab "' + CONFIG.TABS.PASSENGERS.name + '" is missing. Run setupEliteGlobal().');
@@ -263,8 +383,9 @@ function upsertPassengerRow_(leadId, idx, values) {
       if (Number(sh.getRange(hits[i].getRow(), 2).getValue()) === idx) row = hits[i].getRow();
     }
   }
-  if (!row) row = sh.getLastRow() + 1;
-  sh.getRange(row, 1, 1, values.length).setValues([values]);
+  const range = row ? sh.getRange(row, 1, 1, values.length) : sh.getRange(sh.getLastRow() + 1, 1, 1, values.length);
+  const cur = row ? range.getValues()[0] : [];
+  range.setValues([values.map(function (v, i) { return v === undefined ? (row ? cur[i] : '') : v; })]);
 }
 
 /**

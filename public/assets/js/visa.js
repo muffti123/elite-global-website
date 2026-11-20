@@ -1,7 +1,10 @@
 /*
  * Request Umrah Visa Only — lead details, passenger cards with passport + photo, review, upload.
- * Flow: createVisaApplication → Lead ID + token → uploadPassenger (one request each, retry-safe)
- *       → finalizeVisaApplication → success screen.
+ * Flow: createVisaApplication → Lead ID + token → uploadDocument (shared files, once) →
+ *       per passenger: uploadPassenger + uploadDocument (own files) — one request each, retry-safe →
+ *       finalizeVisaApplication → success screen.
+ * Optional documents (flight ticket, hotel booking) belong to a passenger, or — with "Use this file
+ * for all passengers" — to the application (state.shared), and are then stored only once.
  * All answers and files live in `state` / the page, so Back/Next never loses anything.
  */
 (function () {
@@ -14,7 +17,10 @@
   var status = $('#formStatus');
   var nav = $('#wizardNav'), nextBtn = $('#nextBtn'), backBtn = $('#backBtn'), submitBtn = $('#submitBtn');
 
-  var state = { pax: [], seq: 0, leadId: '', token: '', phase: 'edit', running: false }; // phase: edit | uploading | done
+  var state = { pax: [], seq: 0, leadId: '', token: '', phase: 'edit', running: false, // phase: edit | uploading | done
+    shared: { ticket: null, hotel: null }, sharedItem: null };
+  var DOCS = ['ticket', 'hotel'];
+  var DOC_NAME = { ticket: 'Flight ticket', hotel: 'Hotel booking' };
   var dirty = false;
 
   // Object URLs for previews: tracked so they can be revoked (memory on phones with 50 files).
@@ -42,11 +48,13 @@
   function addPassenger(passportFile) {
     if (state.pax.length >= MAX) return null;
     var p = { id: ++state.seq, name: '', category: '', passport: null, passportType: '', passportThumb: '',
-      photo: null, photoThumb: '', busy: 0, gen: { passport: 0, photo: 0 }, status: 'pending', error: '' };
+      photo: null, photoThumb: '', busy: 0, gen: { passport: 0, photo: 0, ticket: 0, hotel: 0 }, status: 'pending', error: '',
+      docs: { ticket: null, hotel: null }, sent: {} };
     state.pax.push(p);
     renderCard(p);
     if (passportFile) setPassport(p, passportFile);
     renumber();
+    renderAllDocs(); // "use for all" needs two or more passengers
     dirty = true;
     EG.setInvalid($('#paxField').firstElementChild, false);
     return p;
@@ -66,6 +74,13 @@
     node.querySelector('[data-photo-btn]').addEventListener('click', function () { phIn.click(); });
     pIn.addEventListener('change', function () { if (pIn.files[0]) setPassport(p, pIn.files[0]); pIn.value = ''; });
     phIn.addEventListener('change', function () { if (phIn.files[0]) setPhoto(p, phIn.files[0]); phIn.value = ''; });
+    // Camera (phones): passport with the back camera, photo with the front camera
+    var pCam = node.querySelector('[data-passport-cam-input]'), phCam = node.querySelector('[data-photo-cam-input]');
+    node.querySelector('[data-passport-cam]').addEventListener('click', function () { pCam.click(); });
+    node.querySelector('[data-photo-cam]').addEventListener('click', function () { phCam.click(); });
+    pCam.addEventListener('change', function () { if (pCam.files[0]) setPassport(p, pCam.files[0]); pCam.value = ''; });
+    phCam.addEventListener('change', function () { if (phCam.files[0]) setPhoto(p, phCam.files[0]); phCam.value = ''; });
+    DOCS.forEach(function (kind) { setupDoc(p, kind); });
     node.querySelector('[data-remove]').addEventListener('click', function () { removePassenger(p); });
     paxList.appendChild(node);
   }
@@ -73,10 +88,16 @@
   function removePassenger(p) {
     revoke(p.passportThumb); revoke(p.photoThumb);
     p.passportThumb = p.photoThumb = '';
-    p.gen.passport++; p.gen.photo++; // ignore work still running for this card
+    p.gen.passport++; p.gen.photo++; p.gen.ticket++; p.gen.hotel++; // ignore work still running for this card
+    DOCS.forEach(function (kind) {
+      if (p.docs[kind]) revoke(p.docs[kind].thumb);
+      var sh = state.shared[kind];
+      if (sh && sh.owner === p) { revoke(sh.thumb); state.shared[kind] = null; }
+    });
     p.el.remove();
     state.pax.splice(state.pax.indexOf(p), 1);
     renumber();
+    renderAllDocs();
     dirty = true;
   }
 
@@ -85,12 +106,20 @@
     state.pax.forEach(function (p, i) {
       q(p, '[data-no]').textContent = i + 1;
       q(p, '[data-remove]').setAttribute('aria-label', 'Remove passenger ' + (i + 1));
-      q(p, '[data-passport-btn]').setAttribute('aria-label', 'Choose passport for passenger ' + (i + 1));
-      q(p, '[data-photo-btn]').setAttribute('aria-label', 'Choose photo for passenger ' + (i + 1));
+      q(p, '[data-photo-btn]').setAttribute('aria-label', 'Choose photo file for passenger ' + (i + 1));
+      q(p, '[data-passport-btn]').setAttribute('aria-label', 'Choose passport file for passenger ' + (i + 1));
+      q(p, '[data-passport-cam]').setAttribute('aria-label', 'Take a photo of the passport of passenger ' + (i + 1));
+      q(p, '[data-photo-cam]').setAttribute('aria-label', 'Take the passport photograph of passenger ' + (i + 1));
+      DOCS.forEach(function (kind) {
+        var box = q(p, '[data-doc="' + kind + '"]'), what = DOC_NAME[kind].toLowerCase() + ' for passenger ' + (i + 1);
+        box.querySelector('[data-doc-btn]').setAttribute('aria-label', 'Choose ' + what);
+        box.querySelector('[data-doc-cam]').setAttribute('aria-label', 'Take a photo of the ' + what);
+        box.querySelector('[data-doc-remove]').setAttribute('aria-label', 'Remove ' + what);
+      });
     });
     $('#paxTools').hidden = n === 0;
     $('#paxCount').textContent = n + (n === 1 ? ' passenger' : ' passengers') + ' · up to ' + MAX;
-    ['#addPaxBtn', '#addPaxBtn2', '#pickAllBtn'].forEach(function (s) { $(s).disabled = n >= MAX; });
+    ['#addPaxBtn', '#addPaxBtn2', '#pickAllBtn', '#camPaxBtn'].forEach(function (s) { $(s).disabled = n >= MAX; });
   }
 
   function setThumb(box, url, text) {
@@ -114,7 +143,7 @@
       var note = q(p, '[data-passport-note]');
       note.className = 'note ok';
       note.textContent = r.type !== 'pdf' && file.size > EG.FILE_LIMITS.PASSPORT_IMG_KEEP ? '✓ Ready — will be resized to about 1 MB when sent' : '✓ Ready';
-      btn.textContent = 'Change';
+      btn.textContent = 'Change file';
       EG.setInvalid(btn, false);
       if (r.type === 'pdf') { setThumb(q(p, '[data-passport-thumb]'), '', 'PDF'); return; }
       return EG.makeThumb(file).then(function (blob) {
@@ -129,7 +158,7 @@
       q(p, '[data-passport-title]').textContent = 'File not accepted';
       q(p, '[data-passport-name]').textContent = file.name;
       EG.setInvalid(btn, true, err.userFacing ? err.message : 'This file could not be read. Please choose it again.');
-      btn.textContent = 'Choose passport';
+      btn.textContent = 'Choose file';
     }).then(function () { p.busy--; });
   }
 
@@ -152,7 +181,7 @@
       note.textContent = r.compressed
         ? '✓ Resized from ' + EG.fmtSize(file.size) + ' to ' + r.kb.toFixed(1) + ' KB'
         : '✓ Size ' + r.kb.toFixed(1) + ' KB — within 25–50 KB';
-      btn.textContent = 'Change';
+      btn.textContent = 'Change file';
       EG.setInvalid(btn, false);
     }, function (err) {
       if (gen !== p.gen.photo) return;
@@ -161,8 +190,128 @@
       q(p, '[data-photo-title]').textContent = 'Photo not accepted';
       q(p, '[data-photo-name]').textContent = file.name + ' · ' + EG.fmtSize(file.size);
       EG.setInvalid(btn, true, err.userFacing ? err.message : 'This photo could not be read. Please choose another one.');
-      btn.textContent = 'Choose photo';
+      btn.textContent = 'Choose file';
     }).then(function () { p.busy--; });
+  }
+
+  // ---- Optional documents: flight ticket, hotel booking ---------------------------------
+  function docBox(p, kind) { return q(p, '[data-doc="' + kind + '"]'); }
+
+  function setupDoc(p, kind) {
+    var box = docBox(p, kind);
+    var input = box.querySelector('[data-doc-input]'), cam = box.querySelector('[data-doc-cam-input]');
+    box.querySelector('[data-doc-btn]').addEventListener('click', function () { input.click(); });
+    box.querySelector('[data-doc-cam]').addEventListener('click', function () { cam.click(); });
+    [input, cam].forEach(function (inp) {
+      inp.addEventListener('change', function () { if (inp.files[0]) setDoc(p, kind, inp.files[0]); inp.value = ''; });
+    });
+    box.querySelector('[data-doc-remove]').addEventListener('click', function () { clearDoc(p, kind); });
+    box.querySelector('[data-doc-share]').addEventListener('change', function (e) { shareDoc(p, kind, e.target.checked); });
+    renderDoc(p, kind);
+  }
+
+  /** The file this card shows for kind: its own, or the shared one when it owns it. */
+  function docOf(p, kind) {
+    var sh = state.shared[kind];
+    return sh && sh.owner === p ? sh : p.docs[kind];
+  }
+
+  function setDoc(p, kind, file) {
+    var gen = ++p.gen[kind];
+    var box = docBox(p, kind);
+    box.querySelector('[data-doc-title]').textContent = 'Checking…';
+    p.busy++;
+    return EG.checkDocument(file).then(function (r) {
+      if (gen !== p.gen[kind] || !p.el.isConnected) return;
+      var d = { file: file, type: r.type, large: r.large, thumb: '' };
+      var sh = state.shared[kind];
+      var old = docOf(p, kind);
+      if (old) revoke(old.thumb);
+      if (sh && sh.owner === p) { d.owner = p; state.shared[kind] = d; } else p.docs[kind] = d;
+      EG.setInvalid(box.querySelector('[data-doc-btn]'), false);
+      renderAllDocs();
+      if (r.type === 'pdf') return;
+      return EG.makeThumb(file).then(function (blob) {
+        if (gen !== p.gen[kind] || !p.el.isConnected || docOf(p, kind) !== d) return;
+        d.thumb = track(URL.createObjectURL(blob));
+        renderAllDocs();
+      }, function () {});
+    }, function (err) {
+      if (gen !== p.gen[kind]) return;
+      renderDoc(p, kind);
+      box.querySelector('[data-doc-title]').textContent = 'File not accepted';
+      box.querySelector('[data-doc-name]').textContent = file.name;
+      EG.setInvalid(box.querySelector('[data-doc-btn]'), true, err.userFacing ? err.message : 'This file could not be read. Please choose it again.');
+    }).then(function () { p.busy--; });
+  }
+
+  function clearDoc(p, kind) {
+    p.gen[kind]++;
+    var sh = state.shared[kind];
+    if (sh && sh.owner === p) { revoke(sh.thumb); state.shared[kind] = null; }
+    else if (p.docs[kind]) { revoke(p.docs[kind].thumb); p.docs[kind] = null; }
+    renderAllDocs();
+    dirty = true;
+  }
+
+  /** "Use this file for all passengers": the file moves to the application and is sent once. */
+  function shareDoc(p, kind, on) {
+    if (on) {
+      var d = p.docs[kind];
+      if (!d) return;
+      d.owner = p;
+      state.shared[kind] = d;
+      p.docs[kind] = null;
+      state.pax.forEach(function (o) { if (o !== p && o.docs[kind]) { revoke(o.docs[kind].thumb); o.docs[kind] = null; o.gen[kind]++; } });
+    } else if (state.shared[kind] && state.shared[kind].owner === p) {
+      var s = state.shared[kind];
+      delete s.owner;
+      p.docs[kind] = s;
+      state.shared[kind] = null;
+    }
+    renderAllDocs();
+    dirty = true;
+  }
+
+  function renderDoc(p, kind) {
+    var box = docBox(p, kind);
+    var sh = state.shared[kind];
+    var mine = docOf(p, kind);
+    var other = sh && sh.owner !== p;
+    var title = box.querySelector('[data-doc-title]'), name = box.querySelector('[data-doc-name]'), note = box.querySelector('[data-doc-note]');
+    var share = box.querySelector('[data-doc-share]'), remove = box.querySelector('[data-doc-remove]');
+    var choose = box.querySelector('[data-doc-btn]'), cam = box.querySelector('[data-doc-cam]');
+    choose.disabled = cam.disabled = !!other;
+    note.className = 'note';
+    note.textContent = '';
+    if (other) {
+      setThumb(box.querySelector('[data-doc-thumb]'), sh.thumb, sh.type === 'pdf' ? 'PDF' : sh.type.toUpperCase());
+      title.textContent = 'Shared file';
+      name.textContent = 'Using the file from passenger ' + (state.pax.indexOf(sh.owner) + 1) + ' for all passengers';
+      share.checked = false; share.disabled = true; remove.hidden = true;
+      choose.textContent = 'Choose file';
+    } else if (mine) {
+      setThumb(box.querySelector('[data-doc-thumb]'), mine.thumb, mine.type === 'pdf' ? 'PDF' : mine.type.toUpperCase());
+      title.textContent = DOC_NAME[kind] + ' (' + mine.type.toUpperCase() + ')';
+      name.textContent = mine.file.name + ' · ' + EG.fmtSize(mine.file.size);
+      if (mine.large && mine.type !== 'pdf') { note.className = 'note ok'; note.textContent = '✓ Ready — will be compressed when sent'; }
+      else if (mine.large) { note.className = 'note warn'; note.textContent = 'Larger than the recommended 2 MB — sending may take longer'; }
+      else { note.className = 'note ok'; note.textContent = sh && sh.owner === p ? '✓ Ready — used for all passengers' : '✓ Ready'; }
+      share.disabled = state.pax.length < 2; share.checked = !!(sh && sh.owner === p); remove.hidden = false;
+      choose.textContent = 'Change file';
+    } else {
+      setThumb(box.querySelector('[data-doc-thumb]'), '', 'PDF');
+      title.textContent = 'No file';
+      name.textContent = 'PDF, JPG or PNG · recommended ≤ 2 MB';
+      share.checked = false; share.disabled = true; remove.hidden = true;
+      choose.textContent = 'Choose file';
+    }
+    var count = DOCS.filter(function (k) { return docOf(p, k) || state.shared[k]; }).length;
+    q(p, '[data-docs-count]').textContent = count ? ' · ' + count + ' added' : '';
+  }
+
+  function renderAllDocs() {
+    state.pax.forEach(function (p) { DOCS.forEach(function (kind) { renderDoc(p, kind); }); });
   }
 
   /** "Select all passports" / drag & drop: fill cards without a passport first, then add cards. */
@@ -189,6 +338,9 @@
 
   var pickAll = $('#pickAll');
   $('#pickAllBtn').addEventListener('click', function () { pickAll.click(); });
+  var camPax = $('#camPax');
+  $('#camPaxBtn').addEventListener('click', function () { camPax.click(); });
+  camPax.addEventListener('change', function () { addPassportFiles(camPax.files); camPax.value = ''; });
   pickAll.addEventListener('change', function () { addPassportFiles(pickAll.files); pickAll.value = ''; });
   $('#addPaxBtn').addEventListener('click', function () { var p = addPassenger(); if (p) q(p, '[data-name]').focus(); });
   $('#addPaxBtn2').addEventListener('click', function () { var p = addPassenger(); if (p) q(p, '[data-name]').focus(); });
@@ -268,8 +420,12 @@
       [1, 'Passengers — ' + plural(state.pax.length, 'passenger', 'passengers') + ' (' + plural(c[0], 'adult', 'adults') + ', ' +
         plural(c[1], 'child', 'children') + ', ' + plural(c[2], 'infant', 'infants') + ')',
         state.pax.map(function (p, i) {
-          return [(i + 1) + '. ' + p.name.trim(), p.category + ' · passport ' + p.passportType.toUpperCase() + ' · photo ' + p.photo.kb.toFixed(1) + ' KB'];
-        })],
+          var docs = DOCS.filter(function (k) { return p.docs[k]; }).map(function (k) { return DOC_NAME[k].toLowerCase(); });
+          return [(i + 1) + '. ' + p.name.trim(), p.category + ' · passport ' + p.passportType.toUpperCase() + ' · photo ' + p.photo.kb.toFixed(1) + ' KB' +
+            (docs.length ? ' · ' + docs.join(', ') : '')];
+        }).concat(DOCS.filter(function (k) { return state.shared[k]; }).map(function (k) {
+          return [DOC_NAME[k] + ' (all passengers)', state.shared[k].file.name];
+        }))],
     ];
     var body = $('#reviewBody');
     body.innerHTML = '';
@@ -332,6 +488,10 @@
       westernVisa: EG.radioValue(form, 'westernVisa'), extraInfo: F.extraInfo.value.trim(), heard: F.heard.value,
       consent: F.consent.checked,
       passengers: state.pax.map(function (p) { return { name: p.name.trim(), category: p.category }; }),
+      docs: {
+        shared: { ticket: !!state.shared.ticket, hotel: !!state.shared.hotel },
+        passengers: state.pax.map(function (p) { return { ticket: !!p.docs.ticket, hotel: !!p.docs.hotel }; }),
+      },
     };
   }
 
@@ -380,13 +540,22 @@
   // ---- Upload step ---------------------------------------------------------
   var upList = $('#upList'), upStatus = $('#upStatus'), retryAllBtn = $('#retryAllBtn');
 
+  /** Upload items: the shared documents (if any) first, then every passenger. */
+  function items() { return (state.sharedItem ? [state.sharedItem] : []).concat(state.pax); }
+
   function startUploads() {
     $('#upLeadId').textContent = state.leadId;
     upList.innerHTML = '';
-    state.pax.forEach(function (p, i) {
-      p.status = 'pending';
+    state.sharedItem = DOCS.some(function (k) { return state.shared[k]; }) ? { shared: true, sent: {}, status: 'pending' } : null;
+    items().forEach(function (p) {
+      p.status = 'pending'; p.sent = p.sent || {};
       var li = document.createElement('li');
-      var name = document.createElement('span'); name.textContent = (i + 1) + '. ' + p.name.trim();
+      var name = document.createElement('span');
+      if (p.shared) name.textContent = 'Shared ' + DOCS.filter(function (k) { return state.shared[k]; }).map(function (k) { return DOC_NAME[k].toLowerCase(); }).join(' and ') + ' (all passengers)';
+      else {
+        var docs = DOCS.filter(function (k) { return p.docs[k]; }).length;
+        name.textContent = (state.pax.indexOf(p) + 1) + '. ' + p.name.trim() + (docs ? ' + ' + docs + (docs === 1 ? ' document' : ' documents') : '');
+      }
       var st = document.createElement('span'); st.className = 'st wait'; st.textContent = 'Waiting';
       li.appendChild(name); li.appendChild(st);
       p.li = li; p.liStatus = st;
@@ -403,15 +572,16 @@
     if (old) old.remove();
     if (retry) {
       var b = document.createElement('button'); b.type = 'button'; b.className = 'btn btn-outline'; b.textContent = 'Retry';
-      b.setAttribute('aria-label', 'Retry passenger ' + (state.pax.indexOf(p) + 1));
+      b.setAttribute('aria-label', p.shared ? 'Retry shared documents' : 'Retry passenger ' + (state.pax.indexOf(p) + 1));
       b.addEventListener('click', function () { uploadAll([p]); });
       p.li.appendChild(b);
     }
   }
 
   function updateProgress() {
+    var all = items(), done = all.filter(function (p) { return p.status === 'ok'; }).length;
     var n = state.pax.length, ok = state.pax.filter(function (p) { return p.status === 'ok'; }).length;
-    var pct = n ? Math.round(ok / n * 100) : 0;
+    var pct = all.length ? Math.round(done / all.length * 100) : 0;
     $('#progressBar').style.width = pct + '%';
     $('#progress').setAttribute('aria-valuenow', String(pct));
     $('#progressText').textContent = ok + ' of ' + n + ' passengers uploaded';
@@ -419,30 +589,63 @@
 
   function wait(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
 
-  /** One passenger: prepare files, send, retry up to 3 times on network errors or "busy". */
-  function uploadOne(p) {
-    var index = state.pax.indexOf(p) + 1;
-    p.status = 'sending'; setLi(p, 'wait', 'Preparing…');
+  /** POSTs one upload; retries up to 3 times on network errors or "busy" replies. */
+  function postRetry(item, action, payload, label) {
     var attempt = 0;
-    function send(prepared) {
-      setLi(p, 'wait', attempt ? 'Retrying (' + attempt + ')…' : 'Uploading…');
-      return Promise.all([EG.toBase64(prepared.blob), EG.toBase64(p.photo.blob)]).then(function (b64) {
-        return EG.postAction('uploadPassenger', {
-          leadId: state.leadId, token: state.token, index: index, name: p.name.trim(), category: p.category,
-          passport: { name: 'passport.' + prepared.type, mime: EG.MIME[prepared.type], b64: b64[0] },
-          photo: { mime: EG.MIME[p.photo.type], b64: b64[1] },
-        }, { retries: 0, timeout: 120000 });
-      }).then(function (res) {
+    function go() {
+      setLi(item, 'wait', (attempt ? 'Retrying (' + attempt + ')… ' : '') + label);
+      return EG.postAction(action, payload, { retries: 0, timeout: 120000 }).then(function (res) {
         if (res && res.ok) return res;
-        if (res && /busy/i.test(res.error || '') && attempt < 3) { attempt++; return wait(2000 * attempt).then(function () { return send(prepared); }); }
+        if (res && /busy/i.test(res.error || '') && attempt < 3) { attempt++; return wait(2000 * attempt).then(go); }
         var err = new Error((res && res.error) || 'Upload failed.'); err.userFacing = true; err.expired = /expired/i.test(err.message);
         throw err;
       }, function (err) {
-        if (attempt < 3) { attempt++; return wait(1500 * Math.pow(2, attempt)).then(function () { return send(prepared); }); }
+        if (attempt < 3) { attempt++; return wait(1500 * Math.pow(2, attempt)).then(go); }
         throw err;
       });
     }
-    return EG.preparePassport(p.passport, p.passportType).then(send).then(function () {
+    return go();
+  }
+
+  /** One optional document (scope 'all' or a passenger number). */
+  function sendDoc(item, scope, kind, d, name) {
+    return EG.prepareDocument(d.file, d.type).then(function (prepared) {
+      return EG.toBase64(prepared.blob).then(function (b64) {
+        return postRetry(item, 'uploadDocument', {
+          leadId: state.leadId, token: state.token, scope: scope, kind: kind, name: name,
+          file: { name: kind + '.' + prepared.type, mime: EG.MIME[prepared.type], b64: b64 },
+        }, DOC_NAME[kind] + '…');
+      });
+    }).then(function () { item.sent[kind] = true; });
+  }
+
+  /** One upload item: the shared documents, or a passenger (passport + photo, then own documents). */
+  function uploadOne(p) {
+    p.status = 'sending'; setLi(p, 'wait', 'Preparing…');
+    var chain = Promise.resolve();
+    if (p.shared) {
+      DOCS.forEach(function (kind) {
+        if (state.shared[kind]) chain = chain.then(function () { if (!p.sent[kind]) return sendDoc(p, 'all', kind, state.shared[kind], ''); });
+      });
+    } else {
+      var index = state.pax.indexOf(p) + 1;
+      chain = chain.then(function () {
+        if (p.sent.main) return;
+        return EG.preparePassport(p.passport, p.passportType).then(function (prepared) {
+          return Promise.all([EG.toBase64(prepared.blob), EG.toBase64(p.photo.blob)]).then(function (b64) {
+            return postRetry(p, 'uploadPassenger', {
+              leadId: state.leadId, token: state.token, index: index, name: p.name.trim(), category: p.category,
+              passport: { name: 'passport.' + prepared.type, mime: EG.MIME[prepared.type], b64: b64[0] },
+              photo: { mime: EG.MIME[p.photo.type], b64: b64[1] },
+            }, 'Uploading…');
+          });
+        }).then(function () { p.sent.main = true; });
+      });
+      DOCS.forEach(function (kind) {
+        if (p.docs[kind]) chain = chain.then(function () { if (!p.sent[kind]) return sendDoc(p, index, kind, p.docs[kind], p.name.trim()); });
+      });
+    }
+    return chain.then(function () {
       p.status = 'ok'; p.error = '';
       setLi(p, 'ok', 'Uploaded ✓');
     }, function (err) {
@@ -459,7 +662,7 @@
     retryAllBtn.hidden = true;
     upStatus.className = 'status';
     $('#upTitle').textContent = 'Sending your application…';
-    var todo = (only || state.pax).filter(function (p) { return p.status !== 'ok'; });
+    var todo = (only || items()).filter(function (p) { return p.status !== 'ok'; });
     var chain = Promise.resolve();
     todo.forEach(function (p) { chain = chain.then(function () { if (!state.expired) return uploadOne(p); }); });
     chain.then(function () {
@@ -470,11 +673,11 @@
         state.phase = 'edit'; dirty = false;
         return;
       }
-      var failed = state.pax.filter(function (p) { return p.status !== 'ok'; });
+      var failed = items().filter(function (p) { return p.status !== 'ok'; });
       if (failed.length) {
         $('#upTitle').textContent = 'Some uploads did not finish';
         retryAllBtn.hidden = false;
-        showStatus(upStatus, 'err', plural(failed.length, 'passenger', 'passengers') + ' could not be uploaded. Check your connection and tap “Retry”. ' +
+        showStatus(upStatus, 'err', plural(failed.length, 'upload', 'uploads') + ' could not be completed. Check your connection and tap “Retry”. ' +
           'Your application ' + EG.escapeHtml(state.leadId) + ' is saved, so nothing else needs to be re-entered.' + EG.contactFallback());
         return;
       }
@@ -490,7 +693,10 @@
         state.running = false;
         if (res && res.ok) { finish(res.leadId); return; }
         if (res && res.missing) {
-          res.missing.forEach(function (i) { var p = state.pax[i - 1]; if (p) { p.status = 'err'; setLi(p, 'err', 'Not received', true); } });
+          res.missing.forEach(function (i) {
+            var p = i === 0 ? state.sharedItem : state.pax[i - 1];
+            if (p) { p.status = 'err'; p.sent = {}; setLi(p, 'err', 'Not received', true); }
+          });
           updateProgress();
         }
         $('#upTitle').textContent = 'Almost done';

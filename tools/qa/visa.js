@@ -106,10 +106,31 @@ const cardInvalid = async (p, i) => (await cards(p))[i].$$eval('.field.invalid',
     // fill the 2 remaining, go to review, back and forth keeps data
     await fillCard(p, 0, 'TEST Pax One', 'Adult (18+)', null, fx('photo-40kb.jpg'));
     await fillCard(p, 1, 'TEST Pax Two', 'Child (2–17)', null, fx('photo-png.png'));
+
+    // Camera inputs on every card: passport + documents use the back camera, the photo the front camera
+    const caps = await p.$$eval('#paxList .pax', (cs) => cs.map((c) => [
+      c.querySelector('[data-passport-cam-input]').getAttribute('capture'), c.querySelector('[data-photo-cam-input]').getAttribute('capture'),
+      ...[...c.querySelectorAll('[data-doc-cam-input]')].map((i) => i.getAttribute('capture'))].join()));
+    ok('camera capture on every card (environment / user)', caps.length === 2 && caps.every((c) => c === 'environment,user,environment,environment') && (await p.$eval('#camPax', (i) => i.getAttribute('capture'))) === 'environment', caps.join(' | '));
+    ok('"Take photo" hidden on desktop (no camera input there)', (await p.$$eval('.cam-only', (b) => b.filter((x) => x.offsetParent).length)) === 0);
+    // Flight ticket on card 1, shared with everyone; hotel booking on card 2
+    const doc = (i, kind) => `#paxList .pax:nth-child(${i}) [data-doc="${kind}"]`;
+    await (await p.$(doc(1, 'ticket') + ' [data-doc-input]')).uploadFile(fx('ticket.pdf')); await waitIdle(p);
+    ok('ticket added (PDF)', /Flight ticket \(PDF\)/.test(await p.$eval(doc(1, 'ticket') + ' [data-doc-title]', (e) => e.textContent)));
+    await p.$eval(doc(1, 'ticket') + ' [data-doc-share]', (e) => e.click()); await sleep(100);
+    const sh = await p.evaluate((a, b) => ({ title: document.querySelector(b + ' [data-doc-title]').textContent, dis: document.querySelector(b + ' [data-doc-btn]').disabled, own: document.querySelector(a + ' [data-doc-note]').textContent }), doc(1, 'ticket'), doc(2, 'ticket'));
+    ok('"Use this file for all passengers" shares the ticket', sh.title === 'Shared file' && sh.dis && /all passengers/.test(sh.own), JSON.stringify(sh));
+    await (await p.$(doc(2, 'hotel') + ' [data-doc-input]')).uploadFile(fx('hotel.jpg')); await waitIdle(p);
+    await (await p.$(doc(1, 'hotel') + ' [data-doc-input]')).uploadFile(fx('fake.jpg')); await waitIdle(p);
+    ok('fake document rejected, optional so not blocking', /not a real PDF, JPG or PNG/.test(await p.$eval(doc(1, 'hotel') + ' .err-msg', (e) => e.textContent)));
+    await (await p.$(doc(1, 'hotel') + ' [data-doc-input]')).uploadFile(fx('hotel.jpg')); await waitIdle(p);
+    await p.$eval(doc(1, 'hotel') + ' [data-doc-remove]', (e) => e.click()); await sleep(100);
+    ok('remove document', (await p.$eval(doc(1, 'hotel') + ' [data-doc-title]', (e) => e.textContent)) === 'No file');
     await next(p);
     ok('review reached', (await label(p)).startsWith('Step 3'));
     const rv = await p.$eval('#reviewBody', (e) => e.innerText);
     ok('review counts', /2 passengers \(1 adult, 1 child, 0 infants\)/.test(rv) && /photo 33\.4 KB/.test(rv), rv.split('\n').filter((l) => /Passengers/.test(l))[0]);
+    ok('review lists documents', /Flight ticket \(all passengers\)\s+ticket\.pdf/.test(rv) && /2\. TEST Pax Two\s+Child[^\n]*hotel booking/.test(rv), rv.split('\n').filter((l) => /ticket|hotel/i.test(l)).join(' / '));
     await p.$eval('#backBtn', (e) => e.click()); await sleep(250); await p.$eval('#backBtn', (e) => e.click()); await sleep(250);
     const kept = await p.evaluate(() => ({ name: document.querySelector('[name=name]').value, cards: document.querySelectorAll('#paxList .pax').length }));
     ok('Back keeps lead + cards', kept.name === 'TEST Visa Offline' && kept.cards === 2, JSON.stringify(kept));
@@ -122,8 +143,21 @@ const cardInvalid = async (p, i) => (await cards(p))[i].$$eval('.field.invalid',
     await p.setViewport({ width: 360, height: 740 }); await sleep(300);
     ok('no horizontal scroll at 360px (review)', (await p.evaluate(() => document.documentElement.scrollWidth)) <= 360);
     await p.$eval('#backBtn', (e) => e.click()); await sleep(250);
-    ok('no horizontal scroll at 360px (cards)', (await p.evaluate(() => document.documentElement.scrollWidth)) <= 360);
+    for (const w of [320, 360]) {
+      await p.setViewport({ width: w, height: 740 }); await sleep(200);
+      const sw = await p.evaluate(() => { document.querySelectorAll('.pax-docs').forEach((d) => { d.open = true; }); return document.documentElement.scrollWidth; });
+      ok(`no horizontal scroll at ${w}px (cards, documents open)`, sw <= w, 'scrollWidth=' + sw);
+    }
     ok('no console errors', p.errors.length === 0, p.errors.join(' | '));
+    // Phones (touch, coarse pointer): "Take photo" buttons are shown next to "Choose file"
+    const t = await b.newPage();
+    await t.setViewport({ width: 390, height: 844, isMobile: true, hasTouch: true });
+    await t.goto(base + '/apply-visa.html', { waitUntil: 'networkidle0' });
+    await t.$eval('#addPaxBtn', (e) => e.click()); await sleep(150);
+    const cams = await t.$$eval('.cam-only', (b) => b.filter((x) => getComputedStyle(x).display !== 'none').map((x) => x.textContent.trim())); // step 2 is not shown yet, so check the CSS
+    ok('"Take photo" / "Scan passport with camera" shown on phones', cams.includes('Scan passport with camera') && cams.filter((c) => c === 'Take photo').length === 4, cams.join(', '));
+    ok('no horizontal scroll at 390px with documents open', await t.evaluate(() => { document.querySelector('.pax-docs').open = true; return document.documentElement.scrollWidth <= 390; }));
+    await t.close();
     await p.close();
   }
 
@@ -160,6 +194,10 @@ const cardInvalid = async (p, i) => (await cards(p))[i].$$eval('.field.invalid',
       await fillCard(p, 0, 'TEST Pax Adult', 'Adult (18+)', null, fx('photo-2mb.jpg'));
       await fillCard(p, 1, 'TEST Pax Child', 'Child (2–17)', null, fx('photo-png.png'));
       await fillCard(p, 2, 'TEST Pax Infant', 'Infant (under 2)', null, fx('photo-40kb.jpg'));
+      await (await p.$('#paxList .pax:nth-child(1) [data-doc="ticket"] [data-doc-input]')).uploadFile(fx('ticket.pdf'));
+      await (await p.$('#paxList .pax:nth-child(2) [data-doc="hotel"] [data-doc-input]')).uploadFile(fx('hotel.jpg'));
+      await waitIdle(p); await sleep(300);
+      await p.$eval('#paxList .pax:nth-child(1) [data-doc="ticket"] [data-doc-share]', (e) => e.click());
       await next(p);
       await p.setRequestInterception(true);
       let failing = true, blocked = 0;

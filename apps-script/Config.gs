@@ -61,12 +61,13 @@ const CONFIG = {
       textCols: [4],
       dateCols: [2, 7],
       folderCol: 20,
+      sharedCols: { t: 16, h: 17 }, // Shared Flight Ticket, Shared Hotel Booking
     },
     PASSENGERS: {
       name: 'Visa Passengers',
       headers: ['Lead ID', 'No.', 'Full Name (as on passport)', 'Category', 'Photo (KB)',
-        'Passport File', 'Photo File', 'Uploaded At'],
-      widths: [120, 50, 240, 140, 90, 140, 140, 150],
+        'Passport File', 'Photo File', 'Uploaded At', 'Flight Ticket', 'Hotel Booking'],
+      widths: [120, 50, 240, 140, 90, 140, 140, 150, 200, 200],
       textCols: [],
       dateCols: [8],
     },
@@ -100,6 +101,8 @@ const CONFIG = {
     PASSPORT_IMG_MAX: Math.round(1.6 * 1024 * 1024),
     PHOTO_MIN: 24 * 1024,    // 25 KB on the website, 1 KB slack for rounding
     PHOTO_MAX: 51 * 1024,    // 50 KB on the website, 1 KB slack
+    DOC_PDF_MAX: 5 * 1024 * 1024,                // flight ticket / hotel booking PDF
+    DOC_IMG_MAX: Math.round(1.6 * 1024 * 1024),  // … images (the website compresses them to ~1 MB)
     BODY_MAX: 12 * 1024 * 1024,
     RATE_MAX: 10,            // create/submit calls …
     RATE_WINDOW_S: 600,      // … per 10 minutes, per email (contact form: per phone)
@@ -112,6 +115,12 @@ const CONFIG = {
     'New Lead', 'Contacted', 'Awaiting Response', 'Quotation Sent',
     'Payment Pending', 'Converted', 'Lost',
   ],
+
+  // Optional visa documents: code used in upload state → Drive file name / label
+  DOCS: {
+    t: { kind: 'ticket', file: 'flight-ticket', label: 'the flight ticket', col: 'Flight Ticket' },
+    h: { kind: 'hotel', file: 'hotel-booking', label: 'the hotel booking', col: 'Hotel Booking' },
+  },
 
   NAVY: '#071b50',
   GOLD: '#f5ae00',

@@ -249,3 +249,22 @@ input:not([type=checkbox]):not([type=radio]):hover,select:hover,textarea:hover,.
 .cb-empty{padding:10px 12px;font-size:14px;font-weight:400;color:var(--muted)}
 .cb-native{position:absolute!important;width:1px!important;height:1px!important;opacity:0;pointer-events:none;overflow:hidden;margin:0!important;padding:0!important;border:0!important}
 @media(prefers-reduced-motion:reduce){.cb-toggle,.dp-button{transition:none}}
+
+/* ---- Visa passenger cards: camera buttons, optional documents ---- */
+.label-text{font-size:13px;font-weight:700;color:var(--navy)}
+.file-btns{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:8px}
+.file-btns .btn{margin-top:0}
+.cam-only{display:none!important}
+@media (pointer:coarse){.cam-only{display:inline-flex!important}}
+.pax-docs{margin-top:16px;border:1px solid #e6eaf1;border-radius:12px;background:#fbfcfe}
+.pax-docs summary{cursor:pointer;list-style:none;padding:13px 16px;font-weight:800;color:var(--navy);font-size:14px;position:relative;padding-right:40px}
+.pax-docs summary::-webkit-details-marker{display:none}
+.pax-docs summary:after{content:"+";position:absolute;right:16px;top:9px;font-size:20px;color:#b67c00}
+.pax-docs[open] summary:after{content:"−"}
+.pax-docs summary .opt{font-weight:400;color:var(--muted)}.docs-count{color:var(--ok);font-weight:700}
+.pax-docs > .help,.pax-docs > .pax-files{margin:0 16px 14px}.pax-docs > .pax-files{margin-top:4px}
+.share{display:flex;align-items:center;gap:8px;margin-top:8px;font-size:13px;font-weight:600;color:var(--ink);cursor:pointer}
+.share input{width:18px;height:18px;margin:0;accent-color:var(--navy)}
+.share:has(input:disabled){color:#9aa3b5;cursor:default}
+.filebox .btn:disabled{opacity:.45;cursor:not-allowed;transform:none}
+.pax-files>.field,.pax-docs{min-width:0}

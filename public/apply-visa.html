@@ -77,14 +77,16 @@
 <!-- 2. Passengers -->
 <div class="panel step" data-title="Passengers">
 <h2>Passengers</h2>
-<p class="lead">Add every traveller, including yourself if you are travelling. Each passenger needs their passport biodata page (PDF, JPG or PNG, PDF up to 5 MB) and a passport photograph (25–50 KB — larger photos are resized automatically on your device).</p>
+<p class="lead">Add every traveller, including yourself if you are travelling. Each passenger needs their passport biodata page (PDF, JPG or PNG, PDF up to 5 MB) and a passport photograph (25–50 KB — larger photos are resized automatically on your device). On a phone you can take the pictures with your camera. A flight ticket and hotel booking are optional.</p>
 <div class="dropzone" id="dropzone">
 <p><b>Have all the passports ready?</b></p>
 <p>Select them together and we'll create one passenger for each file.</p>
 <button type="button" class="btn btn-gold" id="pickAllBtn">Select all passports</button>
+<button type="button" class="btn btn-outline cam-only" id="camPaxBtn">Scan passport with camera</button>
 <button type="button" class="btn btn-outline" id="addPaxBtn">+ Add passenger</button>
 <p>or drag and drop passport files here · up to 50 passengers</p>
 <input type="file" class="sr-file" id="pickAll" multiple accept="application/pdf,image/jpeg,image/png,.pdf,.jpg,.jpeg,.png" tabindex="-1" aria-hidden="true">
+<input type="file" class="sr-file" id="camPax" accept="image/*" capture="environment" tabindex="-1" aria-hidden="true">
 </div>
 <div class="field" id="paxField"><span class="err-msg" id="e-passengers">Please add at least one passenger.</span></div>
 <div class="pax-list" id="paxList"></div>
@@ -143,18 +145,46 @@
 </div>
 <div class="pax-files">
 <div class="field" data-passport-field>
-<span class="label-text" style="font-size:13px;font-weight:700;color:var(--navy)">Passport biodata page</span>
-<div class="filebox"><div class="thumb" data-passport-thumb>PDF<br>JPG</div><div class="meta"><b data-passport-title>No file yet</b><span class="fname" data-passport-name>PDF, JPG or PNG · PDF up to 5 MB</span><span class="note" data-passport-note></span><button type="button" class="btn btn-outline" data-passport-btn>Choose passport</button></div></div>
+<span class="label-text">Passport biodata page</span>
+<div class="filebox"><div class="thumb" data-passport-thumb>PDF<br>JPG</div><div class="meta"><b data-passport-title>No file yet</b><span class="fname" data-passport-name>PDF, JPG or PNG · PDF up to 5 MB</span><span class="note" data-passport-note></span>
+<span class="file-btns"><button type="button" class="btn btn-outline cam-only" data-passport-cam>Take photo</button><button type="button" class="btn btn-outline" data-passport-btn>Choose file</button></span></div></div>
 <input type="file" class="sr-file" data-passport-input accept="application/pdf,image/jpeg,image/png,.pdf,.jpg,.jpeg,.png" tabindex="-1" aria-hidden="true">
+<input type="file" class="sr-file" data-passport-cam-input accept="image/*" capture="environment" tabindex="-1" aria-hidden="true">
 <span class="err-msg">Please add this passenger's passport.</span>
 </div>
 <div class="field" data-photo-field>
-<span class="label-text" style="font-size:13px;font-weight:700;color:var(--navy)">Passport photograph</span>
-<div class="filebox"><div class="thumb" data-photo-thumb>PHOTO</div><div class="meta"><b data-photo-title>No photo yet</b><span class="fname" data-photo-name>JPG or PNG · 25–50 KB (resized for you)</span><span class="note" data-photo-note></span><button type="button" class="btn btn-outline" data-photo-btn>Choose photo</button></div></div>
+<span class="label-text">Passport photograph</span>
+<div class="filebox"><div class="thumb" data-photo-thumb>PHOTO</div><div class="meta"><b data-photo-title>No photo yet</b><span class="fname" data-photo-name>JPG or PNG · 25–50 KB (resized for you)</span><span class="note" data-photo-note></span>
+<span class="file-btns"><button type="button" class="btn btn-outline cam-only" data-photo-cam>Take photo</button><button type="button" class="btn btn-outline" data-photo-btn>Choose file</button></span></div></div>
 <input type="file" class="sr-file" data-photo-input accept="image/jpeg,image/png,.jpg,.jpeg,.png" tabindex="-1" aria-hidden="true">
+<input type="file" class="sr-file" data-photo-cam-input accept="image/*" capture="user" tabindex="-1" aria-hidden="true">
 <span class="err-msg">Please add this passenger's photo.</span>
 </div>
 </div>
+<details class="pax-docs" data-docs>
+<summary>Flight ticket and hotel booking <span class="opt">(optional)</span><span class="docs-count" data-docs-count></span></summary>
+<p class="help">If you already have them, add them here: PDF, JPG or PNG, recommended 2 MB or smaller (photos are compressed for you). One file can be used for every passenger.</p>
+<div class="pax-files">
+<div class="field doc-field" data-doc="ticket">
+<span class="label-text">Flight ticket</span>
+<div class="filebox"><div class="thumb" data-doc-thumb>PDF</div><div class="meta"><b data-doc-title>No file</b><span class="fname" data-doc-name>PDF, JPG or PNG · recommended ≤ 2 MB</span><span class="note" data-doc-note></span>
+<span class="file-btns"><button type="button" class="btn btn-outline cam-only" data-doc-cam>Take photo</button><button type="button" class="btn btn-outline" data-doc-btn>Choose file</button><button type="button" class="link-btn" data-doc-remove hidden>Remove</button></span></div></div>
+<label class="share"><input type="checkbox" data-doc-share disabled> Use this file for all passengers</label>
+<input type="file" class="sr-file" data-doc-input accept="application/pdf,image/jpeg,image/png,.pdf,.jpg,.jpeg,.png" tabindex="-1" aria-hidden="true">
+<input type="file" class="sr-file" data-doc-cam-input accept="image/*" capture="environment" tabindex="-1" aria-hidden="true">
+<span class="err-msg">This file could not be used.</span>
+</div>
+<div class="field doc-field" data-doc="hotel">
+<span class="label-text">Hotel booking</span>
+<div class="filebox"><div class="thumb" data-doc-thumb>PDF</div><div class="meta"><b data-doc-title>No file</b><span class="fname" data-doc-name>PDF, JPG or PNG · recommended ≤ 2 MB</span><span class="note" data-doc-note></span>
+<span class="file-btns"><button type="button" class="btn btn-outline cam-only" data-doc-cam>Take photo</button><button type="button" class="btn btn-outline" data-doc-btn>Choose file</button><button type="button" class="link-btn" data-doc-remove hidden>Remove</button></span></div></div>
+<label class="share"><input type="checkbox" data-doc-share disabled> Use this file for all passengers</label>
+<input type="file" class="sr-file" data-doc-input accept="application/pdf,image/jpeg,image/png,.pdf,.jpg,.jpeg,.png" tabindex="-1" aria-hidden="true">
+<input type="file" class="sr-file" data-doc-cam-input accept="image/*" capture="environment" tabindex="-1" aria-hidden="true">
+<span class="err-msg">This file could not be used.</span>
+</div>
+</div>
+</details>
 </article>
 </template>
 

@@ -38,7 +38,8 @@ const node = (args) => spawnSync(process.execPath, args, { stdio: 'inherit', cwd
     const suites = mode === 'live'
       ? [['contact.js', base, chrome], ['customize.js', base, chrome, '--submit'], ['visa.js', base, chrome, fixtures, 'live']]
       : [['site.js', base, chrome], ['customize.js', base, chrome], ['visa.js', base, chrome, fixtures, 'offline']];
-    if (!fs.existsSync(path.join(fixtures, 'passport.jpg'))) failed = node(['fixtures.js', chrome, fixtures]) !== 0 || failed;
+    const NEED = ['passport.jpg', 'passport.pdf', 'photo-40kb.jpg', 'photo-png.png', 'fake.jpg', 'hotel.jpg', 'ticket.pdf', 'pax12.jpg'];
+    if (NEED.some((f) => !fs.existsSync(path.join(fixtures, f)))) failed = node(['fixtures.js', chrome, fixtures]) !== 0 || failed;
     for (const [script, ...args] of suites) {
       console.log('\n=== ' + script + ' ' + args.slice(-1)[0] + ' ===');
       failed = node([script, ...args]) !== 0 || failed;

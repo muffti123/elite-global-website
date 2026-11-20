@@ -144,6 +144,23 @@ window.EG = window.EG || {};
     });
   };
 
+  /**
+   * Optional flight ticket / hotel booking: real PDF, JPG or PNG; PDF ≤ 5 MB. Resolves {type, large}
+   * where large = over the recommended 2 MB (images are compressed when sent, PDFs are not).
+   */
+  L.DOC_RECOMMENDED = 2 * MB;
+  window.EG.checkDocument = function (file) {
+    return sniff(file).then(function (type) {
+      if (!type) throw userError('This file is not a real PDF, JPG or PNG. Please choose the ticket or booking again.');
+      if (type === 'pdf' && file.size > L.PASSPORT_PDF_MAX) {
+        throw userError('This PDF is ' + (file.size / MB).toFixed(1) + ' MB. PDFs must be 5 MB or smaller.');
+      }
+      return { type: type, large: file.size > L.DOC_RECOMMENDED };
+    });
+  };
+  /** Same rules as the passport: PDFs unchanged, images > 1.5 MB re-encoded to ~1 MB JPEG. */
+  window.EG.prepareDocument = function (file, type) { return window.EG.preparePassport(file, type); };
+
   /** Small preview blob (≈160 px wide) so 50 cards don't keep 50 full-size images decoded. */
   window.EG.makeThumb = function (file) {
     return decode(file, 160).then(function (src) {

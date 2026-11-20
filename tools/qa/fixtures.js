@@ -39,6 +39,7 @@ fs.mkdirSync(out, { recursive: true });
   await jpegInRange('photo-20kb.jpg', 300, 300, 30, 18 * 1024, 22 * 1024, 'SPECIMEN');
   await jpegInRange('photo-2mb.jpg', 3000, 3000, 90, 1.8 * 1024 * 1024, 2.4 * 1024 * 1024, 'SPECIMEN');
   await jpegInRange('passport-big.jpg', 4000, 2800, 90, 2.5 * 1024 * 1024, 4 * 1024 * 1024, 'SPECIMEN PASSPORT');
+  await jpegInRange('hotel.jpg', 1240, 1754, 40, 150 * 1024, 400 * 1024, 'SPECIMEN HOTEL');
   // PNG photo in 25–50 KB: small image with moderate noise
   for (const side of [160, 150, 140, 170, 130, 180, 120]) {
     const bytes = await make(side, side, 'image/png', 18, 'SP', 1);
@@ -46,13 +47,15 @@ fs.mkdirSync(out, { recursive: true });
   }
   await b.close();
 
-  // minimal valid PDF, padded to ~60 KB
+  // minimal valid PDFs, padded to ~60 KB
   const pad = '% ' + 'TEST ONLY - NOT A REAL DOCUMENT '.repeat(1800) + '\n';
-  const pdf = '%PDF-1.4\n1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj\n2 0 obj<</Type/Pages/Kids[3 0 R]/Count 1>>endobj\n' +
+  const pdfOf = (title) => '%PDF-1.4\n1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj\n2 0 obj<</Type/Pages/Kids[3 0 R]/Count 1>>endobj\n' +
     '3 0 obj<</Type/Page/Parent 2 0 R/MediaBox[0 0 595 842]/Contents 4 0 R/Resources<</Font<</F1 5 0 R>>>>>>endobj\n' +
-    '4 0 obj<</Length 60>>stream\nBT /F1 28 Tf 60 700 Td (SPECIMEN PASSPORT - TEST) Tj ET\nendstream endobj\n' +
+    '4 0 obj<</Length 60>>stream\nBT /F1 28 Tf 60 700 Td (' + title + ') Tj ET\nendstream endobj\n' +
     '5 0 obj<</Type/Font/Subtype/Type1/BaseFont/Helvetica>>endobj\n' + pad + 'trailer<</Root 1 0 R>>\n%%EOF\n';
+  const pdf = pdfOf('SPECIMEN PASSPORT - TEST');
   fs.writeFileSync(path.join(out, 'passport.pdf'), pdf); console.log('passport.pdf', (pdf.length / 1024).toFixed(1) + ' KB');
+  fs.writeFileSync(path.join(out, 'ticket.pdf'), pdfOf('SPECIMEN FLIGHT TICKET - TEST')); console.log('ticket.pdf written');
   fs.writeFileSync(path.join(out, 'fake.jpg'), 'This is a plain text file pretending to be a JPEG.\n'.repeat(800));
   console.log('fake.jpg (text) written');
   for (let i = 1; i <= 12; i++) fs.copyFileSync(path.join(out, 'passport.jpg'), path.join(out, `pax${String(i).padStart(2, '0')}.jpg`));
