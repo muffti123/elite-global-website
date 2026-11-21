@@ -69,8 +69,7 @@ function renderCodeEmail_(code) {
     heading: 'Confirm your email address',
     paragraphs: ['Use this code on the Elite Global website to confirm your email address:'],
     box: { title: 'Your code', text: code },
-    small: ['The code is valid for 30 minutes. If you did not ask for it, you can ignore this email.',
-      'Can\'t find our emails? Please check your spam or junk folder.'],
+    small: ['The code is valid for 30 minutes. If you did not ask for it, you can ignore this email.'].concat(inboxSmall_()),
   });
 }
 

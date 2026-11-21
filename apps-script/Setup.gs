@@ -18,6 +18,7 @@
  *   checkEmailSettings() – prints the email settings (STAFF_EMAIL, SITE_URL, provider, on/off, quota, queue);
  *                          change them in Project Settings → Script Properties (setStaffEmail / setSiteUrl explain how)
  *   sendEmailSamples()   – sends one sample of every email to STAFF_EMAIL for approval
+ *   checkRecentEmailJobs() – the last 20 review-email decisions (sent / waiting / held / …), no personal data
  *   enableTestOtpBypass() / disableTestOtpBypass() – STAGING ONLY: fixed email code for TEST names @example.com
  *   resetSetupFlag()     – ⚠️ forgets every stored ID (only after deleting the Drive folder)
  * =====================================================================

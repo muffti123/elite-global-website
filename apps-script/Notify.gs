@@ -41,7 +41,7 @@ function renderEmail_(o) {
   if (o.box) {
     body += '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:4px 0 18px"><tr>' +
       '<td style="background:#fff8e6;border-left:4px solid ' + EMAIL_GOLD + ';padding:14px 16px;border-radius:6px">' +
-      '<p style="margin:0 0 6px;font-size:13px;font-weight:bold;color:#8a5a00;text-transform:uppercase;letter-spacing:.04em">' + e(o.box.title) + '</p>' +
+      '<p style="margin:0 0 6px;font-size:14px;font-weight:bold;color:#8a5a00">' + e(o.box.title) + '</p>' +
       '<p style="margin:0;font-size:16px;line-height:1.55;color:#18233d;white-space:pre-line">' + e(o.box.text) + '</p></td></tr></table>';
   }
   if (o.rows && o.rows.length) {
@@ -67,17 +67,19 @@ function renderEmail_(o) {
   }
   (o.small || []).forEach(function (t) { body += '<p style="margin:0 0 10px;font-size:13px;line-height:1.5;color:#5b6680">' + e(t) + '</p>'; });
 
-  const wa = 'https://wa.me/' + C.whatsapp;
+  // Footer: contact details as text — the only links in customer emails go to SITE_URL (deliverability)
+  const wa = whatsappText_();
+  const ig = instagramHandle_();
+  const why = o.staff ? 'Staff notification from the Elite Global lead system.'
+    : 'You\'re receiving this because you applied on our website.';
   const footer =
     '<p style="margin:0 0 6px;font-size:14px;font-weight:bold;color:#ffffff">' + e(C.name) + '</p>' +
     '<p style="margin:0 0 10px;font-size:12px;color:' + EMAIL_GOLD + '">RC: ' + e(C.rc) + '</p>' +
     '<p style="margin:0 0 6px;font-size:13px;line-height:1.5;color:#d8deeb">' + e(C.address) + '</p>' +
-    '<p style="margin:0 0 6px;font-size:13px;line-height:1.7;color:#d8deeb">' +
-    'Phone: <a href="tel:' + e(C.phone.replace(/\s/g, '')) + '" style="color:#ffffff">' + e(C.phone) + '</a> &nbsp;·&nbsp; ' +
-    '<a href="' + e(wa) + '" style="color:#ffffff">WhatsApp</a> &nbsp;·&nbsp; ' +
-    '<a href="' + e(C.instagram) + '" style="color:#ffffff">Instagram</a> &nbsp;·&nbsp; ' +
-    '<a href="mailto:' + e(C.email) + '" style="color:#ffffff">' + e(C.email) + '</a></p>' +
-    '<p style="margin:10px 0 0;font-size:13px"><a href="' + e(site + '/track.html') + '" style="color:' + EMAIL_GOLD + ';font-weight:bold">Track your application</a></p>';
+    '<p style="margin:0 0 6px;font-size:13px;line-height:1.7;color:#d8deeb">Phone: ' + e(C.phone) +
+    ' &nbsp;·&nbsp; WhatsApp: ' + e(wa) + (ig ? ' &nbsp;·&nbsp; Instagram: ' + e(ig) : '') + ' &nbsp;·&nbsp; Email: ' + e(C.email) + '</p>' +
+    '<p style="margin:10px 0 8px;font-size:13px"><a href="' + e(site + '/track.html') + '" style="color:' + EMAIL_GOLD + ';font-weight:bold">Track your application</a></p>' +
+    '<p style="margin:0;font-size:12px;color:#aab4cc">' + e(why) + '</p>';
 
   const html = '<!doctype html><html lang="en"><head><meta charset="utf-8">' +
     '<meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light">' +
@@ -87,7 +89,7 @@ function renderEmail_(o) {
     '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#eef1f6"><tr><td align="center" style="padding:20px 10px">' +
     '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:600px;background:#ffffff;border-radius:12px;overflow:hidden">' +
     '<tr><td style="background:' + EMAIL_NAVY + ';padding:20px 24px;border-bottom:4px solid ' + EMAIL_GOLD + '">' +
-    '<img src="' + e(site + '/assets/brand/email-logo.png') + '" width="220" alt="Elite Global World Travel &amp; Tours Ltd." style="display:block;width:220px;max-width:100%;height:auto;border:0;color:#ffffff;font-size:18px;font-weight:bold"></td></tr>' +
+    '<img src="' + e(site + '/assets/brand/email-logo.png') + '" width="220" height="141" alt="Elite Global World Travel &amp; Tours Ltd." style="display:block;width:220px;max-width:100%;height:auto;border:0;color:#ffffff;font-size:18px;font-weight:bold"></td></tr>' +
     '<tr><td style="padding:28px 24px 12px;font-family:' + EMAIL_FONT + '">' +
     '<h1 style="margin:0 0 16px;font-size:22px;line-height:1.3;color:' + EMAIL_NAVY + '">' + e(o.heading) + '</h1>' + body + '</td></tr>' +
     '<tr><td style="background:' + EMAIL_NAVY + ';padding:22px 24px;font-family:' + EMAIL_FONT + '">' + footer + '</td></tr>' +
@@ -96,22 +98,37 @@ function renderEmail_(o) {
   // Plain-text version
   const t = [o.heading, ''];
   (o.paragraphs || []).forEach(function (x) { t.push(x, ''); });
-  if (o.box) t.push(o.box.title.toUpperCase() + ':', o.box.text, '');
+  if (o.box) t.push(o.box.title + ':', o.box.text, '');
   (o.rows || []).forEach(function (r) { t.push(r[0] + ': ' + r[1] + (r[2] && r[2] !== r[1] ? ' (' + r[2] + ')' : '')); });
   if (o.rows && o.rows.length) t.push('');
   (o.lists || []).forEach(function (l) { t.push(l.title + ':'); (l.items.length ? l.items : ['None.']).forEach(function (i) { t.push(' - ' + i); }); t.push(''); });
   if (o.button) t.push(o.button.label + ': ' + o.button.url, '');
   (o.small || []).forEach(function (x) { t.push(x); });
-  t.push('', '—', C.name + ' (RC: ' + C.rc + ')', C.address, 'Phone: ' + C.phone + ' · WhatsApp: ' + wa,
-    'Instagram: ' + C.instagram, 'Email: ' + C.email, 'Track your application: ' + site + '/track.html');
+  t.push('', '—', C.name + ' (RC: ' + C.rc + ')', C.address, 'Phone: ' + C.phone + ' · WhatsApp: ' + wa +
+    (ig ? ' · Instagram: ' + ig : ''), 'Email: ' + C.email, 'Track your application: ' + site + '/track.html', '', why);
   return { subject: o.subject, html: html, text: t.join('\n') };
+}
+
+/** "+234 706 215 2046" for the WhatsApp number (same as the phone when the digits match). */
+function whatsappText_() {
+  const C = CONFIG.COMPANY_INFO;
+  return C.phone.replace(/\D/g, '') === String(C.whatsapp) ? C.phone : '+' + C.whatsapp;
+}
+/** "@elite_global_travels" from the Instagram URL ('' when not set). */
+function instagramHandle_() {
+  const m = /instagram\.com\/([^/?#]+)/.exec(CONFIG.COMPANY_INFO.instagram || '');
+  return m ? '@' + m[1] : '';
 }
 
 /** Contact lines shared by customer emails. */
 function contactSmall_() {
   const C = CONFIG.COMPANY_INFO;
-  return ['Questions? Call ' + C.phone + ', message us on WhatsApp (link below) or reply to this email.',
-    'Can\'t find our emails? Please check your spam or junk folder and mark us as "not spam".'];
+  return ['Questions? Call ' + C.phone + ', send us a WhatsApp message on ' + whatsappText_() + ' or reply to this email.'];
+}
+/** Added to the code email and the first confirmation: helps the next emails reach the inbox. */
+function inboxSmall_() {
+  return ['To make sure our updates reach your inbox, add ' + CONFIG.COMPANY_INFO.email + ' to your contacts. ' +
+    'If you found this in Spam, mark it \'Not spam\'.'];
 }
 
 // ---------------------------------------------------------------------
@@ -199,6 +216,7 @@ function renderStaffAlert_(lead) {
       : 'A new request has arrived from the website.'],
     rows: rows,
     small: ['Staff alert — please contact the customer by phone or WhatsApp.'],
+    staff: true,
   });
 }
 
@@ -232,7 +250,7 @@ function renderConfirmation_(lead) {
       ['Status', visa ? 'Under review' : 'Received']],
     button: { label: 'Track your application', url: trackUrl_(lead.leadId) },
     small: ['Keep your reference number. To track your application you will need it and the email address or phone number you used.']
-      .concat(contactSmall_()),
+      .concat(inboxSmall_(), contactSmall_()),
   });
 }
 
@@ -285,9 +303,9 @@ function renderStatusEmail_(lead, status, message) {
   const st = CONFIG.TRACK.REVIEW[status];
   const action = status === 'Correction Needed';
   return renderEmail_({
-    subject: 'Elite Global — ' + (action ? 'Action needed on your visa application' : 'Visa application update: ' + st[0]) + ' (' + lead.leadId + ')',
+    subject: 'Elite Global — ' + (action ? 'Your visa application needs a correction' : 'Visa application update: ' + st[0]) + ' (' + lead.leadId + ')',
     preheader: st[1],
-    heading: action ? 'Action needed' : st[0],
+    heading: action ? 'We need a correction' : st[0],
     paragraphs: ['Dear ' + lead.name + ',', REVIEW_INTRO[status]],
     box: message ? { title: action ? 'What we need from you' : 'Message from our team', text: message } : null,
     rows: [['Reference number', lead.leadId], ['Status', st[0]], ['Next step', REVIEW_EMAIL_NEXT[status] || st[2]]],
@@ -302,9 +320,20 @@ function cleanMessage_(v) {
     .trim().slice(0, CONFIG.TRACK.MESSAGE_MAX).trim();
 }
 
+// Statuses that can be emailed again in a later correction round (each round = a new status change).
+// Every other status is emailed once per lead.
+const REVIEW_PER_ROUND = ['Correction Needed', 'Correction Received'];
+
+/** Once-only key: per lead + status, or per round (the time of the status change) for corrections. */
+function reviewKey_(leadId, status, updated) {
+  return leadId + '|status:' + status + (REVIEW_PER_ROUND.indexOf(status) !== -1 ? '|' + updated.getTime() : '');
+}
+
 /**
  * Status emails: visa rows whose Review Status has not changed for UNDO_MIN minutes and has not been
- * emailed for this lead. Correction Needed waits for a Message to Customer. Returns counts.
+ * emailed (this status, or this correction round). Correction Needed waits for a Message to Customer;
+ * the hold is released on the first run after the message is filled in. Editing the message after the
+ * email was sent does not send it again. Every decision is kept for checkRecentEmailJobs. Returns counts.
  */
 function processReviewEmails_(deadline) {
   const sh = trackerSheet_();
@@ -316,30 +345,46 @@ function processReviewEmails_(deadline) {
   const data = sh.getRange(2, 1, last - 1, width).getValues();
   const undo = CONFIG.EMAIL.UNDO_MIN * 60000;
   const now = Date.now();
+  const decisions = [];
+  const decide = function (id, status, decision, reason) { decisions.push([id, status, decision, reason]); };
   data.forEach(function (v, i) {
     const get = function (h) { return v[cols[h] - 1]; };
     const leadId = String(get('Lead ID') || '');
     const status = String(get('Review Status') || '').trim();
     if (!leadId || String(get('Lead Category')) !== CONFIG.FORMS.VISA.category || !CONFIG.TRACK.REVIEW[status]) return;
     const lastEmail = String(get('Last Customer Email') || '');
-    // Already emailed (or queued / skipped) for this status: every label ends "Status: <status> · <time>"
+    // The customer's latest email is already about this status (sent, queued or skipped): nothing new to say.
+    // A status is never emailed twice in a row; a new correction round needs another status in between.
     if (lastEmail.indexOf('Status: ' + status + ' ·') !== -1) return;
     const row = i + 2;
     const updated = get('Review Updated');
     if (!(updated instanceof Date) || isNaN(updated)) { // the edit trigger missed it: start the window now
       sh.getRange(row, cols['Review Updated']).setValue(new Date());
+      decide(leadId, status, 'waiting', 'status change not seen by the edit trigger — the 5-minute wait starts now');
       out.waiting++;
       return;
     }
-    if (now - updated.getTime() < undo) { out.waiting++; return; }
+    const key = reviewKey_(leadId, status, updated);
+    if (now - updated.getTime() < undo) {
+      decide(leadId, status, 'waiting', 'changed less than ' + CONFIG.EMAIL.UNDO_MIN + ' minutes ago (undo window)');
+      out.waiting++;
+      return;
+    }
     if (Date.now() > deadline) { out.waiting++; return; }
     const message = cleanMessage_(get('Message to Customer'));
-    if (status === 'Correction Needed' && !message) { out.held++; return; }
-    const key = leadId + '|status:' + status;
-    if (emailDone_(key)) return; // emailed before (e.g. changed back to an earlier status)
+    if (status === 'Correction Needed' && !message) {
+      decide(leadId, status, 'held', 'Message to Customer is empty');
+      out.held++;
+      return;
+    }
+    if (emailDone_(key)) { // emailed before (e.g. changed back to an earlier status)
+      decide(leadId, status, 'not sent', 'this status was already emailed to this customer');
+      return;
+    }
     const lead = { leadId: leadId, name: String(get('Customer Name') || ''), email: String(get('Email') || '').trim() };
     const skip = customerSkip_(lead);
     if (skip) {
+      decide(leadId, status, 'skipped', skip);
       logEmail_({ kind: 'status', key: key, leadId: leadId }, 'skipped', skip);
       sh.getRange(row, cols['Last Customer Email']).setValue('Not sent (' + skip + ') · Status: ' + status + ' · ' +
         Utilities.formatDate(new Date(), 'Africa/Lagos', 'd MMM yyyy HH:mm'));
@@ -349,6 +394,7 @@ function processReviewEmails_(deadline) {
     const m = renderStatusEmail_(lead, status, message);
     const r = sendEmail_({ to: lead.email, kind: 'status', key: key, leadId: leadId, subject: m.subject, html: m.html,
       text: m.text, after: { lastEmail: 'Status: ' + status } });
+    decide(leadId, status, r === 'ok' ? 'sent' : r, r === 'queued' ? 'waiting for email quota' : r === 'ok' ? 'emailed to the customer' : 'see the Email Log');
     if (r === 'ok') out.sent++;
     else if (r === 'queued') {
       out.queued++;
@@ -356,13 +402,54 @@ function processReviewEmails_(deadline) {
         Utilities.formatDate(new Date(), 'Africa/Lagos', 'd MMM yyyy HH:mm'));
     }
   });
+  saveReviewDecisions_(decisions);
   return out;
+}
+
+// ---------------------------------------------------------------------
+// RECENT DECISIONS (checkRecentEmailJobs) — Lead ID, status, decision, reason, time. No personal data.
+// ---------------------------------------------------------------------
+const REVIEW_DECISIONS_MAX = 20;
+
+/** Keeps the last 20 decisions; a repeat of a lead's latest decision (same status + decision) is not added. */
+function saveReviewDecisions_(decisions) {
+  if (!decisions.length) return;
+  const p = PropertiesService.getScriptProperties();
+  let list = [];
+  try { list = JSON.parse(p.getProperty('REVIEW_DECISIONS') || '[]'); } catch (e) { list = []; }
+  const now = Date.now();
+  let changed = false;
+  decisions.forEach(function (d) {
+    let latest = null;
+    for (let i = list.length - 1; i >= 0; i--) if (list[i][1] === d[0]) { latest = list[i]; break; }
+    if (latest && latest[2] === d[1] && latest[3] === d[2]) return;
+    list.push([now, d[0], d[1], d[2], d[3]]);
+    changed = true;
+  });
+  if (!changed) return;
+  p.setProperty('REVIEW_DECISIONS', JSON.stringify(list.slice(-REVIEW_DECISIONS_MAX)));
+}
+
+/** Run button: the last 20 review-email decisions (newest first). No addresses, names or messages. */
+function checkRecentEmailJobs() {
+  let list = [];
+  try { list = JSON.parse(PropertiesService.getScriptProperties().getProperty('REVIEW_DECISIONS') || '[]'); } catch (e) { list = []; }
+  const lines = list.slice().reverse().map(function (d) {
+    return Utilities.formatDate(new Date(d[0]), 'Africa/Lagos', 'd MMM yyyy HH:mm') + '  ' + d[1] + '  ' + d[2] + '  → ' + d[3] + ' (' + d[4] + ')';
+  });
+  Logger.log('Last ' + lines.length + ' review-email decisions (newest first; checked every 5 minutes):\n' +
+    (lines.length ? lines.join('\n') : '  none yet') +
+    '\nEmails go out about ' + CONFIG.EMAIL.UNDO_MIN + ' minutes after the last Review Status change.');
+  return lines;
 }
 
 // ---------------------------------------------------------------------
 // TRIGGERS
 // ---------------------------------------------------------------------
-/** Installable onEdit (Lead Tracker): a Review Status or Message to Customer edit restarts the undo window. */
+/**
+ * Installable onEdit (Lead Tracker): a Review Status edit starts the 5-minute undo window (Review Updated).
+ * Message to Customer edits do not: a held Correction Needed is sent on the next run once it is filled in.
+ */
 function onTrackerEdit(e) {
   try {
     if (!e || !e.range) return;
@@ -370,7 +457,7 @@ function onTrackerEdit(e) {
     if (sh.getName() !== CONFIG.TRACKER_TAB) return;
     const cols = trackerCols_(sh);
     const c1 = e.range.getColumn(), c2 = c1 + e.range.getNumColumns() - 1;
-    const hit = [cols['Review Status'], cols['Message to Customer']].some(function (c) { return c >= c1 && c <= c2; });
+    const hit = cols['Review Status'] >= c1 && cols['Review Status'] <= c2;
     const r1 = Math.max(e.range.getRow(), 2), r2 = Math.min(e.range.getRow() + e.range.getNumRows() - 1, sh.getLastRow());
     if (!hit || r2 < r1 || r2 - r1 > 1000) return;
     const cats = sh.getRange(r1, cols['Lead Category'], r2 - r1 + 1, 1).getValues();
@@ -479,6 +566,7 @@ function renderSummary_(s) {
     ],
     button: { label: 'Open the Lead Tracker', url: trackerSS_().getUrl() },
     small: ['Sent automatically every morning by the Elite Global lead system.'],
+    staff: true,
   });
 }
 
@@ -500,11 +588,12 @@ function sendDailySummary() {
 // ---------------------------------------------------------------------
 function renderErrorEmail_(action, err) {
   return renderEmail_({
-    subject: 'Elite Global — ⚠️ Web app error' + (action ? ' (' + action + ')' : ''),
+    subject: 'Elite Global — Web app error' + (action ? ' (' + action + ')' : ''),
     heading: 'A website submission failed',
     paragraphs: ['The customer was asked to try again. Check Apps Script → Executions for details.'],
     rows: [['Action', action || '—'], ['Error', String(err && err.message || '')]],
     small: [String(err && err.stack || '').slice(0, 1500)],
+    staff: true,
   });
 }
 
@@ -514,7 +603,7 @@ function renderErrorEmail_(action, err) {
  */
 function sendEmailSamples() {
   const to = staffEmail_();
-  const lead = { leadId: 'EG-VO-01234', kind: 'visa', name: 'SAMPLE Customer <Name>', phone: '+234 800 000 0000',
+  const lead = { leadId: 'EG-VO-01234', kind: 'visa', name: 'Aisha Sample', phone: '+234 800 000 0000',
     email: 'sample@example.com', country: 'Nigeria', travelDate: new Date(Date.now() + 40 * 864e5), passengers: 2,
     extra: [['Departure', 'Kano – Mallam Aminu Kano International Airport (KAN)']], row: 2,
     trackerUrl: trackerSS_().getUrl(), folderUrl: 'https://drive.google.com/' };
