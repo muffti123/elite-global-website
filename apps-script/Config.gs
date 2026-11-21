@@ -30,6 +30,8 @@ const CONFIG = {
     'Email', 'Country', 'Departure', 'Passengers', 'Lead Source', 'Application Status',
     // v4 (round 2): written by staff, shown to the customer on track.html
     'Message to Customer',
+    // v5 (round 2.2): visa review workflow — staff set Review Status, the web app stamps the rest
+    'Review Status', 'Review Updated', 'Last Customer Email',
   ],
   // Columns 1–15 keep their fixed positions; columns added later are found by header name.
   NOTES_COL: 14,      // Follow-up Notes: staff only (the web app no longer writes here)
@@ -43,8 +45,59 @@ const CONFIG = {
     'Application Status': { width: 190, auto: true },
     'Message to Customer': { width: 320, wrap: true, max: 300,
       note: 'Visible to the customer on the Track page — keep it short and professional' },
+    'Review Status': { width: 180, list: 'REVIEW_STATUSES',
+      note: 'Visa applications: the customer is emailed once the status has stayed the same for 5 minutes ' +
+        '(change it back within 5 minutes to cancel). Correction Needed is only sent once Message to Customer is filled in.' },
+    'Review Updated': { width: 150, auto: true, format: 'dd mmm yyyy, hh:mm' },
+    'Last Customer Email': { width: 250, auto: true, wrap: true },
   },
-  SCHEMA_VERSION: '4',
+  SCHEMA_VERSION: '5',
+
+  // Visa review workflow (Review Status column). Lead Status stays the sales pipeline.
+  REVIEW_STATUSES: [
+    'Under Review', 'Correction Needed', 'Correction Received', 'Verified',
+    'Visa Processing', 'Visa Approved', 'Not Approved / Closed',
+  ],
+  REVIEW_FINAL: ['Visa Approved', 'Not Approved / Closed'],
+
+  // Company details used in every email. Must equal public/assets/js/config.js company (check-lists.js).
+  COMPANY_INFO: {
+    name: 'Elite Global World Travel & Tours Ltd.',
+    rc: '7787410',
+    address: 'No. 335, Suite 3, Opposite Fidelity Bank, Zoo Road, Kano, Nigeria',
+    phone: '+234 706 215 2046',
+    whatsapp: '2347062152046',
+    email: 'eliteglobaltravelsng@gmail.com',
+    instagram: 'https://www.instagram.com/elite_global_travels/',
+  },
+
+  // Emails (Email.gs, Notify.gs). Settings that differ per environment live in Script Properties.
+  EMAIL: {
+    SENDER_NAME: 'Elite Global World Travel & Tours',
+    DEFAULT_SITE_URL: 'https://elite-global-staging.netlify.app',
+    BREVO_URL: 'https://api.brevo.com/v3/smtp/email',
+    LOG_NAME: 'Elite Global – Email Log', // separate spreadsheet in the root Drive folder
+    LOG_TAB: 'Email Log',
+    QUEUE_TAB: 'Email Queue',
+    LOG_DAYS: 90,          // Email Log rows older than this are removed by the daily summary
+    UNDO_MIN: 5,           // a Review Status change is emailed after staying unchanged this long
+    QUOTA_RESERVE: 20,     // MailApp quota kept free for verification codes
+    QUEUE_MAX_ATTEMPTS: 10,
+    WAIT_DAYS: 3,          // daily summary: "waiting" after this many days without a change
+    SUMMARY_HOUR: 8,       // daily summary around 08:00 Africa/Lagos
+    JOB_BUDGET_MS: 240000, // runEmailJobs stops sending after 4 minutes
+  },
+
+  // Email verification codes (Verify.gs)
+  OTP: {
+    TTL_S: 1800,           // a code is valid for 30 minutes
+    RESEND_S: 60,          // a new code can be requested after 60 s …
+    HOURLY_MAX: 5,         // … up to 5 per hour per email
+    GLOBAL_HOURLY: 300,    // all emails together, per hour (protects the quota from abuse)
+    ATTEMPTS: 5,           // wrong codes before a new one must be requested
+    TOKEN_H: 24,           // verified-email token lifetime
+    TEST_CODE: '246810',   // only with Script Property TEST_OTP_BYPASS=on, TEST names, @example.com
+  },
 
   // track.html (trackApplication): what the customer sees. Approved by the operator (round 2).
   TRACK: {
@@ -73,6 +126,23 @@ const CONFIG = {
       'Converted': ['Confirmed', 'Your request is confirmed. Thank you for choosing Elite Global.',
         'Our team will keep you updated on the next steps of your journey.'],
       'Lost': ['Closed', 'This request is closed.', 'Contact us if you have questions.'],
+    },
+    // Visa leads with a Review Status: it decides the stage (approved wording, round 2.2)
+    REVIEW: {
+      'Under Review': ['Under review', 'We have received all your documents and our team is checking them.',
+        'No action needed for now. We will email you if anything needs correcting.'],
+      'Correction Needed': ['Action needed', 'We need a correction or more information to continue your application.',
+        'Please read the message below, then reply to our email or contact us on WhatsApp.'],
+      'Correction Received': ['Correction received', 'Thank you — we have received your correction and are checking it.',
+        'No action needed for now. We will update you soon.'],
+      'Verified': ['Documents verified', 'Your documents have been checked and are ready for submission.',
+        'We will submit your visa application and keep you updated.'],
+      'Visa Processing': ['Visa in processing', 'Your visa application has been submitted and is being processed.',
+        'Processing times vary. We will email you as soon as there is a decision.'],
+      'Visa Approved': ['Visa approved', 'Good news — your visa has been approved.',
+        'Our team will contact you with your visa and the next steps.'],
+      'Not Approved / Closed': ['Closed', 'This application is closed.',
+        'Please contact us if you have any questions.'],
     },
     // Visa application whose upload expired (Application Status "Expired"), unless Lost
     EXPIRED: ['Upload not finished', 'Upload not finished — please contact us or apply again.',

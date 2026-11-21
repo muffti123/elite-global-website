@@ -128,7 +128,7 @@
 <form id="enquiryForm" novalidate>
 <label class="field">Full name<input name="name" autocomplete="name" required maxlength="100" placeholder="Your full name"><span class="err-msg" id="err-name">Please enter your full name.</span></label>
 <label class="field">Phone / WhatsApp<input name="phone" type="tel" autocomplete="tel" inputmode="tel" required maxlength="25" placeholder="+234 803 000 0000"><span class="err-msg" id="err-phone">Enter a valid number with country code, e.g. +234 803 000 0000.</span></label>
-<label class="field full">What would you like help with?<select id="requestType" name="request" required><option value="">Select an option</option><option>Request Umrah Visa Only</option><option>Customize My Umrah Experience</option><option>Hotel Accommodation</option><option>Ground Transportation</option><option>Other Travel Enquiry</option></select><span class="err-msg" id="err-request">Please choose what you need help with.</span></label>
+<label class="field full">What would you like help with?<select data-combobox="select" id="requestType" name="request" required><option value="">Select an option</option><option>Request Umrah Visa Only</option><option>Customize My Umrah Experience</option><option>Hotel Accommodation</option><option>Ground Transportation</option><option>Other Travel Enquiry</option></select><span class="err-msg" id="err-request">Please choose what you need help with.</span></label>
 <label class="field">Preferred travel date <span class="opt">(optional)</span><input name="date" type="date"><span class="err-msg" id="err-date">Please choose a date from today onwards.</span></label>
 <label class="field">Number of travellers <span class="opt">(optional)</span><input name="travellers" type="number" inputmode="numeric" min="1" max="999" step="1" placeholder="e.g. 2"><span class="err-msg" id="err-travellers">Enter a whole number from 1 to 999.</span></label>
 <label class="field full">Additional details <span class="opt">(optional)</span><textarea name="details" maxlength="2000" placeholder="Tell us a little about your travel plans"></textarea></label>
@@ -170,6 +170,7 @@
 
 <script src="assets/js/common.js"></script>
 <script src="assets/js/datepicker.js"></script>
+<script src="assets/js/combobox.js"></script>
 <script src="assets/js/api.js"></script>
 <script src="assets/js/index.js"></script>
 <script src="assets/js/motion.js"></script>

@@ -3,8 +3,8 @@
 **Project:** Umrah Lead Generation System — website forms + Apps Script web app + Google Sheets/Drive
 **Client:** Elite Global World Travel & Tours Ltd. (RC: 7787410)
 **Developer:** Abdulmumin (independent full-stack developer)
-**Document version:** 3.2 — supersedes v2.x (Google Forms) and the original *Project Handover Note*
-**Last updated:** 20 November 2026 (v3.2: Track my application — §3.5; v3.1: round 1 client feedback — §0.1)
+**Document version:** 3.3 — supersedes v2.x (Google Forms) and the original *Project Handover Note*
+**Last updated:** 21 November 2026 (v3.3: review workflow, emails, email verification — §3.6; v3.2: Track my application — §3.5; v3.1: round 1 client feedback — §0.1)
 
 ---
 
@@ -106,6 +106,7 @@ Drive folder: **Elite Global – Lead Generation System**.
 - Errors and offline: a red message with WhatsApp/phone/email fallbacks (those filled in `SITE_CONFIG`).
 - Success shows the **Lead ID** (e.g. `EG-VO-00012`) and asks the customer to quote it.
 - Hidden honeypot field: bots get a fake success and nothing is stored.
+- Visa and customise forms: the email address is confirmed with a 6-digit code on Step 1 before the customer can continue (§3.6.4). The contact box is unchanged.
 
 | Field | Rule |
 |---|---|
@@ -219,6 +220,65 @@ Visa upload line: `Complete: N` → "All N passengers' documents received" (1: "
 received"); `Uploading k/N` → "Upload not finished (k of N passengers received)"; `Expired` → "Upload not finished".
 Service type: Visa only · Customised Umrah · General enquiry.
 
+### 3.6 Review workflow, emails and email verification (v3.3)
+
+#### 3.6.1 Review Status (visa applications)
+Staff set **Review Status** in the Lead Tracker (column 23). **Lead Status stays the sales pipeline** and is
+never changed by the web app. `finalizeVisaApplication` sets Review Status to **Under Review**. For visa leads a
+Review Status, when set, decides the stage on the Track page (it wins over every Lead Status and Expired —
+**except Lost: a Lost lead always shows "Closed"**, even when a Review Status is set):
+
+| Review Status (staff) | Stage shown | Description | Next step |
+|---|---|---|---|
+| Under Review | Under review | We have received all your documents and our team is checking them. | No action needed for now. We will email you if anything needs correcting. |
+| Correction Needed | **Action needed** (amber; the Message to Customer is shown first, as "What we need from you") | We need a correction or more information to continue your application. | Please read the message below, then reply to our email or contact us on WhatsApp. |
+| Correction Received | Correction received | Thank you — we have received your correction and are checking it. | No action needed for now. We will update you soon. |
+| Verified | Documents verified | Your documents have been checked and are ready for submission. | We will submit your visa application and keep you updated. |
+| Visa Processing | Visa in processing | Your visa application has been submitted and is being processed. | Processing times vary. We will email you as soon as there is a decision. |
+| Visa Approved | Visa approved | Good news — your visa has been approved. | Our team will contact you with your visa and the next steps. |
+| Not Approved / Closed | Closed | This application is closed. | Please contact us if you have any questions. |
+
+#### 3.6.2 Emails
+| Email | To | When |
+|---|---|---|
+| Staff alert | `STAFF_EMAIL` | At once for every new lead: contact and customise at submit, visa at finalize. Lead ID, service, name, phone, email, country, travel date, passengers/travellers, a link to the tracker row and (visa) the Drive folder. No attachments |
+| Confirmation | Customer | Customise at submit. Visa at finalize: **one combined "received + under review" email** (it also counts as the Under Review status email). Reference, what happens next, Track link `<SITE_URL>/track.html?id=<Lead ID>`, phone/WhatsApp/email, "check your spam folder" |
+| Status update | Customer | Every Review Status change, **once the status has stayed unchanged for 5 minutes** (undo window: change it back within 5 minutes and nothing is sent); the email goes out about 5 minutes after the last status change (checked every 5 minutes). A status is never emailed twice in a row; **once per status per lead**, except Correction Needed / Correction Received, which are emailed again in each new correction round. Includes the Message to Customer. **Correction Needed is held while Message to Customer is empty** (listed in the daily summary) and is released on the next check once it is filled in (message first, then status, also works). **Editing the message after sending does not resend.** `checkRecentEmailJobs` logs the last 20 decisions (Lead ID, status, decision, reason, time; no personal data) |
+| Daily summary | `STAFF_EMAIL` | ~08:00 Africa/Lagos: counts per Review Status, visa reviews unchanged for more than 3 days, new leads not contacted for more than 3 days, held emails, queue size and failures, remaining MailApp quota |
+| Email code | Customer | On "Send code" (§3.6.4) |
+| Error notice | `STAFF_EMAIL` | Unexpected web app error, at most one per 10 minutes, no request data |
+
+- **Triggers** (installable, created once by `setupEliteGlobal`): `onTrackerEdit` (Review Status edits → Review Updated; message edits do not restart the wait), `runEmailJobs` (every 5 minutes: queue + status emails; runs never overlap), `sendDailySummary` (daily, 08:00 Lagos). A Review Status change the edit trigger missed is picked up by `runEmailJobs`, which starts the 5 minutes then.
+- **Never blocks a lead, never sends twice:** every email is wrapped in try/catch; the result is logged (`email <kind> ok|queued|skipped|failed`, no address or name); a key such as `EG-VO-00012|status:Verified` is sent at most once (Email Log, §4.4).
+- **TEST leads:** customer emails are skipped (logged "skipped") when the name starts with TEST **and** the email ends in `@example.com`; staff alerts are still sent. `emailed:false` is returned and the success screen hides "We've emailed you a confirmation".
+- **Template:** one branded layout for every email — navy `#06163F` header with the logo PNG (`<SITE_URL>/assets/brand/email-logo.png`, made by `tools/build-email-logo.js`), gold `#F5AE00` accents and button, the website font stack, subject "Elite Global — …", footer with company name, RC 7787410, address, phone, WhatsApp and Instagram (as text), a Track link and "You're receiving this because you applied on our website." (staff emails: "Staff notification…"). Inline CSS, 600 px, full width on phones; **every email has a plain-text version** (MailApp `body`, Brevo `textContent`); **every customer value escaped**; sender name "Elite Global World Travel & Tours"; Reply-To = the company email.
+- **Deliverability rules** (checked by `tools/gas-test`): no ALL-CAPS words or forced capitals in templates (the staff message is shown as typed), no "!!", no "urgent / free / act now"; one image only (the logo, with alt, width and height), no tracking pixels; mostly text; in customer emails the only links are `https://` links to `SITE_URL` (no shorteners). The code email and the first confirmation ask the customer to add the company email to their contacts and to mark it "Not spam". The website shows "We've emailed you. If it isn't in your inbox within 5 minutes, check Spam/Junk or Promotions and mark it 'Not spam' — or message us on WhatsApp." after Send code and on the customise / visa success screens (the Track page has the same note, starting "We email you about every update."). The contact box collects no email address, so its success message has no such note. Company details come from `CONFIG.COMPANY_INFO` (checked against `config.js` by `tools/check-lists.js`).
+- `sendEmailSamples()` sends one sample of each of the 15 emails to `STAFF_EMAIL` (not logged, not de-duplicated).
+
+#### 3.6.3 Settings (Script Properties)
+| Property | Default | Notes |
+|---|---|---|
+| `STAFF_EMAIL` | script owner (set by setup only if empty) | One address or several, comma-separated. Invalid entries are ignored and flagged by `checkEmailSettings` |
+| `SITE_URL` | `https://elite-global-staging.netlify.app` | Links and logo in emails — **set it on production**. Must be `https://…`; otherwise the default is used and flagged |
+| `NOTIFY_STAFF` / `NOTIFY_CUSTOMER` | `on` | `off` stops staff alerts + summary / customer emails (skipped emails are not sent later) |
+| `EMAIL_PROVIDER` | `mailapp` | `brevo` = Brevo transactional API (§3.6.5) |
+| `BREVO_API_KEY`, `SENDER_EMAIL` | — | Brevo only; never in code |
+| `TEST_OTP_BYPASS` | off | Staging only: run `enableTestOtpBypass` / `disableTestOtpBypass` (refused unless SITE_URL contains "staging") |
+
+Staff change these in **Project Settings → Script Properties** (the Run button cannot pass arguments; `setStaffEmail` /
+`setSiteUrl` run without arguments print these instructions), then run **`checkEmailSettings`**, which prints every
+setting (the key only as "set"), flags invalid values, and shows the remaining MailApp quota and the queue size.
+
+#### 3.6.4 Email verification (Step 1 of visa and customise)
+- "Send code" next to Email → a branded email with a **6-digit code, valid 30 minutes**. Resend after **60 s**; **5 codes per hour per email**; 300 per hour in total. **5 wrong attempts** → "Please request a new code". Only a salted hash of the code is stored (CacheService). The code email contains no text typed by the visitor.
+- A correct code shows **"Email confirmed ✓"** and returns a **verified-email token valid 24 h** (`<expiry>.<sha256(email)>.<HMAC>`). The website keeps it in **sessionStorage** with a hash of the email — never the email. Changing the email resets the confirmation; Next on Step 1 is blocked until it is confirmed.
+- `createVisaApplication` and `submitCustomRequest` refuse a missing, expired, tampered or other-email token with `reverify:true`; the form returns to Step 1.
+- Messages mention the spam folder and offer WhatsApp/phone/email. A code that cannot be sent (quota/provider) is never queued: the customer is asked to try again or use WhatsApp.
+- `TEST_OTP_BYPASS=on` (staging, `enableTestOtpBypass`): TEST names with `@example.com` emails get no email and use the fixed test code (QA only).
+
+#### 3.6.5 Volume and provider
+~500 applications/day ≈ **3,000 emails/day** (codes, staff alerts, confirmations, ~3 status emails per visa). MailApp on a gmail.com account allows ~100 recipients/day, so **production must use Brevo** on a paid plan (the free plan is 300/day). Switching is a Script Property change (`EMAIL_PROVIDER=brevo` + key + verified sender); nothing in the code changes. With MailApp, normal emails stop at the last 20 quota units so codes can still be sent; the rest waits in the queue.
+
 ### 3.4 Contact box on `index.html`
 | Field | Type | Required |
 |---|---|---|
@@ -257,15 +317,25 @@ Success: the form resets and shows "Your reference number is EG-GE-…".
 | 19 | Passengers | Auto | Visa: number of passengers |
 | 20 | Lead Source | Auto | How did you hear about Elite Global? |
 | 21 | Application Status | Auto | Visa: `Uploading k/N` → `Complete: N passengers`, or `Expired` (24 h purge). Others: `Received` |
-| 22 | Message to Customer | **Staff** | Optional short message shown to the customer on track.html (plain text, first 300 characters). Header note: "Visible to the customer on the Track page — keep it short and professional" (v3.2) |
+| 22 | Message to Customer | **Staff** | Optional short message shown to the customer on track.html (plain text, first 300 characters). Header note: "Visible to the customer on the Track page — keep it short and professional" (v3.2). Also included in status emails; required before a Correction Needed email is sent |
+| 23 | Review Status | **Staff** | Visa: dropdown Under Review, Correction Needed, Correction Received, Verified, Visa Processing, Visa Approved, Not Approved / Closed. Set to Under Review at finalize; every change is emailed to the customer after 5 unchanged minutes (§3.6) (v3.3) |
+| 24 | Review Updated | Auto | Time of the last Review Status / Message to Customer edit (starts the 5-minute undo window) |
+| 25 | Last Customer Email | Auto | Last customer email, e.g. "Status: Verified · 22 Nov 2026 09:05", "Queued: …", "Not sent (test lead) · …" |
 
-Columns 16–22 were appended after Drive Folder (v3.1, v3.2) and are found by header name, so existing rows,
+Columns 16–25 were appended after Drive Folder (v3.1–v3.3) and are found by header name, so existing rows,
 formulas, protections and Lead IDs never move. `setupEliteGlobal()` adds them to an existing tracker and
 fills **only empty cells** of earlier leads from their old `[Auto]` notes (notes are kept); running it
 again changes nothing.
 
 2,000 pre-formatted rows (500 more added automatically), frozen header and first three columns, filter on,
 warning-only protection on Lead ID, Date Received, Total Travellers and Drive Folder.
+
+### 4.4 Email Log spreadsheet ("Elite Global – Email Log", v3.3)
+A **separate** spreadsheet in the root Drive folder (ID in Script Property `EMAIL_LOG_ID`; link in System Info), created by `setupEliteGlobal`:
+- **Email Log** — Time, Key (e.g. `EG-VO-00012|status:Verified`), Kind, Lead ID, Result (ok / queued / skipped / failed / unavailable), Provider, Detail. **No email addresses, names or codes.** A key that is ok, queued or skipped is never sent again. Rows older than **90 days** are removed by the daily summary.
+- **Email Queue** — emails waiting for quota or the provider (address, subject, HTML, text, attempts). Sent by `runEmailJobs`; after 10 failed attempts a row stays as "gave up" and is reported in the daily summary.
+
+`cleanupTestData` removes the rows of TEST leads from both tabs.
 
 ### 4.2 Detail tabs
 | Tab | One row per | Columns |
@@ -299,21 +369,23 @@ File extensions follow the file's **real** type (magic bytes), never the custome
 ### 5.1 Transport
 `POST <web app /exec URL>` with a `text/plain;charset=utf-8` JSON body (a "simple" request: no CORS
 preflight). Apps Script answers with a 302 to `script.googleusercontent.com`, which serves the JSON with
-`Access-Control-Allow-Origin: *`. `GET` returns a health check `{"ok":true,"service":…,"version":1,"schema":4}` (schema = tracker version written by `setupEliteGlobal`: 3 = v3 columns + Visa Applications tab, 4 = Message to Customer).
+`Access-Control-Allow-Origin: *`. `GET` returns a health check `{"ok":true,"service":…,"version":1,"schema":5}` (schema = tracker version written by `setupEliteGlobal`: 3 = v3 columns + Visa Applications tab, 4 = Message to Customer, 5 = Review Status, Review Updated, Last Customer Email).
 
 Every request: `{"action": "<name>", "hp": "<honeypot>", …}` → `{"ok":true,"leadId":…}` or
-`{"ok":false,"error":"<friendly>","field"?:"<name>","missing"?:[…]}`.
+`{"ok":false,"error":"<friendly>","field"?:"<name>","missing"?:[…],"reverify"?:true}` (`reverify`: the email must be confirmed again).
 
 ### 5.2 Actions
 | Action | Input | Writes | Returns |
 |---|---|---|---|
 | `submitContact` | name, phone, enquiryType, travelDate?, travellers?, details? | Lead Tracker + Contact Enquiries | leadId `EG-GE-…` |
-| `submitCustomRequest` | all §3.3 answers (`services` is an array) | Lead Tracker + Custom Requests | leadId `EG-CE-…` |
-| `createVisaApplication` | lead fields §3.2 (`departureAirport`, `departureAirportOther`), `consent:true`, `passengers:[{name, category}]` (1–50), `docs:{shared:{ticket,hotel}, passengers:[{ticket,hotel}]}` (optional) | Drive folder, Lead Tracker row (status `Uploading 0/N`), Visa Applications row, upload state | leadId `EG-VO-…`, token |
+| `submitCustomRequest` | all §3.3 answers (`services` is an array), `emailToken` | Lead Tracker + Custom Requests; staff alert + confirmation email | leadId `EG-CE-…`, emailed |
+| `createVisaApplication` | lead fields §3.2 (`departureAirport`, `departureAirportOther`), `emailToken`, `consent:true`, `passengers:[{name, category}]` (1–50), `docs:{shared:{ticket,hotel}, passengers:[{ticket,hotel}]}` (optional) | Drive folder, Lead Tracker row (status `Uploading 0/N`), Visa Applications row, upload state | leadId `EG-VO-…`, token |
 | `uploadPassenger` | leadId, token, index (1…N), name, category, `passport:{name,mime,b64}`, `photo:{mime,b64}` | `NN – name/` passport + photo (replaced on retry; documents kept), Visa Passengers row (upsert), status `Uploading k/N` | uploaded, total, photoKb |
 | `uploadDocument` | leadId, token, `scope` ("all" or 1…N), `kind` (ticket/hotel), name, `file:{name,mime,b64}` | `flight-ticket.*` / `hotel-booking.*` (replaced on retry), links in Visa Passengers / Visa Applications. Only documents declared at create | scope, kind |
 | `trackApplication` | leadId, contact (email or phone) | nothing (read-only) | §3.5 fields only, or the generic not-found message |
-| `finalizeVisaApplication` | leadId, token | status `Complete: N passengers` (all passengers and declared documents arrived), deletes upload state | leadId (repeat-safe); else `missing` (0 = shared documents) |
+| `sendEmailCode` | email, name | code hash in CacheService; code email (§3.6.4) | resendIn |
+| `verifyEmailCode` | email, code | nothing | token (24 h) |
+| `finalizeVisaApplication` | leadId, token | status `Complete: N passengers` (all passengers and declared documents arrived), Review Status Under Review, deletes upload state; staff alert + combined confirmation email | leadId, emailed (repeat-safe); else `missing` (0 = shared documents) |
 
 ### 5.3 Upload state
 Script Property `UPLOAD_<LeadID>` = `{t: token, n: passengers, f: folderId, k: category codes, u: uploaded
@@ -330,6 +402,8 @@ up, and the customer is told the application expired.
 - Departure airport: IATA code in the list for the chosen country (`LISTS.AIRPORTS_NG` / `AIRPORTS`), or `OTHER` + text.
 - Token must match; category per passenger must match what was declared at create.
 - Tracking: 5 lookups per reference and 20 per email/phone per 10 minutes; every miss looks the same (§3.5).
+- Email codes: resend after 60 s, 5 per hour per email, 300 per hour in total, 5 wrong attempts per code; `createVisaApplication` / `submitCustomRequest` need a valid token for the submitted email (§3.6.4).
+- Emails never fail a submission: every send is wrapped, queued when the quota/provider is unavailable, and logged without personal data (§3.6).
 - Rate limit: **10 create/submit calls per 10 minutes** per email (contact form: per phone), counted in
   CacheService with a hashed key.
 - `LockService` only around Lead ID + row writes + upload-state updates — never around Drive uploads.
@@ -344,7 +418,8 @@ up, and the customer is told the application expired.
 | Concurrent executions | ~30 per user (all customers run as the owner) | Uploads sequential per customer; "busy" is retried |
 | PropertiesService | 9 KB/value, 500 KB/store, 50k ops/day | ~200 B per open application, purged after 24 h |
 | CacheService | ≤ 6 h, may evict | Rate counters only |
-| MailApp | 100 recipients/day | Error notices only, throttled |
+| MailApp | 100 recipients/day (Workspace: 1,500) | Codes keep a reserve of 20; other emails queue when the quota is used up. **Production at ~500 applications/day needs Brevo** (§3.6.5) |
+| Triggers | 90 min total trigger run time/day (consumer) | `runEmailJobs` every 5 min reads the tracker in one batch (~1–3 s) |
 | **Drive storage** | **15 GB free, shared with Gmail/Photos** | ~1 MB per passenger (image passports) → roughly 1,000 twelve-passenger applications; PDFs use more. **Open item for production** (§12) |
 | Deploying | Code goes live only when the **same** deployment gets a new version | `/exec` URL stays the same; new scopes need re-authorising in the editor |
 
@@ -409,6 +484,21 @@ No mention of Google Forms or Google sign-in anywhere.
 
 ## 8. Hosting and deployment
 
+### 8.1 Launch: domain and email (final stage)
+Until this is done, staging emails are sent from a gmail.com address through MailApp and **may land in
+Spam/Junk or Promotions**. The company domain is already bought (registered elsewhere, not at Hostinger). No
+domain work happens before the final launch stage; then, in this order:
+
+1. **Point the domain to Hostinger** — at the company that sold the domain, change its nameservers (or A/CNAME records) to the ones Hostinger shows for the website. DNS changes can take a few hours.
+2. **Deploy the site on Hostinger** — upload the contents of `public/` to the website's `public_html`, turn on free SSL (HTTPS) and check every page loads on `https://` the domain.
+3. **Set up the company mailbox** on the domain (e.g. `info@` the domain) in Hostinger Email, so customers can reply and the address can receive mail.
+4. **Verify the domain in Brevo** — Brevo → Senders, domains & dedicated IPs → Domains → add the domain.
+5. **Add the SPF, DKIM and DMARC DNS records** exactly as Brevo shows them (TXT records; SPF must also include Hostinger mail if the mailbox sends mail). Wait until Brevo shows the domain as authenticated.
+6. **Script Properties** (Apps Script editor → Project Settings → Script Properties): `EMAIL_PROVIDER` = `brevo`, `BREVO_API_KEY` = a new Brevo API key, `SENDER_EMAIL` = the verified company address, `SITE_URL` = `https://` the domain (no slash at the end). Then run `checkEmailSettings`.
+7. **Send test emails** — run `sendEmailSamples`, then one real application with your own email; check they arrive in the inbox (Gmail, Yahoo and Outlook), with the logo and working links.
+
+Everything is Script Properties (§3.6.3); no code change. Open items 8 and 9 (§12).
+
 | Option | When | Steps |
 |---|---|---|
 | **A. The client's existing host** | The domain's host includes web space or cPanel | cPanel → File Manager → `public_html` → upload the contents of `public/` |
@@ -427,7 +517,10 @@ The Apps Script is deployed separately with `clasp push` + a web app deployment 
   lead closes.
 - The web app is public by design (customers have no Google account); it only accepts validated data,
   rate-limits, requires a per-application token for uploads, and never returns stored data.
-- Logs never contain request bodies, names or file contents.
+- Logs never contain request bodies, names or file contents — nor email addresses, codes or tokens. The Email Log holds Lead IDs and results only.
+- Email codes are stored only as a salted hash (30 min). The verified-email token holds an expiry and a hash of the email, signed with `OTP_SECRET`; the website keeps it in sessionStorage with a hash of the email, never the address.
+- The code email contains no visitor-typed text, and sending is capped per email and per hour, so the form cannot be used to send spam.
+- `BREVO_API_KEY` lives only in Script Properties and is never printed (`showNotifySettings` shows "set").
 - The website contains no Google Forms links and no `/edit` URLs. Never put the owner password or
   verification codes in any tool, chat or document.
 
@@ -453,6 +546,11 @@ Run `node tools/check-lists.js` and `node tools/qa/run.js static` before every s
 - [ ] All pages: no console errors, no Google Forms URLs, no horizontal scroll at 360 px, checked on Android Chrome, iPhone Safari and desktop
 - [ ] Track page: prefill from `?id=`, track by email (any case) and by phone (0… and +234…), wrong contact and unknown reference get the same message, 6th lookup per reference refused, staff message shown as text
 - [ ] `setupEliteGlobal` adds Message to Customer; health check shows `"schema":4`
+- [ ] `setupEliteGlobal` adds Review Status / Review Updated / Last Customer Email, the Email Log spreadsheet and 3 triggers (re-run adds nothing); health check `"schema":5`
+- [ ] Email code: Send code → email arrives (check spam) → wrong code refused → right code "Email confirmed ✓"; changing the email resets it; submit without a confirmed email is refused
+- [ ] `sendEmailSamples()`: every email approved (logo, colours, footer, links, phone layout)
+- [ ] New lead → staff alert at once; customise / visa → confirmation email; visa → Review Status Under Review
+- [ ] Review Status change → email 5–10 min later; change + undo within 5 min → no email; Correction Needed waits for a Message to Customer; daily summary arrives ~08:00
 - [ ] `cleanupTestData()` run: TEST rows gone from 4 tabs, TEST visa folders in the Drive bin
 - [ ] Sharing on the tracker and the Visa Applications folder checked (named staff only)
 
@@ -482,6 +580,8 @@ Run `node tools/check-lists.js` and `node tools/qa/run.js static` before every s
 | 5 | Retention and deletion policy for passports and photos | Client |
 | 6 | Where the domain is hosted, and cPanel access or a DNS contact | Client |
 | 7 | Update the original handover note to the correct owner account | Client |
+| 8 | Email volume for production (~3,000 emails/day at 500 applications): a paid Brevo plan, verified sender domain, then `EMAIL_PROVIDER=brevo`, `BREVO_API_KEY`, `SENDER_EMAIL` (README) | Client + Developer |
+| 9 | Production Script Properties: `SITE_URL` (live domain) and `STAFF_EMAIL`; never enable `TEST_OTP_BYPASS` there | Developer |
 
 ## 13. Phase 2 ideas (not in scope)
 - **Optional free in-browser passport MRZ scan** (Tesseract.js, runs on the device) to pre-fill each passenger's name from the passport — customer always confirms

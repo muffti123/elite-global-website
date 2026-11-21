@@ -320,3 +320,33 @@ form.track-form{display:grid;grid-template-columns:1fr;gap:16px}
 .success-actions{display:flex;flex-wrap:wrap;justify-content:center;gap:12px;margin-top:6px}
 .status .track-link{display:inline-block;margin-top:8px;font-weight:800}
 @media(max-width:620px){.success-actions .btn{width:100%}}
+/* Email confirmation code (Step 1, customise + visa) */
+.verify{margin-top:16px;padding:14px 16px;border:1px solid #e1e6ef;border-radius:10px;background:#f8faff}
+.verify .help{margin:2px 0 10px}
+.verify-row{display:flex;flex-wrap:wrap;align-items:center;gap:12px}
+.verify-row .btn,.verify-code .btn{padding:11px 18px;font-size:15px}
+.verify-ok{display:inline-flex;align-items:center;gap:6px;padding:8px 14px;border-radius:999px;background:#dff3e6;color:var(--ok);font-weight:800}
+.verify-ok[hidden],.verify-code[hidden]{display:none}
+.verify-code{display:grid;grid-template-columns:minmax(0,220px) auto;align-items:end;gap:10px 12px;margin-top:4px}
+.verify-code .verify-input input{letter-spacing:.3em;font-variant-numeric:tabular-nums;font-size:20px;padding:11px 13px}
+.verify-code .link-btn{grid-column:1/-1;justify-self:start}
+.verify-code .link-btn:disabled{color:var(--muted);text-decoration:none;cursor:default}
+.verify-status{margin:10px 0 0;font-size:14px;line-height:1.5;color:var(--muted)}
+.verify-status:empty{display:none}
+.verify-status.ok{color:var(--ok)}.verify-status.err{color:var(--err)}
+.verify-status a{text-decoration:underline;font-weight:700}
+.verify.confirmed{border-color:#bfe3cb;background:#f3fbf6}
+.field.verify.invalid{border-color:var(--err);background:#fffafa}
+.emailed-note{font-weight:700;color:var(--navy)}
+@media (max-width:420px){.verify-code{grid-template-columns:1fr}.verify-code .btn{width:100%}}
+.stage-badge[data-tone="action"]{background:#ffe9d6;color:#8a3a00}
+.staff-msg.action{border-left:4px solid var(--gold);background:#fff8e6}
+/* Pick-only dropdowns (data-combobox="select") */
+.cb-select .cb-input{cursor:pointer;caret-color:transparent}
+.cb-select .cb-input::selection{background:transparent}
+.cb-input::placeholder{color:#6b7489;font-weight:400}
+/* Deliverability note ("check Spam/Junk or Promotions") */
+.inbox-note{display:block;font-size:14px;line-height:1.55;color:var(--muted)}
+.inbox-note a{color:#8a5a00;font-weight:700;text-decoration:underline}
+.verify-status .inbox-note{margin-top:6px}
+.track-inbox{max-width:720px;margin:14px auto 0;text-align:center}

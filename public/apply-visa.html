@@ -58,6 +58,18 @@
 <label class="field">Email Address<input name="email" type="email" autocomplete="email" inputmode="email" maxlength="254" placeholder="name@example.com"><span class="err-msg" id="e-email">Please enter a valid email address, e.g. name@example.com</span></label>
 <label class="field">Country of Residence<select name="country" data-list="COUNTRIES" data-placeholder="Type or choose your country" data-combobox></select><span class="err-msg" id="e-country">Please choose your country of residence.</span></label>
 </div>
+<div class="field verify" data-verify>
+<span class="label-text" id="verifyTitle">Confirm your email address</span>
+<span class="help">We'll email you a 6-digit code. Confirming your email lets us send you your reference number and updates.</span>
+<div class="verify-row"><button type="button" class="btn btn-outline" data-verify-send aria-describedby="verifyTitle">Send code</button><span class="verify-ok" data-verify-ok hidden>Email confirmed ✓</span></div>
+<div class="verify-code" data-verify-code hidden>
+<label class="verify-input">6-digit code from the email<input name="emailCode" data-verify-input inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="123456" aria-describedby="e-emailCode"></label>
+<button type="button" class="btn btn-gold" data-verify-check>Confirm</button>
+<button type="button" class="link-btn" data-verify-resend disabled>Resend code (60 s)</button>
+</div>
+<p class="verify-status" data-verify-status role="status" aria-live="polite"></p>
+<span class="err-msg" id="e-emailCode">Please confirm your email address.</span>
+</div>
 <h3>Travel information</h3>
 <div class="grid2">
 <label class="field">Preferred Travel Date<input name="travelDate" type="date"><span class="err-msg" id="e-travelDate">Please choose a date from today onwards.</span></label>
@@ -70,7 +82,7 @@
 <h3>Additional information</h3>
 <div class="grid2">
 <label class="field full">Additional Information / Special Requests <span class="opt">(optional)</span><textarea name="extraInfo" maxlength="2000"></textarea></label>
-<label class="field">How did you hear about Elite Global? <span class="opt">(optional)</span><select name="heard" data-list="HEARD" data-placeholder="Select an option"></select></label>
+<label class="field">How did you hear about Elite Global? <span class="opt">(optional)</span><select data-combobox="select" name="heard" data-list="HEARD" data-placeholder="Select an option"></select></label>
 </div>
 </div>
 
@@ -172,6 +184,7 @@
 <p>Your Umrah visa application has been received with <b id="successCount"></b>. Your reference number is:</p>
 <div class="ref" id="leadId" data-lead-id></div>
 <p>Our team will review your documents and contact you shortly to guide you through the next steps. Please quote your reference number when we contact you.</p>
+<p class="emailed-note inbox-note" data-emailed data-inbox-note hidden>We've emailed you. If it isn't in your inbox within 5 minutes, check Spam/Junk or Promotions and mark it 'Not spam' — or message us on WhatsApp.</p>
 <div class="success-actions"><a class="btn btn-gold" href="track.html" data-track-link>Track this application</a><a class="btn btn-outline" href="index.html">Back to home</a></div>
 </div>
 </div></section>
@@ -182,7 +195,7 @@
 <div class="pax-head"><h3>Passenger <span data-no></span></h3><button type="button" class="link-btn pax-remove" data-remove>Remove</button></div>
 <div class="grid2">
 <label class="field">Full name as on passport<input data-name maxlength="100" autocomplete="off" placeholder="e.g. AISHA BELLO MUSA"><span class="err-msg">Please enter the full name exactly as on the passport.</span></label>
-<label class="field">Category<select data-category></select><span class="err-msg">Please choose a category.</span></label>
+<label class="field">Category<select data-category data-combobox="select"></select><span class="err-msg">Please choose a category.</span></label>
 </div>
 <div class="pax-files">
 <div class="field" data-passport-field>
@@ -264,6 +277,7 @@
 <script src="assets/js/airports.js"></script>
 <script src="assets/js/api.js"></script>
 <script src="assets/js/wizard.js"></script>
+<script src="assets/js/verify.js"></script>
 <script src="assets/js/image.js"></script>
 <script src="assets/js/visa.js"></script>
 <script src="assets/js/motion.js"></script>

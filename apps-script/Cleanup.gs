@@ -12,7 +12,7 @@ function cleanupTestData() {
   const isTest = function (name) { return /^\s*'?TEST/i.test(String(name || '')); };
   const ss = trackerSS_();
   const testIds = {};
-  const removed = { tracker: 0, visa: 0, passengers: 0, custom: 0, contact: 0, folders: 0, uploads: 0, legacy: 0 };
+  const removed = { tracker: 0, visa: 0, passengers: 0, custom: 0, contact: 0, folders: 0, uploads: 0, legacy: 0, emails: 0 };
 
   // 1. Lead Tracker — remember the Lead IDs of TEST leads
   const tr = ss.getSheetByName(CONFIG.TRACKER_TAB);
@@ -76,13 +76,16 @@ function cleanupTestData() {
   // 5. Retired Google Forms + their response sheets (only if they still exist)
   removed.legacy = cleanupLegacyForms_(isTest);
 
+  // 6. Email Log + Email Queue rows of TEST leads (separate spreadsheet)
+  removed.emails = cleanupEmailLog_(testIds);
+
   // Restart Lead IDs at 00001 if the tracker is now empty
   if (tr.getRange(2, 1).getValue() === '') p.setProperty('LEAD_SEQ', '0');
 
   Logger.log('Removed TEST data — tracker rows: ' + removed.tracker + ', visa applications: ' + removed.visa + ', visa passengers: ' + removed.passengers +
     ', custom requests: ' + removed.custom + ', contact enquiries: ' + removed.contact +
     ', visa folders moved to bin: ' + removed.folders + ', upload states: ' + removed.uploads +
-    ', retired-form records: ' + removed.legacy + '.');
+    ', retired-form records: ' + removed.legacy + ', email log/queue rows: ' + removed.emails + '.');
 }
 
 function cleanupLegacyForms_(isTest) {
@@ -127,10 +130,7 @@ function notifyError_(err, action) {
     const cache = CacheService.getScriptCache();
     if (cache.get('ERR_MAIL')) return;
     cache.put('ERR_MAIL', '1', 600);
-    MailApp.sendEmail(Session.getEffectiveUser().getEmail(),
-      '⚠️ Elite Global web app error',
-      'A website submission failed' + (action ? ' (' + action + ')' : '') + '.\n' +
-      'The customer was asked to try again. Check Apps Script → Executions for details.\n\n' +
-      'Error: ' + (err && err.message) + '\n\nStack: ' + (err && err.stack));
+    const m = renderErrorEmail_(action, err);
+    sendEmail_({ to: staffEmail_(), kind: 'error', subject: m.subject, html: m.html, text: m.text });
   } catch (ignore) { /* mail quota reached — the error is still in the Executions log */ }
 }

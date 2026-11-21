@@ -104,6 +104,16 @@ window.EG = window.EG || {};
     return bits.length ? ' You can also ' + bits.join(', or ') + '.' : '';
   }
 
+  /**
+   * Deliverability note shown after "Send code", on the customise / visa success screens and (lead: other wording)
+   * on the Track page. The WhatsApp link comes from SITE_CONFIG.company.whatsapp.
+   */
+  function inboxNote(lead) {
+    var wa = waLink ? '<a href="' + waLink + '" target="_blank" rel="noopener">message us on WhatsApp</a>' : 'contact us';
+    return escapeHtml(lead === undefined ? 'We\'ve emailed you.' : lead) + ' If it isn\'t in your inbox within 5 minutes, check Spam/Junk or ' +
+      'Promotions and mark it \'Not spam\' — or ' + wa + '.';
+  }
+
   function escapeHtml(s) {
     return String(s).replace(/[&<>"']/g, function (c) {
       return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
@@ -124,6 +134,6 @@ window.EG = window.EG || {};
   Object.assign(window.EG, {
     $: $, $$: $$, waLink: waLink, igLink: igLink, PHONE_RE: PHONE_RE, EMAIL_RE: EMAIL_RE,
     todayISO: todayISO, setInvalid: setInvalid, clearOnInput: clearOnInput,
-    contactFallback: contactFallback, escapeHtml: escapeHtml, fillSelect: fillSelect,
+    contactFallback: contactFallback, escapeHtml: escapeHtml, fillSelect: fillSelect, inboxNote: inboxNote,
   });
 })();

@@ -6,6 +6,7 @@
  *  - Unknown ID, wrong contact, bad format, rate limit and honeypot all get the SAME reply
  *    (CONFIG.TRACK.NOT_FOUND), so Lead IDs cannot be enumerated.
  *  - Lookups are rate-limited per Lead ID and per contact value (hashed keys in CacheService).
+ *  - Visa leads: a Review Status (CONFIG.TRACK.REVIEW) decides the stage when it is set; Lost always shows Closed.
  *  - Only the service type, date received, customer stage, next step, the staff "Message to Customer"
  *    and (visa) the upload line are returned — never name, phone, email, answers, files, links or notes.
  *  - The contact value is never logged; a miss does not log the Lead ID either.
@@ -49,6 +50,10 @@ function trackApplication_(d) {
   const visa = category === CONFIG.FORMS.VISA.category;
   let stage = T.STAGES[status] || T.STAGES['New Lead'];
   if (status !== 'Lost' && visa && app === CONFIG.STATUS.EXPIRED) stage = T.EXPIRED;
+  // Visa review workflow: a Review Status, when set, decides what the customer sees — except for a
+  // Lost lead, which always shows Closed.
+  const review = String(get('Review Status') || '').trim();
+  if (status !== 'Lost' && visa && Object.prototype.hasOwnProperty.call(T.REVIEW, review)) stage = T.REVIEW[review];
 
   const out = {
     ok: true,

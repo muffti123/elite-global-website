@@ -23,6 +23,9 @@
     if (F.servicesOtherOn.checked) F.servicesOther.focus();
   });
 
+  // Step 1: confirm the email address with a code (the web app requires the token)
+  var verify = EG.emailVerify({ key: 'custom', box: $('[data-verify]', form), email: F.email, name: F.name, hp: F.company_website });
+
   EG.clearOnInput(form);
   form.addEventListener('input', function () { dirty = true; });
   form.addEventListener('change', function () { dirty = true; });
@@ -37,6 +40,7 @@
         function () { return check.phone(F.phone); },
         function () { return check.email(F.email); },
         function () { return check.select(F.country); },
+        function () { return check.email(F.email) ? verify.validate() : true; },
       ], panels[0]);
     },
     function () {
@@ -134,6 +138,7 @@
       hotelOrAirline: F.hotelOrAirline.value.trim(),
       special: F.special.value.trim(),
       heard: F.heard.value,
+      emailToken: verify.token(),
     };
   }
 
@@ -181,8 +186,11 @@
   // ---- Submit ------------------------------------------------------------
   function showStatus(type, html) { status.className = 'status ' + type; status.innerHTML = html; }
 
-  function showSuccess(leadId) {
+  function showSuccess(leadId, emailed) {
     done = true;
+    var note = $('[data-emailed]');
+    note.innerHTML = EG.inboxNote(); // with the WhatsApp link
+    note.hidden = emailed !== true;
     form.hidden = true;
     $('#stepper').hidden = true;
     $('#stepLabel').hidden = true;
@@ -215,7 +223,8 @@
     // No automatic retry: a lost reply would otherwise create a duplicate lead.
     EG.postAction('submitCustomRequest', payload(), { retries: 0, timeout: 45000 })
       .then(function (res) {
-        if (res && res.ok) { showSuccess(res.leadId); return; }
+        if (res && res.ok) { showSuccess(res.leadId, res.emailed); return; }
+        if (res && res.reverify) { verify.reset(res.error); wizard.go(0, { force: true }); return; }
         var field = res && res.field && (F[res.field] || form.querySelector('[name="' + res.field + '"]'));
         if (field && field.length && !field.tagName) field = field[0]; // radio group
         if (field) {
