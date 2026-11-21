@@ -122,7 +122,8 @@ git remote -v   # 1 fetch URL (personal), 2 push URLs (personal, org)
   sales pipeline — the website never changes it.
 - Change **Review Status** (dropdown, column "Review Status") as the application moves on: Correction Needed,
   Correction Received, Verified, Visa Processing, Visa Approved, Not Approved / Closed. The Track page shows the
-  matching stage to the customer (PRD §3.6.1).
+  matching stage to the customer (PRD §3.6.1). A lead whose **Lead Status is Lost always shows "Closed"**,
+  whatever its Review Status.
 
 ### How status emails are delivered
 - The customer is emailed about a new Review Status **5 minutes after your last change** (the email arrives
@@ -139,14 +140,20 @@ git remote -v   # 1 fetch URL (personal), 2 push URLs (personal, org)
 - Every new lead also sends an instant **staff alert** to `STAFF_EMAIL` (with a link to the tracker row and,
   for visa, the Drive folder).
 
-### Settings (Apps Script editor → Project Settings → Script Properties, or run the functions)
-| Setting | How |
-|---|---|
-| Who gets staff alerts + the summary | Run `setStaffEmail("name@example.com")` (several: comma-separated). Default: the script owner |
-| Website address in emails | Run `setSiteUrl("https://www.your-domain")` on **production** (default: the staging site) |
-| Pause emails | Script Property `NOTIFY_STAFF` or `NOTIFY_CUSTOMER` = `off` (emails skipped while off are not sent later) |
-| Check everything | Run `showNotifySettings()` (provider, addresses, quota left, queue size; the Brevo key shows only as "set") |
-| Preview every email | Run `sendEmailSamples()` — 15 samples go to `STAFF_EMAIL` |
+### Settings
+Settings live in the Apps Script editor → **Project Settings** (gear icon, left) → **Script Properties** →
+**Edit script properties**. Change the value, press **Save script properties**, then choose
+**checkEmailSettings** in the function list at the top and press **Run** — the log shows every setting and
+marks anything that is not valid with ⚠️. (The Run button cannot pass values to a function, so settings are
+always changed in Script Properties.)
+
+| Setting | Script Property | Value |
+|---|---|---|
+| Who gets staff alerts + the summary | `STAFF_EMAIL` | An email address; several: separate with commas. Default (empty): the script owner |
+| Website address in emails | `SITE_URL` | `https://www.your-domain` (no slash at the end) — **set it on production**; default: the staging site |
+| Pause staff / customer emails | `NOTIFY_STAFF` / `NOTIFY_CUSTOMER` | `off` (emails skipped while off are not sent later); delete or `on` to resume |
+| Check everything | — | Run `checkEmailSettings` (provider, addresses, quota left, queue size; the Brevo key shows only as "set") |
+| Preview every email | — | Run `sendEmailSamples` — 15 samples go to `STAFF_EMAIL` |
 | Email logo | `public/assets/brand/email-logo.png`, served from the website — run `cd tools/qa && node ../build-email-logo.js` after a logo change, then deploy `public/` |
 
 ### Switching email sending to Brevo (needed for production volume)
@@ -157,11 +164,11 @@ MailApp on a gmail.com account sends ~100 emails a day; at ~500 applications a d
 2. Brevo → SMTP & API → **API keys** → create a key. Never paste it into code, chat or documents.
 3. Apps Script editor → Project Settings → Script Properties: `BREVO_API_KEY` = the key,
    `SENDER_EMAIL` = the verified sender, `EMAIL_PROVIDER` = `brevo`.
-4. Run `showNotifySettings()` and `sendEmailSamples()` to check. Replies still go to the company email.
+4. Run `checkEmailSettings` and `sendEmailSamples` to check. Replies still go to the company email.
    To go back, set `EMAIL_PROVIDER` = `mailapp`.
 If Brevo or the quota is unavailable, emails wait in the queue and are retried every 5 minutes; leads are
 never lost. Email codes cannot wait, so customers are asked to try again or use WhatsApp.
 
 ### Email confirmation codes (testing on staging only)
-`setTestOtpBypass(true)` lets **TEST** names with **@example.com** emails use a fixed test code (no email is
-sent) — staging only, refused elsewhere. Turn it off with `setTestOtpBypass(false)` after testing.
+Run **enableTestOtpBypass** to let **TEST** names with **@example.com** emails use a fixed test code (no email
+is sent) — staging only, refused elsewhere. Run **disableTestOtpBypass** after testing. Never on production.

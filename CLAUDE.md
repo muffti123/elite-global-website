@@ -63,7 +63,9 @@ No Google Forms in the customer journey; the old ones are closed and kept in Dri
    Every email goes through `sendEmail_` (`Email.gs`): never let an email fail a submission, never log an
    address, name, code or token, escape every customer value in templates, and keep API keys in Script
    Properties only. No email address in code except the company one (`CONFIG.COMPANY_INFO`).
-   `TEST_OTP_BYPASS` is for staging only — never set it on production.
+   `TEST_OTP_BYPASS` is for staging only (`enableTestOtpBypass` / `disableTestOtpBypass`) — never on production.
+   Functions staff run from the editor take no arguments (the Run button cannot pass any); settings are
+   Script Properties, checked with `checkEmailSettings`.
 8. Ask before anything irreversible: deleting the Drive folder, `resetSetupFlag`, archiving a
    deployment, force-push, changing DNS, or deleting the GitHub repo. Never run `tools/qa/run.js live`
    against production.

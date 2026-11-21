@@ -225,7 +225,8 @@ Service type: Visa only · Customised Umrah · General enquiry.
 #### 3.6.1 Review Status (visa applications)
 Staff set **Review Status** in the Lead Tracker (column 23). **Lead Status stays the sales pipeline** and is
 never changed by the web app. `finalizeVisaApplication` sets Review Status to **Under Review**. For visa leads a
-Review Status, when set, decides the stage on the Track page (it wins over Lead Status and Expired):
+Review Status, when set, decides the stage on the Track page (it wins over every Lead Status and Expired —
+**except Lost: a Lost lead always shows "Closed"**, even when a Review Status is set):
 
 | Review Status (staff) | Stage shown | Description | Next step |
 |---|---|---|---|
@@ -256,21 +257,23 @@ Review Status, when set, decides the stage on the Track page (it wins over Lead 
 #### 3.6.3 Settings (Script Properties)
 | Property | Default | Notes |
 |---|---|---|
-| `STAFF_EMAIL` | script owner (set by setup only if empty) | One address or several, comma-separated — `setStaffEmail("…")` |
-| `SITE_URL` | `https://elite-global-staging.netlify.app` | Links and logo in emails — **set it on production** (`setSiteUrl("https://…")`) |
+| `STAFF_EMAIL` | script owner (set by setup only if empty) | One address or several, comma-separated. Invalid entries are ignored and flagged by `checkEmailSettings` |
+| `SITE_URL` | `https://elite-global-staging.netlify.app` | Links and logo in emails — **set it on production**. Must be `https://…`; otherwise the default is used and flagged |
 | `NOTIFY_STAFF` / `NOTIFY_CUSTOMER` | `on` | `off` stops staff alerts + summary / customer emails (skipped emails are not sent later) |
 | `EMAIL_PROVIDER` | `mailapp` | `brevo` = Brevo transactional API (§3.6.5) |
 | `BREVO_API_KEY`, `SENDER_EMAIL` | — | Brevo only; never in code |
-| `TEST_OTP_BYPASS` | off | Staging only (`setTestOtpBypass(true)`, refused unless SITE_URL contains "staging") |
+| `TEST_OTP_BYPASS` | off | Staging only: run `enableTestOtpBypass` / `disableTestOtpBypass` (refused unless SITE_URL contains "staging") |
 
-`showNotifySettings()` prints them (the key only as "set"), the remaining MailApp quota and the queue size.
+Staff change these in **Project Settings → Script Properties** (the Run button cannot pass arguments; `setStaffEmail` /
+`setSiteUrl` run without arguments print these instructions), then run **`checkEmailSettings`**, which prints every
+setting (the key only as "set"), flags invalid values, and shows the remaining MailApp quota and the queue size.
 
 #### 3.6.4 Email verification (Step 1 of visa and customise)
 - "Send code" next to Email → a branded email with a **6-digit code, valid 30 minutes**. Resend after **60 s**; **5 codes per hour per email**; 300 per hour in total. **5 wrong attempts** → "Please request a new code". Only a salted hash of the code is stored (CacheService). The code email contains no text typed by the visitor.
 - A correct code shows **"Email confirmed ✓"** and returns a **verified-email token valid 24 h** (`<expiry>.<sha256(email)>.<HMAC>`). The website keeps it in **sessionStorage** with a hash of the email — never the email. Changing the email resets the confirmation; Next on Step 1 is blocked until it is confirmed.
 - `createVisaApplication` and `submitCustomRequest` refuse a missing, expired, tampered or other-email token with `reverify:true`; the form returns to Step 1.
 - Messages mention the spam folder and offer WhatsApp/phone/email. A code that cannot be sent (quota/provider) is never queued: the customer is asked to try again or use WhatsApp.
-- `TEST_OTP_BYPASS=on` (staging): TEST names with `@example.com` emails get no email and use the fixed test code (QA only).
+- `TEST_OTP_BYPASS=on` (staging, `enableTestOtpBypass`): TEST names with `@example.com` emails get no email and use the fixed test code (QA only).
 
 #### 3.6.5 Volume and provider
 ~500 applications/day ≈ **3,000 emails/day** (codes, staff alerts, confirmations, ~3 status emails per visa). MailApp on a gmail.com account allows ~100 recipients/day, so **production must use Brevo** on a paid plan (the free plan is 300/day). Switching is a Script Property change (`EMAIL_PROVIDER=brevo` + key + verified sender); nothing in the code changes. With MailApp, normal emails stop at the last 20 quota units so codes can still be sent; the rest waits in the queue.
@@ -562,7 +565,7 @@ Run `node tools/check-lists.js` and `node tools/qa/run.js static` before every s
 | 6 | Where the domain is hosted, and cPanel access or a DNS contact | Client |
 | 7 | Update the original handover note to the correct owner account | Client |
 | 8 | Email volume for production (~3,000 emails/day at 500 applications): a paid Brevo plan, verified sender domain, then `EMAIL_PROVIDER=brevo`, `BREVO_API_KEY`, `SENDER_EMAIL` (README) | Client + Developer |
-| 9 | Production Script Properties: `SITE_URL` (live domain) and `STAFF_EMAIL`; never set `TEST_OTP_BYPASS` there | Developer |
+| 9 | Production Script Properties: `SITE_URL` (live domain) and `STAFF_EMAIL`; never enable `TEST_OTP_BYPASS` there | Developer |
 
 ## 13. Phase 2 ideas (not in scope)
 - **Optional free in-browser passport MRZ scan** (Tesseract.js, runs on the device) to pre-fill each passenger's name from the passport — customer always confirms
