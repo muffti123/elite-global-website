@@ -72,11 +72,10 @@ module.exports = function (g, ok, t) {
   ok('Correction Needed held while Message to Customer is empty', to('v@e.co').length === 2);
   ok('held email is listed in the daily summary data', ctx.collectSummary_().held.some((h) => h.indexOf(v.leadId) === 0));
   edit(v.leadId, 'Message to Customer', 'Please send a clearer <photo> & passport.');
-  clock.offset += 2 * MIN; jobs();
-  ok('message edit restarts the 5-minute window', to('v@e.co').length === 2);
-  clock.offset += 4 * MIN; jobs();
+  clock.offset += 1 * MIN; jobs();
   const cn = to('v@e.co')[2];
-  ok('Correction Needed sent with the message (escaped) and "Action needed"', cn && /Action needed/.test(cn.subject) && /clearer &lt;photo&gt; &amp; passport/.test(cn.htmlBody), cn && cn.subject);
+  ok('held Correction Needed is released on the next run once the message is filled in (escaped message, correction subject)', cn &&
+    /needs a correction/.test(cn.subject) && /clearer &lt;photo&gt; &amp; passport/.test(cn.htmlBody) && /What we need from you:\nPlease send a clearer <photo> & passport\./.test(cn.body), cn && cn.subject);
   const tcn = track(v.leadId, 'v@e.co');
   ok('Track page: Correction Needed → "Action needed" + message', tcn.stage === 'Action needed' && /clearer <photo>/.test(tcn.message), JSON.stringify(tcn));
   edit(v.leadId, 'Review Status', 'Verified');
@@ -86,6 +85,61 @@ module.exports = function (g, ok, t) {
   Object.keys(want).forEach((st) => { edit(v.leadId, 'Review Status', st); clock.offset += 6 * MIN; jobs(); });
   ok('every other Review Status emailed once with its wording', Object.keys(want).every((st) => to('v@e.co').filter((m) => m.subject.indexOf(want[st]) !== -1).length === 1),
     to('v@e.co').map((m) => m.subject).join(' | '));
+  // --- every order of events for correction emails (fresh visa leads) ---------------------------------
+  let seqN = 0;
+  const visaLead = (email) => {
+    const id = 'EG-VO-9' + String(++seqN).padStart(4, '0');
+    ctx.appendTrackerRow_({ leadId: id, date: new Date(), name: 'TEST Ada Example', phone: '+234 800 000 0099', category: 'Visa Only',
+      adults: 1, children: 0, infants: 0, travelDate: future, budget: '', email, country: 'Nigeria', status: 'Complete: 1 passenger' });
+    return id;
+  };
+  const corr = (addr) => to(addr).filter((m) => /needs a correction/.test(m.subject));
+  // A. status first, message later → held, then sent on the next run (no new 5-minute wait)
+  const A = visaLead('order-a@e.co');
+  edit(A, 'Review Status', 'Correction Needed');
+  clock.offset += 6 * MIN; jobs();
+  const heldA = corr('order-a@e.co').length;
+  edit(A, 'Message to Customer', 'Please resend page 2 of the passport.');
+  jobs();
+  ok('order: status first, message later → held, then sent on the next run', heldA === 0 && corr('order-a@e.co').length === 1 && /page 2 of the passport/.test(corr('order-a@e.co')[0].htmlBody));
+  // B. message first, then status → sent once the status is 5 minutes old
+  const B = visaLead('order-b@e.co');
+  edit(B, 'Message to Customer', 'Your photo background must be white.');
+  edit(B, 'Review Status', 'Correction Needed');
+  jobs();
+  const earlyB = corr('order-b@e.co').length;
+  clock.offset += 6 * MIN; jobs(); jobs();
+  ok('order: message first, then status → sent once, 5 minutes after the status change', earlyB === 0 && corr('order-b@e.co').length === 1 && /background must be white/.test(corr('order-b@e.co')[0].htmlBody));
+  // D. editing the message after the email was sent does not send it again
+  edit(B, 'Message to Customer', 'Your photo background must be plain white (edited).');
+  clock.offset += 6 * MIN; jobs(); jobs();
+  ok('editing the message after sending does not resend', corr('order-b@e.co').length === 1);
+  // C. second round: Correction Needed → Correction Received → Correction Needed again (new message) → emailed again
+  edit(A, 'Review Status', 'Correction Received');
+  clock.offset += 6 * MIN; jobs();
+  const recA = to('order-a@e.co').filter((m) => /Correction received/.test(m.subject)).length;
+  setCell(A, 'Message to Customer', 'Thanks — now please send the hotel booking.');
+  edit(A, 'Review Status', 'Correction Needed');
+  clock.offset += 6 * MIN; jobs(); jobs();
+  const rounds = corr('order-a@e.co');
+  ok('second round (Needed → Received → Needed) emails again with the new message', recA === 1 && rounds.length === 2 && /hotel booking/.test(rounds[1].htmlBody) && !/hotel booking/.test(rounds[0].htmlBody), rounds.length + '');
+  edit(A, 'Review Status', 'Correction Received');
+  clock.offset += 6 * MIN; jobs();
+  ok('Correction Received is also emailed again in the second round', to('order-a@e.co').filter((m) => /Correction received/.test(m.subject)).length === 2);
+  // E. undo inside a round: Correction Needed then back to Correction Received within 5 minutes → nothing new
+  const nA = to('order-a@e.co').length;
+  edit(A, 'Review Status', 'Correction Needed'); clock.offset += 2 * MIN;
+  edit(A, 'Review Status', 'Correction Received'); clock.offset += 6 * MIN; jobs(); jobs();
+  ok('a correction change undone within 5 minutes sends nothing', to('order-a@e.co').length === nA);
+  // checkRecentEmailJobs: decisions without personal data
+  const recent = ctx.checkRecentEmailJobs();
+  const recentText = recent.join('\n');
+  ok('checkRecentEmailJobs: last 20 decisions (Lead ID, status, decision, reason, time)', recent.length > 0 && recent.length <= 20 &&
+    recent.some((l) => /EG-VO-9\d{4}  Correction Needed  → held \(Message to Customer is empty\)/.test(l)) &&
+    recent.some((l) => /Correction Needed  → sent/.test(l)) && recent.some((l) => /→ waiting \(changed less than 5 minutes ago/.test(l)) &&
+    recent.every((l) => /^\d{1,2} \w{3} \d{4} \d\d:\d\d  EG-/.test(l)), recent.slice(0, 4).join(' | '));
+  ok('checkRecentEmailJobs shows no addresses, names or messages', !/@|Ada|Example|passport|hotel|photo/i.test(recentText + (props.REVIEW_DECISIONS || '')));
+
   ok('Track page: Review Status decides the visa stage', Object.keys(C.TRACK.REVIEW).every((st) => { setCell(v.leadId, 'Review Status', st); return track(v.leadId, 'v@e.co').stage === C.TRACK.REVIEW[st][0]; }));
   setCell(v.leadId, 'Review Status', 'Visa Processing');
   setCell(v.leadId, 'Lead Status', 'Contacted');
@@ -157,7 +211,7 @@ module.exports = function (g, ok, t) {
   const codeOf = (addr) => /(\d{6})/.exec(to(addr).slice(-1)[0].subject)[1];
   const verify = (email, code) => { try { return ctx.verifyEmailCode_({ email, code }); } catch (e) { return { ok: false, error: e.message, field: e.field }; } };
   const sendCode = (email, name) => { try { return ctx.sendEmailCode_({ email, name: name || 'Ola' }); } catch (e) { return { ok: false, error: e.message }; } };
-  ok('code email: 6 digits, no visitor-typed text (name not included)', sendCode('k@e.co', 'Spam <a href=x>Click</a>').ok && /^\d{6}$/.test(codeOf('k@e.co')) && !/Spam|Click/.test(to('k@e.co')[0].htmlBody));
+  ok('code email: 6 digits, no visitor-typed text (name not included)', sendCode('k@e.co', 'Mallory <a href=x>Click</a>').ok && /^\d{6}$/.test(codeOf('k@e.co')) && !/Mallory|Click|href=x/.test(to('k@e.co')[0].htmlBody + to('k@e.co')[0].body));
   ok('resend within 60 s refused', /wait a minute/.test(sendCode('k@e.co').error));
   const right = codeOf('k@e.co');
   const wrong = right === '000000' ? '111111' : '000000';
@@ -244,6 +298,28 @@ module.exports = function (g, ok, t) {
   const samples = mail.outbox.slice(nS);
   ok('sendEmailSamples: one of every email type to STAFF_EMAIL', samples.length === 15 && samples.every((m) => m.to === 'staff@example.org' && /^\[SAMPLE \d+\/15\] Elite Global — /.test(m.subject)), samples.length + '');
   ok('samples are not written to the Email Log', !logRows().some((r) => r[2] === 'sample'));
+
+  // --- deliverability: every email type -----------------------------------------------------------
+  const SITE = 'https://elite-global-staging.netlify.app';
+  const subj = (m) => m.subject.replace(/^\[SAMPLE \d+\/\d+\] /, '');
+  const visible = (h) => h.replace(/<style[\s\S]*?<\/style>/g, ' ').replace(/<[^>]+>/g, ' ').replace(/&[a-z#0-9]+;/gi, ' ');
+  const customer = [0, 4, 5, 6, 7, 8, 9, 10, 11, 12].map((i) => samples[i]);
+  const staffMail = [1, 2, 3, 13, 14].map((i) => samples[i]);
+  ok('every email has an HTML and a plain-text version (no tags in the text)', samples.every((m) => m.htmlBody && m.body && m.body.length > 200 && !/<\/?(p|a|div|table|tr|td|br|b|img|h1|ul|li|span)\b/i.test(m.body)));
+  ok('sender name "Elite Global World Travel & Tours", Reply-To = company email', samples.every((m) => m.name === 'Elite Global World Travel & Tours' && m.replyTo === 'eliteglobaltravelsng@gmail.com'));
+  const caps = samples.map((m) => (subj(m) + ' ' + visible(m.htmlBody) + ' ' + m.body).replace(/https?:\/\/\S+/g, ' ').match(/\b[A-Z]{4,}\b/g) || []).flat();
+  ok('no ALL-CAPS words, no "!!", no urgent / free / act now', caps.length === 0 && samples.every((m) => !/!!|\burgent\b|\bfree\b|act now/i.test(subj(m) + m.htmlBody + m.body)), caps.slice(0, 5).join(','));
+  ok('only the logo image (alt, width, height); no tracking pixels', samples.every((m) => (m.htmlBody.match(/<img\b/g) || []).length === 1 &&
+    /<img src="https:\/\/elite-global-staging\.netlify\.app\/assets\/brand\/email-logo\.png" width="220" height="141" alt="Elite Global[^"]+"/.test(m.htmlBody)));
+  const hrefs = customer.map((m) => (m.htmlBody.match(/href="([^"]*)"/g) || []).map((h) => h.slice(6, -1))).flat();
+  ok('customer emails: every link is https on SITE_URL (no shorteners, no other domains)', hrefs.length > 0 && hrefs.every((h) => h.indexOf(SITE + '/') === 0), hrefs.filter((h) => h.indexOf(SITE + '/') !== 0).join(','));
+  ok('footer: company address, RC number and why the email was sent', customer.every((m) => /RC: 7787410/.test(m.htmlBody) && /No\. 335, Suite 3/.test(m.htmlBody) &&
+    /You&#39;re receiving this because you applied on our website\./.test(m.htmlBody) && /You're receiving this because you applied on our website\./.test(m.body)) &&
+    staffMail.every((m) => /Staff notification from the Elite Global lead system\./.test(m.body)));
+  const inbox = /add eliteglobaltravelsng@gmail\.com to your contacts\. If you found this in Spam, mark it 'Not spam'\./;
+  ok('code email and first confirmations ask to add the company email to contacts', [0, 4, 5].every((i) => inbox.test(samples[i].body)) && !inbox.test(samples[7].body));
+  ok('templates are mostly text (visible text ≥ 12% of the inline-styled HTML of customer emails)', customer.every((m) => visible(m.htmlBody).replace(/\s+/g, ' ').length / m.htmlBody.length > 0.12),
+    customer.map((m) => (visible(m.htmlBody).replace(/\s+/g, ' ').length / m.htmlBody.length).toFixed(2)).join(','));
 
   // --- privacy of logs ---------------------------------------------------------------------------
   const emailLogs = logs.filter((l) => /^(email |sendEmailCode|verifyEmailCode|runEmailJobs|sendDailySummary)/.test(l));

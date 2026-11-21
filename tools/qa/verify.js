@@ -101,7 +101,7 @@ const statusText = (p) => p.$eval('[data-verify-status]', (e) => e.textContent);
     ok(tag + ': after a reload, the same email is still confirmed (this tab only)', !(await hidden(p, '[data-verify-ok]')));
 
     // Success note hidden until a real confirmation email is reported
-    ok(tag + ': success note "We\'ve emailed you…" exists and starts hidden', (await p.$eval('[data-emailed]', (e) => e.hidden && /check your spam folder/.test(e.textContent))));
+    ok(tag + ': success note "We\'ve emailed you…" exists and starts hidden', (await p.$eval('[data-emailed]', (e) => e.hidden && /^We've emailed you\. If it isn't in your inbox within 5 minutes, check Spam\/Junk or Promotions/.test(e.textContent))));
 
     // 320–1920 px with the code field open
     await p.$eval('[name=email]', (e) => { e.value = ''; e.dispatchEvent(new Event('input', { bubbles: true })); });
@@ -119,10 +119,11 @@ const statusText = (p) => p.$eval('[data-verify-status]', (e) => e.textContent);
     await p.close();
   }
 
-  // The server asks to confirm again (expired token) → back to Step 1 with the message
-  {
+  // The server asks to confirm again (expired token) → back to Step 1 with the message; then a mocked success
+  for (const mode of ['reverify', 'success']) {
     const p = await open(b, 'customize-umrah.html', (d) => (d.action === 'submitCustomRequest'
-      ? { ok: false, field: 'email', reverify: true, error: 'Please confirm your email address with the code we sent you.' } : null));
+      ? (mode === 'success' ? { ok: true, leadId: 'EG-CE-04242', emailed: true }
+        : { ok: false, field: 'email', reverify: true, error: 'Please confirm your email address with the code we sent you.' }) : null));
     p.on('dialog', (d) => d.dismiss());
     await p.type('[name=name]', 'TEST Verify QA'); await p.type('[name=phone]', '+234 800 000 0005');
     await p.type('[name=email]', 'qa-verify@example.com'); await p.select('[name=country]', 'Nigeria');
@@ -140,6 +141,15 @@ const statusText = (p) => p.$eval('[data-verify-status]', (e) => e.textContent);
     });
     for (let i = 0; i < 6; i++) { await p.$eval('#nextBtn', (e) => e.click()); await sleep(150); }
     await p.$eval('#submitBtn', (e) => e.click()); await sleep(800);
+    if (mode === 'success') {
+      const done = await p.evaluate(() => { const n = document.querySelector('#successPanel [data-emailed]');
+        return { shown: !document.querySelector('#successPanel').hidden, note: !n.hidden, text: n.textContent, wa: (n.querySelector('a') || {}).href || '' }; });
+      ok('customise success (emailed): "We\'ve emailed you… Spam/Junk or Promotions… WhatsApp" shown with the link', done.shown && done.note &&
+        /^We've emailed you\. If it isn't in your inbox within 5 minutes, check Spam\/Junk or Promotions and mark it 'Not spam' — or message us on WhatsApp\.$/.test(done.text) &&
+        /wa\.me\/2347062152046$/.test(done.wa), JSON.stringify(done));
+      await p.close();
+      continue;
+    }
     const back = await p.evaluate(() => ({ step: document.querySelector('#stepLabel').textContent, ok: !document.querySelector('[data-verify-ok]').hidden,
       inv: document.querySelector('[data-verify]').classList.contains('invalid'), msg: document.querySelector('[data-verify-status]').textContent }));
     ok('server asks to confirm again → back to Step 1, confirmation cleared, message shown', back.step.startsWith('Step 1') && !back.ok && back.inv && /confirm your email/.test(back.msg), JSON.stringify(back));

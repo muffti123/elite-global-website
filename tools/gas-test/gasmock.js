@@ -134,7 +134,10 @@ module.exports = function (dir) {
       getUuid: () => 'uuid-' + Math.random().toString(36).slice(2),
       base64Decode: (s) => Array.from(Buffer.from(s, 'base64')).map((b) => (b > 127 ? b - 256 : b)),
       newBlob: (bytes, mime, name) => ({ bytes, mime, name }),
-      formatDate: (d, tz, pattern) => (pattern === 'd MMM yyyy' ? d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'Africa/Lagos' }).replace('Sept', 'Sep') : d.toISOString().slice(0, 10)),
+      formatDate: (d, tz, pattern) => (/^d MMM yyyy/.test(pattern)
+        ? d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'Africa/Lagos' }).replace('Sept', 'Sep') +
+          (/HH:mm/.test(pattern) ? ' ' + d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Africa/Lagos' }) : '')
+        : d.toISOString().slice(0, 10)),
       computeDigest: (alg, v) => Array.from(require('crypto').createHash('sha256').update(String(v)).digest()).map((b) => (b > 127 ? b - 256 : b)),
       base64EncodeWebSafe: (bytes) => Buffer.from(bytes.map((b) => b & 255)).toString('base64url'),
       DigestAlgorithm: { SHA_256: 'sha256' },
