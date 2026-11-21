@@ -243,15 +243,16 @@ Review Status, when set, decides the stage on the Track page (it wins over every
 |---|---|---|
 | Staff alert | `STAFF_EMAIL` | At once for every new lead: contact and customise at submit, visa at finalize. Lead ID, service, name, phone, email, country, travel date, passengers/travellers, a link to the tracker row and (visa) the Drive folder. No attachments |
 | Confirmation | Customer | Customise at submit. Visa at finalize: **one combined "received + under review" email** (it also counts as the Under Review status email). Reference, what happens next, Track link `<SITE_URL>/track.html?id=<Lead ID>`, phone/WhatsApp/email, "check your spam folder" |
-| Status update | Customer | Every Review Status change, **once the status has stayed unchanged for 5 minutes** (undo window: change it back within 5 minutes and nothing is sent). **Once per status per lead.** Includes the Message to Customer. **Correction Needed is held while Message to Customer is empty** (listed in the daily summary); filling the message restarts the 5 minutes. Delivered 5–10 minutes after the last change |
+| Status update | Customer | Every Review Status change, **once the status has stayed unchanged for 5 minutes** (undo window: change it back within 5 minutes and nothing is sent); the email goes out about 5 minutes after the last status change (checked every 5 minutes). A status is never emailed twice in a row; **once per status per lead**, except Correction Needed / Correction Received, which are emailed again in each new correction round. Includes the Message to Customer. **Correction Needed is held while Message to Customer is empty** (listed in the daily summary) and is released on the next check once it is filled in (message first, then status, also works). **Editing the message after sending does not resend.** `checkRecentEmailJobs` logs the last 20 decisions (Lead ID, status, decision, reason, time; no personal data) |
 | Daily summary | `STAFF_EMAIL` | ~08:00 Africa/Lagos: counts per Review Status, visa reviews unchanged for more than 3 days, new leads not contacted for more than 3 days, held emails, queue size and failures, remaining MailApp quota |
 | Email code | Customer | On "Send code" (§3.6.4) |
 | Error notice | `STAFF_EMAIL` | Unexpected web app error, at most one per 10 minutes, no request data |
 
-- **Triggers** (installable, created once by `setupEliteGlobal`): `onTrackerEdit` (Lead Tracker edits → Review Updated), `runEmailJobs` (every 5 minutes: queue + status emails; runs never overlap), `sendDailySummary` (daily, 08:00 Lagos). A Review Status change the edit trigger missed is picked up by `runEmailJobs`, which starts the 5 minutes then.
+- **Triggers** (installable, created once by `setupEliteGlobal`): `onTrackerEdit` (Review Status edits → Review Updated; message edits do not restart the wait), `runEmailJobs` (every 5 minutes: queue + status emails; runs never overlap), `sendDailySummary` (daily, 08:00 Lagos). A Review Status change the edit trigger missed is picked up by `runEmailJobs`, which starts the 5 minutes then.
 - **Never blocks a lead, never sends twice:** every email is wrapped in try/catch; the result is logged (`email <kind> ok|queued|skipped|failed`, no address or name); a key such as `EG-VO-00012|status:Verified` is sent at most once (Email Log, §4.4).
 - **TEST leads:** customer emails are skipped (logged "skipped") when the name starts with TEST **and** the email ends in `@example.com`; staff alerts are still sent. `emailed:false` is returned and the success screen hides "We've emailed you a confirmation".
-- **Template:** one branded layout for every email — navy `#06163F` header with the logo PNG (`<SITE_URL>/assets/brand/email-logo.png`, made by `tools/build-email-logo.js`), gold `#F5AE00` accents and button, the website font stack, subject "Elite Global — …", footer with company name, RC 7787410, address, phone, WhatsApp, Instagram and a Track link. Inline CSS, 600 px, full width on phones; a plain-text version; **every customer value escaped**; Reply-To = the company email. Company details come from `CONFIG.COMPANY_INFO` (checked against `config.js` by `tools/check-lists.js`).
+- **Template:** one branded layout for every email — navy `#06163F` header with the logo PNG (`<SITE_URL>/assets/brand/email-logo.png`, made by `tools/build-email-logo.js`), gold `#F5AE00` accents and button, the website font stack, subject "Elite Global — …", footer with company name, RC 7787410, address, phone, WhatsApp and Instagram (as text), a Track link and "You're receiving this because you applied on our website." (staff emails: "Staff notification…"). Inline CSS, 600 px, full width on phones; **every email has a plain-text version** (MailApp `body`, Brevo `textContent`); **every customer value escaped**; sender name "Elite Global World Travel & Tours"; Reply-To = the company email.
+- **Deliverability rules** (checked by `tools/gas-test`): no ALL-CAPS words or forced capitals in templates (the staff message is shown as typed), no "!!", no "urgent / free / act now"; one image only (the logo, with alt, width and height), no tracking pixels; mostly text; in customer emails the only links are `https://` links to `SITE_URL` (no shorteners). The code email and the first confirmation ask the customer to add the company email to their contacts and to mark it "Not spam". The website shows "We've emailed you. If it isn't in your inbox within 5 minutes, check Spam/Junk or Promotions and mark it 'Not spam' — or message us on WhatsApp." after Send code and on the customise / visa success screens (the Track page has the same note, starting "We email you about every update."). The contact box collects no email address, so its success message has no such note. Company details come from `CONFIG.COMPANY_INFO` (checked against `config.js` by `tools/check-lists.js`).
 - `sendEmailSamples()` sends one sample of each of the 15 emails to `STAFF_EMAIL` (not logged, not de-duplicated).
 
 #### 3.6.3 Settings (Script Properties)
@@ -482,6 +483,21 @@ No mention of Google Forms or Google sign-in anywhere.
 ---
 
 ## 8. Hosting and deployment
+
+### 8.1 Launch: domain and email (final stage)
+Until this is done, staging emails are sent from a gmail.com address through MailApp and **may land in
+Spam/Junk or Promotions**. The company domain is already bought (registered elsewhere, not at Hostinger). No
+domain work happens before the final launch stage; then, in this order:
+
+1. **Point the domain to Hostinger** — at the company that sold the domain, change its nameservers (or A/CNAME records) to the ones Hostinger shows for the website. DNS changes can take a few hours.
+2. **Deploy the site on Hostinger** — upload the contents of `public/` to the website's `public_html`, turn on free SSL (HTTPS) and check every page loads on `https://` the domain.
+3. **Set up the company mailbox** on the domain (e.g. `info@` the domain) in Hostinger Email, so customers can reply and the address can receive mail.
+4. **Verify the domain in Brevo** — Brevo → Senders, domains & dedicated IPs → Domains → add the domain.
+5. **Add the SPF, DKIM and DMARC DNS records** exactly as Brevo shows them (TXT records; SPF must also include Hostinger mail if the mailbox sends mail). Wait until Brevo shows the domain as authenticated.
+6. **Script Properties** (Apps Script editor → Project Settings → Script Properties): `EMAIL_PROVIDER` = `brevo`, `BREVO_API_KEY` = a new Brevo API key, `SENDER_EMAIL` = the verified company address, `SITE_URL` = `https://` the domain (no slash at the end). Then run `checkEmailSettings`.
+7. **Send test emails** — run `sendEmailSamples`, then one real application with your own email; check they arrive in the inbox (Gmail, Yahoo and Outlook), with the logo and working links.
+
+Everything is Script Properties (§3.6.3); no code change. Open items 8 and 9 (§12).
 
 | Option | When | Steps |
 |---|---|---|

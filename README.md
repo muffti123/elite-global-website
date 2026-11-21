@@ -82,6 +82,22 @@ elite-global-staging *Deploys* page. It is not connected to the repo.
 publishes `public/`). Every `git push` to `main` redeploys. *Domain settings → Add custom domain* shows the
 DNS records for the client's DNS team. HTTPS is automatic.
 
+
+## Launch: domain and email (last stage — do not start before then)
+Until this is done, **staging emails come from a gmail.com address and may land in Spam/Junk or Promotions** —
+that is expected and is why the website tells customers to check those folders. The company domain is already
+bought (registered elsewhere, not at Hostinger). At the final launch stage, in this order:
+
+1. **Point the domain to Hostinger** — at the company that sold the domain, change its nameservers (or A/CNAME records) to the ones Hostinger shows for the website. DNS changes can take a few hours.
+2. **Deploy the site on Hostinger** — upload the contents of `public/` to the website's `public_html`, turn on free SSL (HTTPS) and check every page loads on `https://` the domain.
+3. **Set up the company mailbox** on the domain (e.g. `info@` the domain) in Hostinger Email, so customers can reply and the address can receive mail.
+4. **Verify the domain in Brevo** — Brevo → Senders, domains & dedicated IPs → Domains → add the domain.
+5. **Add the SPF, DKIM and DMARC DNS records** exactly as Brevo shows them (TXT records; SPF must also include Hostinger mail if the mailbox sends mail). Wait until Brevo shows the domain as authenticated.
+6. **Script Properties** (Apps Script editor → Project Settings → Script Properties): `EMAIL_PROVIDER` = `brevo`, `BREVO_API_KEY` = a new Brevo API key, `SENDER_EMAIL` = the verified company address, `SITE_URL` = `https://` the domain (no slash at the end). Then run `checkEmailSettings`.
+7. **Send test emails** — run `sendEmailSamples`, then one real application with your own email; check they arrive in the inbox (Gmail, Yahoo and Outlook), with the logo and working links.
+
+The code needs no change for this: everything is Script Properties. Never put the API key in code, chat or documents.
+
 ## Repository mirror
 
 | Repo | Role |
@@ -126,12 +142,20 @@ git remote -v   # 1 fetch URL (personal), 2 push URLs (personal, org)
   whatever its Review Status.
 
 ### How status emails are delivered
-- The customer is emailed about a new Review Status **5 minutes after your last change** (the email arrives
-  5–10 minutes later). **Changed it by mistake? Change it back within 5 minutes and nothing is sent.**
-- Each status is emailed **once per application** — setting the same status again later sends nothing.
+- **The customer email goes out about 5 minutes after the last Review Status change** (the system checks every
+  5 minutes, so allow 5–10 minutes). **Changed it by mistake? Change it back within 5 minutes and nothing is sent.**
+- A status is never emailed twice in a row, and Verified, Visa Processing, Visa Approved and Not Approved /
+  Closed are emailed **once per application**. **Correction Needed** and **Correction Received** are emailed
+  again in each new correction round (Correction Needed → Correction Received → Correction Needed again sends
+  a new email with the new message).
 - **Correction Needed** is only sent once **Message to Customer** says what you need (short, professional;
-  the first 300 characters are used). Until then it is "held" and listed in the daily summary. The message is
-  also shown on the Track page.
+  the first 300 characters are used). Until then it is "held" and listed in the daily summary. Fill the message
+  in and it goes out on the next check (within 5 minutes). You can also write the message first and then set
+  the status. The message is also shown on the Track page.
+- **Editing Message to Customer after the email was sent does not send it again** (the Track page shows the new
+  text). To send a new correction email, start a new round: set Correction Received, then Correction Needed.
+- To see what the system decided and why, run **checkRecentEmailJobs**: the last 20 decisions (Lead ID,
+  status, sent / waiting / held / not sent, reason, time) — no addresses, names or messages.
 - **Last Customer Email** (auto) shows what was last sent, e.g. `Status: Verified · 22 Nov 2026 09:05`;
   "Queued" means it will go out when the daily quota allows. Every email is in the
   **Elite Global – Email Log** spreadsheet (link in System Info / `showSystemInfo`).
@@ -168,6 +192,8 @@ MailApp on a gmail.com account sends ~100 emails a day; at ~500 applications a d
    To go back, set `EMAIL_PROVIDER` = `mailapp`.
 If Brevo or the quota is unavailable, emails wait in the queue and are retried every 5 minutes; leads are
 never lost. Email codes cannot wait, so customers are asked to try again or use WhatsApp.
+The full launch order (domain → Hostinger → mailbox → Brevo domain → SPF/DKIM/DMARC → Script Properties → test)
+is in **Launch: domain and email** below.
 
 ### Email confirmation codes (testing on staging only)
 Run **enableTestOtpBypass** to let **TEST** names with **@example.com** emails use a fixed test code (no email
