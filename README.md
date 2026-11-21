@@ -110,5 +110,58 @@ git remote -v   # 1 fetch URL (personal), 2 push URLs (personal, org)
 | Replace the logo | Swap `public/assets/brand/emblem.svg` / `emblem-white.svg`; the text is live (`brand.css`) |
 | See all links | Run `showSystemInfo` or open the tracker's System Info tab |
 | Something failed for a customer | Apps Script editor → Executions (the owner also gets an email) |
-| Tell a customer something on the Track page | Write it in the Lead Tracker column **Message to Customer** (short, professional; the first 300 characters are shown). Customers see a stage based on **Lead Status** (PRD §3.5) |
+| Tell a customer something on the Track page | Write it in the Lead Tracker column **Message to Customer** (short, professional; the first 300 characters are shown). Customers see a stage based on **Lead Status**, or for visa applications on **Review Status** (PRD §3.5, §3.6) |
+| Visa review + customer emails | See **Staff guide** below |
 | Unfinished visa application | Lead Tracker → **Application Status** says `Uploading k/N` (`Expired` after 24 h); the folder link shows what arrived. Follow-up Notes are for staff only |
+
+## Staff guide — visa review, emails and settings
+
+### Review Status (visa applications)
+- When a customer finishes uploading, the Lead Tracker sets **Review Status = Under Review** and the customer gets
+  one email: "we received your application and it is under review". **Lead Status** is still yours for the
+  sales pipeline — the website never changes it.
+- Change **Review Status** (dropdown, column "Review Status") as the application moves on: Correction Needed,
+  Correction Received, Verified, Visa Processing, Visa Approved, Not Approved / Closed. The Track page shows the
+  matching stage to the customer (PRD §3.6.1).
+
+### How status emails are delivered
+- The customer is emailed about a new Review Status **5 minutes after your last change** (the email arrives
+  5–10 minutes later). **Changed it by mistake? Change it back within 5 minutes and nothing is sent.**
+- Each status is emailed **once per application** — setting the same status again later sends nothing.
+- **Correction Needed** is only sent once **Message to Customer** says what you need (short, professional;
+  the first 300 characters are used). Until then it is "held" and listed in the daily summary. The message is
+  also shown on the Track page.
+- **Last Customer Email** (auto) shows what was last sent, e.g. `Status: Verified · 22 Nov 2026 09:05`;
+  "Queued" means it will go out when the daily quota allows. Every email is in the
+  **Elite Global – Email Log** spreadsheet (link in System Info / `showSystemInfo`).
+- Every morning around 08:00 (Lagos) `STAFF_EMAIL` gets a **daily summary**: counts per Review Status, reviews
+  waiting more than 3 days, new leads not contacted for 3 days, held emails, the email queue and the quota left.
+- Every new lead also sends an instant **staff alert** to `STAFF_EMAIL` (with a link to the tracker row and,
+  for visa, the Drive folder).
+
+### Settings (Apps Script editor → Project Settings → Script Properties, or run the functions)
+| Setting | How |
+|---|---|
+| Who gets staff alerts + the summary | Run `setStaffEmail("name@example.com")` (several: comma-separated). Default: the script owner |
+| Website address in emails | Run `setSiteUrl("https://www.your-domain")` on **production** (default: the staging site) |
+| Pause emails | Script Property `NOTIFY_STAFF` or `NOTIFY_CUSTOMER` = `off` (emails skipped while off are not sent later) |
+| Check everything | Run `showNotifySettings()` (provider, addresses, quota left, queue size; the Brevo key shows only as "set") |
+| Preview every email | Run `sendEmailSamples()` — 15 samples go to `STAFF_EMAIL` |
+| Email logo | `public/assets/brand/email-logo.png`, served from the website — run `cd tools/qa && node ../build-email-logo.js` after a logo change, then deploy `public/` |
+
+### Switching email sending to Brevo (needed for production volume)
+MailApp on a gmail.com account sends ~100 emails a day; at ~500 applications a day the system needs about
+3,000. Brevo's free plan is 300/day, so choose a paid plan that covers ~90,000 emails a month.
+1. Create a Brevo account, add and **verify the sender** (ideally your own domain with the DNS records Brevo
+   shows; a free gmail.com sender is often sent to spam).
+2. Brevo → SMTP & API → **API keys** → create a key. Never paste it into code, chat or documents.
+3. Apps Script editor → Project Settings → Script Properties: `BREVO_API_KEY` = the key,
+   `SENDER_EMAIL` = the verified sender, `EMAIL_PROVIDER` = `brevo`.
+4. Run `showNotifySettings()` and `sendEmailSamples()` to check. Replies still go to the company email.
+   To go back, set `EMAIL_PROVIDER` = `mailapp`.
+If Brevo or the quota is unavailable, emails wait in the queue and are retried every 5 minutes; leads are
+never lost. Email codes cannot wait, so customers are asked to try again or use WhatsApp.
+
+### Email confirmation codes (testing on staging only)
+`setTestOtpBypass(true)` lets **TEST** names with **@example.com** emails use a fixed test code (no email is
+sent) — staging only, refused elsewhere. Turn it off with `setTestOtpBypass(false)` after testing.
