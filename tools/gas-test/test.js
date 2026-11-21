@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 /*
- * Local tests of apps-script/*.gs against an in-memory mock of Sheets, Drive, Properties, Cache and Lock
+ * Local tests of apps-script/*.gs against an in-memory mock of Sheets, Drive, Properties, Cache, Lock, MailApp,
+ * UrlFetchApp and triggers
  * (gasmock.js). Nothing is sent to Google. No dependencies.
  *   node tools/gas-test/test.js
  * Needs the SPECIMEN files in tools/qa/fixtures (made by `cd tools/qa && node run.js static` once).
@@ -45,6 +46,7 @@ ok('migration is idempotent (second run changes nothing)', JSON.stringify(tr.cel
 const head = []; for (let c = 1; c <= tr.getMaxColumns(); c++) head.push(tr.get(1, c));
 ok('v3 headers appended P–U in order', head.slice(15, 21).join('|') === 'Email|Country|Departure|Passengers|Lead Source|Application Status', head.slice(15).join('|'));
 ok('v4: Message to Customer appended as column V with its note', head[21] === 'Message to Customer' && /Visible to the customer on the Track page/.test((tr.notes || {})['1,22']), head[21]);
+ok('v5: Review Status, Review Updated, Last Customer Email appended W–Y (Review Status has its note)', head.slice(22, 25).join('|') === 'Review Status|Review Updated|Last Customer Email' && /emailed once the status has stayed the same for 5 minutes/.test((tr.notes || {})['1,23']), head.slice(22).join('|'));
 ok('first 15 columns and Lead IDs unchanged', H2.every((h, i) => tr.get(1, i + 1) === h) && [2, 3, 4].map((r) => tr.get(r, 1)).join() === 'EG-VO-00001,EG-CE-00002,EG-GE-00003');
 ok('old notes kept as they were', tr.get(3, 14) === staffNote && /^\[Complete/.test(tr.get(2, 14)));
 const row = (r) => [16, 17, 18, 19, 20, 21].map((c) => tr.get(r, c));
@@ -57,8 +59,23 @@ tr.set(4, 17, 'Typed by staff');
 ctx.upgradeTracker_(ss);
 ok('re-run keeps staff-entered values', tr.get(4, 17) === 'Typed by staff');
 
-ok('schema version 4', C.SCHEMA_VERSION === '4');
-ok('health check reports the stored schema', (() => { props.SCHEMA_VERSION = '4'; return JSON.parse(ctx.doGet()).schema === 4; })());
+ok('schema version 5', C.SCHEMA_VERSION === '5');
+ok('health check reports the stored schema', (() => { props.SCHEMA_VERSION = '5'; return JSON.parse(ctx.doGet()).schema === 5; })());
+
+// --- Email Log spreadsheet + settings + triggers (setup pieces), twice ---------------------------
+ctx.ensureEmailLog_(root); ctx.ensureEmailLog_(root);
+const elog = g.books[props.EMAIL_LOG_ID];
+ok('Email Log: separate spreadsheet with Email Log + Email Queue tabs (idempotent)', elog && elog !== ss && elog.name === 'Elite Global – Email Log' &&
+  elog.sheets.map((x) => x.name).sort().join('|') === 'Email Log|Email Queue' && Object.keys(g.books).length === 2, elog && elog.sheets.map((x) => x.name).join('|'));
+ok('Email Log is not inside the Central Lead Tracker', !ss.getSheetByName('Email Log') && !ss.getSheetByName('Email Queue'));
+ctx.ensureEmailSettings_();
+ok('STAFF_EMAIL defaults to the script owner; OTP_SECRET created', props.STAFF_EMAIL === 'test@example.com' && (props.OTP_SECRET || '').length > 20);
+props.STAFF_EMAIL = 'staff@example.org'; ctx.ensureEmailSettings_();
+ok('STAFF_EMAIL is only set when empty', props.STAFF_EMAIL === 'staff@example.org');
+ctx.ensureTriggers_(ss); ctx.ensureTriggers_(ss);
+ok('3 triggers created once (onTrackerEdit, runEmailJobs, sendDailySummary)', g.triggers.map((t) => t.handler).sort().join('|') === 'onTrackerEdit|runEmailJobs|sendDailySummary', g.triggers.map((t) => t.handler).join('|'));
+ok('System Info shows the Email Log link', ctx.collectInfo_().some((r) => /Email Log/.test(r[0]) && r[1] === 'https://sheet/' + props.EMAIL_LOG_ID));
+const tok = (e) => ctx.makeEmailToken_(e);
 
 // --- new leads ---------------------------------------------------------------------------------
 const today = new Date(); const future = new Date(today.getTime() + 40 * 864e5).toISOString().slice(0, 10);
@@ -67,14 +84,14 @@ const r5 = ctx.findLeadRow_(tr, c1.leadId);
 ok('contact → notes empty, status Received', tr.get(r5, 14) === '' && tr.get(r5, 21) === 'Received' && tr.get(r5, 6) === 2, JSON.stringify(row(r5)));
 const cu = ctx.submitCustomRequest_({ name: 'TEST Custom', phone: '+234 800 000 0001', email: 'q@e.co', country: 'Nigeria', adults: '1', children: '0', infants: '0',
   departureAirport: 'KAN', travelDate: future, flightTicket: 'No', arrivalCity: 'Jeddah', nightsMadinah: '3', nightsMakkah: '4', hotelCategory: '4-star',
-  haramDistance: 'Walking distance', visaAssist: 'Yes', budget: 'Above ₦5,000,000', heard: 'Website' });
+  haramDistance: 'Walking distance', visaAssist: 'Yes', budget: 'Above ₦5,000,000', heard: 'Website', emailToken: tok('q@e.co') });
 const r6 = ctx.findLeadRow_(tr, cu.leadId);
 ok('custom → email/country/departure/source, notes empty', tr.get(r6, 14) === '' && JSON.stringify(row(r6)) === JSON.stringify(['q@e.co', 'Nigeria', 'Kano – Mallam Aminu Kano International Airport (KAN)', '', 'Website', 'Received']), JSON.stringify(row(r6)));
 
 const FX = path.join(dir, 'tools/qa/fixtures');
 const b64 = (f) => fs.readFileSync(path.join(FX, f)).toString('base64');
 const v = ctx.createVisaApplication_({ name: 'TEST Visa', phone: '+234 800 000 0002', email: 'v@e.co', country: 'Nigeria', travelDate: future, departureAirport: 'KAN',
-  flightTicket: 'Yes', priorKsa: 'No', westernVisa: '', extraInfo: '', heard: 'Instagram', consent: true,
+  flightTicket: 'Yes', priorKsa: 'No', westernVisa: '', extraInfo: '', heard: 'Instagram', consent: true, emailToken: tok('v@e.co'),
   passengers: [{ name: 'TEST P1', category: 'Adult (18+)' }, { name: 'TEST P2', category: 'Child (2–17)' }] });
 const r7 = ctx.findLeadRow_(tr, v.leadId);
 ok('visa create → status Uploading 0/2, passengers 2, notes empty', tr.get(r7, 18) === 'Kano – Mallam Aminu Kano International Airport (KAN)' && tr.get(r7, 21) === 'Uploading 0/2' && tr.get(r7, 19) === 2 && tr.get(r7, 14) === '', JSON.stringify(row(r7)));
@@ -93,7 +110,7 @@ ok('legacy finalize check (old [Complete] tag in notes)', ctx.isComplete_('EG-VO
 
 // --- optional documents: shared flight ticket + hotel booking for passenger 1 -------------------
 const vd = ctx.createVisaApplication_({ name: 'TEST Docs', phone: '+234 800 000 0002', email: 'd@e.co', country: 'Nigeria', travelDate: future,
-  departureAirport: 'LOS', flightTicket: 'Yes', priorKsa: 'No', heard: '', consent: true,
+  departureAirport: 'LOS', flightTicket: 'Yes', priorKsa: 'No', heard: '', consent: true, emailToken: tok('d@e.co'),
   passengers: [{ name: 'TEST D1', category: 'Adult (18+)' }, { name: 'TEST D2', category: 'Adult (18+)' }],
   docs: { shared: { ticket: true, hotel: false }, passengers: [{ ticket: true, hotel: true }, { ticket: false, hotel: false }] } });
 const stD = JSON.parse(props['UPLOAD_' + vd.leadId]);
@@ -131,7 +148,7 @@ ok('airport: country Other → only Other', /^ERR/.test(tryA('LOS', '', 'Other')
 
 // --- purge → Expired ---------------------------------------------------------------------------
 const v2 = ctx.createVisaApplication_({ name: 'TEST Abandoned', phone: '+234 800 000 0002', email: 'v@e.co', country: 'Nigeria', travelDate: future, departureAirport: 'KAN',
-  flightTicket: 'No', priorKsa: 'No', heard: '', consent: true, passengers: [{ name: 'TEST P1', category: 'Adult (18+)' }] });
+  flightTicket: 'No', priorKsa: 'No', heard: '', consent: true, emailToken: tok('v@e.co'), passengers: [{ name: 'TEST P1', category: 'Adult (18+)' }] });
 ctx.testBackdateUpload(v2.leadId);
 ctx.purgeStaleUploads_();
 ok('purge after 24 h → Expired', tr.get(ctx.findLeadRow_(tr, v2.leadId), 21) === 'Expired');
@@ -147,7 +164,7 @@ const colOf = (h) => ctx.trackerCols_(tr)[h];
 const setCell = (id, h, v) => tr.set(ctx.findLeadRow_(tr, id), colOf(h), v);
 
 const tv = track(v.leadId.toLowerCase(), '  V@E.CO ');
-ok('track visa by email (any case, spaces, lower-case ID)', tv.ok && tv.leadId === v.leadId && tv.service === 'Visa only' && tv.stage === 'Received' && /^\d{1,2} \w{3} \d{4}$/.test(tv.received), JSON.stringify(tv));
+ok('track visa by email (any case, spaces, lower-case ID); finalized → "Under review"', tv.ok && tv.leadId === v.leadId && tv.service === 'Visa only' && tv.stage === 'Under review' && /^\d{1,2} \w{3} \d{4}$/.test(tv.received), JSON.stringify(tv));
 ok('visa upload line: complete', tv.upload === "All 2 passengers' documents received", tv.upload);
 ok('reply has only the allowed fields (no name, phone, email, links, notes)', Object.keys(tv).every((k) => ALLOWED.includes(k)) && !/TEST|@|\+234|drive|HYPERLINK/i.test(JSON.stringify(tv)), Object.keys(tv).join(','));
 for (const ph of ['0800 000 0001', '+234 800 000 0001', '234-800-000-0001', '00234 8000000001']) {
@@ -198,10 +215,14 @@ ok('another contact is not affected by that limit', trackRaw(cu.leadId, '0800 00
 const tlogs = logs.filter((l) => /^trackApplication/.test(l));
 ok('logs: only found / not-found / limited — never the contact or a missed ID', tlogs.length > 10 && tlogs.every((l) => /^trackApplication (found|not-found|limited)$/.test(l)), [...new Set(tlogs)].join(' | '));
 
+require('./test-email')(g, ok, { v, vd, v2, cu, c1, tok, future, track, setCell, colOf, tr, elog });
+
 // --- cleanup -----------------------------------------------------------------------------------
 ctx.cleanupTestData();
 const leftIds = []; for (let r = 2; r <= tr.getLastRow(); r++) if (tr.get(r, 1)) leftIds.push(tr.get(r, 1));
 ok('cleanupTestData removes TEST rows from Lead Tracker + Visa Applications', leftIds.join() === 'EG-CE-00002,EG-GE-00003' && va.getLastRow() === 1, leftIds.join() + ' / visa rows ' + (va.getLastRow() - 1));
+const elIds = elog.getSheetByName('Email Log').getRange(2, 4, Math.max(elog.getSheetByName('Email Log').getLastRow() - 1, 1), 1).getValues().map((r) => r[0]).filter(String);
+ok('cleanupTestData removes the TEST leads\' Email Log rows', elIds.length === 0, elIds.join(','));
 console.log(fails ? fails + ' failure(s)' : 'all passed');
 console.log(logs.filter((l) => /Added|Filled|Removed/.test(l)).join('\n'));
 process.exit(fails ? 1 : 0);
