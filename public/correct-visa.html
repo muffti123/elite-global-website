@@ -1,0 +1,160 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Correct Your Application | Elite Global World Travel &amp; Tours Ltd.</title>
+<meta name="description" content="Make the correction our team asked for on your Elite Global Umrah visa application.">
+<meta name="robots" content="noindex">
+<meta name="theme-color" content="#071b50">
+<script>document.documentElement.className+=" js"</script>
+<link rel="icon" type="image/svg+xml" href="assets/brand/emblem.svg">
+<link rel="preload" href="assets/fonts/roboto-condensed-latin-800-normal.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="assets/css/brand.css">
+<link rel="stylesheet" href="assets/css/site.css">
+</head>
+<body>
+<script src="assets/js/config.js"></script>
+
+<a class="skip" href="#main">Skip to content</a>
+<header class="site-header"><div class="wrap nav">
+<a class="eg-brand eg-brand--light" href="index.html" aria-label="Elite Global World Travel &amp; Tours Ltd. — Home">
+<img class="eg-brand__mark eg-brand__mark--light" src="assets/brand/emblem.svg" alt="" width="194" height="218">
+<img class="eg-brand__mark eg-brand__mark--dark" src="assets/brand/emblem-white.svg" alt="" width="194" height="218">
+<span class="eg-brand__rc" aria-hidden="true">RC: 7787410</span>
+<span class="eg-brand__name" aria-hidden="true">ELITE</span>
+<span class="eg-brand__sub1" aria-hidden="true">Global World</span>
+<span class="eg-brand__sub2" aria-hidden="true">Travel &amp; Tours Ltd.</span>
+<span class="eg-brand__rule eg-brand__rule--top" aria-hidden="true"></span>
+<span class="eg-brand__tag" aria-hidden="true">YOUR JOURNEY • OUR PRIORITY</span>
+<span class="eg-brand__rule eg-brand__rule--bottom" aria-hidden="true"></span>
+</a>
+<button class="menu-toggle" type="button" aria-expanded="false" aria-controls="siteMenu" aria-label="Open menu"><span class="menu-bars" aria-hidden="true"></span></button>
+<div class="menu" id="siteMenu">
+<nav class="links" aria-label="Main"><a href="index.html">Home</a><a href="index.html#about">About Us</a><a href="index.html#services">Our Services</a><a href="customize-umrah.html">Customize Umrah</a><a href="index.html#faqs">FAQs</a><a href="index.html#contact">Contact</a><a href="track.html">Track Application</a></nav>
+<a class="nav-cta" href="apply-visa.html">Apply for Visa</a>
+</div>
+</div></header>
+
+<main id="main">
+<section class="page-hero"><div class="wrap">
+<a class="back-link" href="track.html">← Back to Track my application</a>
+<h1>Correct Your Application</h1>
+<p>Reference number <b data-ref></b>. Replace the files or change the answers our team asked about, then submit. Your original files are kept safely.</p>
+</div></section>
+
+<section><div class="wrap corr-wrap">
+<p class="track-restoring" id="corrLoading">Loading your application…</p>
+
+<div class="panel" id="corrError" hidden>
+<h2>We could not open the correction page</h2>
+<p data-error></p>
+<div class="track-actions"><a class="btn btn-gold" href="track.html">Back to Track my application</a><a class="btn btn-outline" data-show="whatsapp" data-href="whatsapp" target="_blank" rel="noopener">Chat on WhatsApp</a></div>
+</div>
+
+<form id="corrForm" class="corr-form" novalidate hidden>
+<div class="hp" aria-hidden="true"><label>Leave this field empty<input name="company_website" tabindex="-1" autocomplete="off"></label></div>
+<div class="staff-msg action corr-msg" data-msgbox hidden><b>What we need from you</b><p data-message></p></div>
+<p class="corr-for" data-for-line hidden>Our team asked you to check: <b data-for></b>. It is highlighted below — you can still change anything else.</p>
+<p class="corr-time" data-time></p>
+
+<div class="panel corr-section" data-section="personal" id="secPersonal">
+<h2>Your details</h2>
+<div class="grid2">
+<label class="field">Full Name<input name="name" autocomplete="name" maxlength="100"><span class="err-msg">Please enter your full name.</span></label>
+<div class="field corr-contact"><span class="label-text">Email and phone</span><p>Email: <b data-email></b>. To change your email or phone, contact us on <a data-href="whatsapp" target="_blank" rel="noopener">WhatsApp</a>.</p></div>
+</div>
+</div>
+
+<div class="panel corr-section" data-section="travel" id="secTravel">
+<h2>Travel details</h2>
+<div class="grid2">
+<label class="field">Country of Residence<select name="country" data-list="COUNTRIES" data-placeholder="Type or choose your country" data-combobox></select><span class="err-msg">Please choose your country of residence.</span></label>
+<label class="field">Preferred Travel Date<input name="travelDate" type="date"><span class="err-msg">Please choose a date from today onwards.</span></label>
+<label class="field">Departure Airport<select name="departureAirport" data-combobox data-placeholder="Type a city or airport"></select><span class="help" data-airport-note>Airports in your country of residence. Not listed? Choose “Other (type it)”.</span><span class="err-msg">Please choose your departure airport.</span></label>
+<label class="field" data-airport-other hidden>Your departure airport or city<input name="departureAirportOther" maxlength="100"><span class="err-msg">Please type your departure airport or city.</span></label>
+<fieldset class="field full"><legend>Do you have a confirmed flight ticket?</legend><div class="choices" data-choices="flightTicket" data-list="YES_NO"></div><span class="err-msg">Please choose Yes or No.</span></fieldset>
+<fieldset class="field full"><legend>Have you previously travelled to Saudi Arabia?</legend><div class="choices" data-choices="priorKsa" data-list="YES_NO"></div><span class="err-msg">Please choose Yes or No.</span></fieldset>
+<fieldset class="field full"><legend>Do you currently hold a valid UK, US or Schengen visa? <span class="opt">(optional)</span></legend><div class="choices" data-choices="westernVisa" data-list="YES_NO"></div></fieldset>
+<label class="field full">Additional Information / Special Requests <span class="opt">(optional)</span><textarea name="extraInfo" maxlength="2000"></textarea></label>
+</div>
+</div>
+
+<div class="panel corr-section" data-section="passengers" id="secPassengers">
+<h2>Passengers</h2>
+<p class="lead">Each file shows “Uploaded ✓”. Choose <b>Replace</b> only for the files you want to change. Photos are checked and resized to 25–50 KB on your device, as before.</p>
+<div id="corrPax"></div>
+</div>
+
+<div class="panel corr-section" data-section="shared" id="secShared" hidden>
+<h2>Documents for all passengers</h2>
+<div class="pax-files" id="corrShared"></div>
+</div>
+
+<div class="panel corr-submit">
+<div id="corrStatus" class="status" role="status" aria-live="polite"></div>
+<ul class="up-list" id="corrUpList" hidden></ul>
+<div class="wizard-nav"><a class="btn btn-outline" href="track.html">Cancel</a><span class="spacer"></span><button type="button" class="btn btn-gold" id="corrRetry" hidden>Retry failed uploads</button><button type="submit" class="btn btn-gold" id="corrSubmit">Submit correction&nbsp; →</button></div>
+</div>
+</form>
+
+<div class="panel success" id="corrDone" hidden tabindex="-1">
+<div class="tick" aria-hidden="true">✓</div>
+<h2>Thank you — your correction has been received.</h2>
+<p>Our team will check it and update you by email. Your reference number is <b data-ref></b>.</p>
+<div class="success-actions"><a class="btn btn-gold" href="track.html" id="corrBack">Back to my application</a></div>
+</div>
+</div></section>
+
+<template id="corrFileTpl">
+<div class="field corr-file">
+<span class="label-text" data-label></span>
+<div class="filebox"><div class="thumb" data-thumb></div><div class="meta"><b data-title></b><span class="fname" data-name></span><span class="note" data-note></span><span class="note tip" data-tip hidden></span>
+<span class="file-btns"><button type="button" class="btn btn-outline cam-only" data-cam>Take photo</button><button type="button" class="btn btn-outline" data-pick>Replace</button><button type="button" class="link-btn" data-undo hidden>Keep the uploaded file</button></span></div></div>
+<input type="file" class="sr-file" data-input tabindex="-1" aria-hidden="true">
+<input type="file" class="sr-file" data-cam-input accept="image/*" tabindex="-1" aria-hidden="true">
+<span class="err-msg">This file could not be used.</span>
+</div>
+</template>
+</main>
+
+<footer class="site-footer"><div class="wrap"><div class="footer-grid">
+<div class="footer-brand"><a class="eg-brand eg-brand--dark" href="index.html" aria-label="Elite Global World Travel &amp; Tours Ltd. — Home">
+<img class="eg-brand__mark eg-brand__mark--light" src="assets/brand/emblem.svg" alt="" width="194" height="218">
+<img class="eg-brand__mark eg-brand__mark--dark" src="assets/brand/emblem-white.svg" alt="" width="194" height="218">
+<span class="eg-brand__rc" aria-hidden="true">RC: 7787410</span>
+<span class="eg-brand__name" aria-hidden="true">ELITE</span>
+<span class="eg-brand__sub1" aria-hidden="true">Global World</span>
+<span class="eg-brand__sub2" aria-hidden="true">Travel &amp; Tours Ltd.</span>
+<span class="eg-brand__rule eg-brand__rule--top" aria-hidden="true"></span>
+<span class="eg-brand__tag" aria-hidden="true">YOUR JOURNEY • OUR PRIORITY</span>
+<span class="eg-brand__rule eg-brand__rule--bottom" aria-hidden="true"></span>
+</a>
+<p>Umrah visa assistance and customised Umrah travel services.</p>
+<ul class="social" aria-label="Elite Global on social media">
+<li data-show="whatsapp"><a data-href="whatsapp" target="_blank" rel="noopener" aria-label="Chat with us on WhatsApp"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" focusable="false"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M12 2.8a9.2 9.2 0 0 0-7.9 13.9L2.8 21.2l4.6-1.2A9.2 9.2 0 1 0 12 2.8z"/><path fill="currentColor" d="M8.7 7.3c.2-.3.4-.4.7-.4h.6c.2 0 .4.1.5.3l.8 1.9c.1.3 0 .5-.1.7l-.6.7c-.1.2-.2.4 0 .6.4.8 1 1.5 1.7 2.1.6.5 1.3.9 2 1.2.2.1.4 0 .6-.1l.8-.9c.2-.2.4-.2.7-.1l1.8.9c.3.1.4.3.4.6 0 .7-.3 1.3-.8 1.7-.6.5-1.4.7-2.2.5-1.6-.3-3.1-1.2-4.4-2.4-1.2-1.1-2.1-2.4-2.7-3.9-.4-1-.2-2.2.6-2.9z"/></svg></a></li>
+<li data-show="instagram"><a data-href="instagram" target="_blank" rel="noopener" aria-label="Follow us on Instagram"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" focusable="false"><rect fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" x="3" y="3" width="18" height="18" rx="5"/><circle fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" cx="12" cy="12" r="4.2"/><circle fill="currentColor" cx="17.3" cy="6.7" r="1.2"/></svg></a></li>
+<li data-show="email"><a data-href="mailto" aria-label="Email us"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" focusable="false"><rect fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" x="3" y="5" width="18" height="14" rx="2.5"/><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="m4 7.5 8 5.8 8-5.8"/></svg></a></li>
+</ul></div>
+<div><h4>Quick Links</h4><a href="index.html#about">About Us</a><a href="index.html#services">Our Services</a><a href="index.html#faqs">FAQs</a><a href="index.html#contact">Contact</a><a href="track.html">Track Application</a></div>
+<div><h4>Apply Online</h4><a href="apply-visa.html">Request Umrah Visa Only</a><a href="customize-umrah.html">Customize My Umrah Experience</a></div>
+<div><h4>Contact Us</h4>
+<p class="ci" data-show="phone"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" focusable="false"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M5.2 3.5h3l1.6 4.2-2 1.4a11.5 11.5 0 0 0 7.1 7.1l1.4-2 4.2 1.6v3a2 2 0 0 1-2.2 2A16.8 16.8 0 0 1 3.2 5.7a2 2 0 0 1 2-2.2z"/></svg><a data-fill="phone" data-href="tel"></a></p>
+<p class="ci" data-show="address"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" focusable="false"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M12 21s-6.5-5.6-6.5-11a6.5 6.5 0 0 1 13 0c0 5.4-6.5 11-6.5 11z"/><circle fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" cx="12" cy="10" r="2.4"/></svg><span data-fill="address"></span></p>
+<p class="ci" data-show="email"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" focusable="false"><rect fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" x="3" y="5" width="18" height="14" rx="2.5"/><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="m4 7.5 8 5.8 8-5.8"/></svg><a data-fill="email" data-href="mailto"></a></p>
+<p class="ci" data-show="whatsapp"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" focusable="false"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M12 2.8a9.2 9.2 0 0 0-7.9 13.9L2.8 21.2l4.6-1.2A9.2 9.2 0 1 0 12 2.8z"/><path fill="currentColor" d="M8.7 7.3c.2-.3.4-.4.7-.4h.6c.2 0 .4.1.5.3l.8 1.9c.1.3 0 .5-.1.7l-.6.7c-.1.2-.2.4 0 .6.4.8 1 1.5 1.7 2.1.6.5 1.3.9 2 1.2.2.1.4 0 .6-.1l.8-.9c.2-.2.4-.2.7-.1l1.8.9c.3.1.4.3.4.6 0 .7-.3 1.3-.8 1.7-.6.5-1.4.7-2.2.5-1.6-.3-3.1-1.2-4.4-2.4-1.2-1.1-2.1-2.4-2.7-3.9-.4-1-.2-2.2.6-2.9z"/></svg><a data-href="whatsapp" target="_blank" rel="noopener">WhatsApp us</a></p>
+<p><a href="index.html#contact">Send an enquiry →</a></p>
+</div>
+</div><div class="copyright"><span>© <span id="year"></span> Elite Global World Travel &amp; Tours Ltd. All rights reserved.</span><span>RC: 7787410</span></div></div></footer>
+<script src="assets/js/lists.js"></script>
+<script src="assets/js/common.js"></script>
+<script src="assets/js/datepicker.js"></script>
+<script src="assets/js/combobox.js"></script>
+<script src="assets/js/airports.js"></script>
+<script src="assets/js/api.js"></script>
+<script src="assets/js/wizard.js"></script>
+<script src="assets/js/image.js"></script>
+<script src="assets/js/correct.js"></script>
+<script src="assets/js/motion.js"></script>
+</body>
+</html>
