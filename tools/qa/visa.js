@@ -186,6 +186,10 @@ const cardInvalid = async (p, i) => (await cards(p))[i].$$eval('.field.invalid',
 
   if (mode === 'live') {
     async function submitAndWait(p, interceptFail) {
+      const where = await p.evaluate(() => ({ step: document.querySelector('#stepLabel').textContent,
+        invalid: [...document.querySelectorAll('.step:not([hidden]) .field.invalid')].map((e) => e.textContent.trim().slice(0, 90)),
+        verify: (document.querySelector('[data-verify-status]') || {}).textContent || '' }));
+      if (!where.step.startsWith('Step 3')) throw new Error('not on the review step: ' + JSON.stringify(where));
       await p.click('#consentField input');
       const t0 = Date.now();
       await p.click('#submitBtn');
