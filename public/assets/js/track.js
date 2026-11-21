@@ -36,7 +36,11 @@
 
   function showStatus(type, html) { status.className = 'status ' + type; status.innerHTML = html; }
 
-  var STAGE_TONE = { 'Confirmed': 'ok', 'Closed': 'closed', 'Upload not finished': 'warn', 'Waiting for your reply': 'warn', 'Awaiting payment': 'warn' };
+  var STAGE_TONE = {
+    'Confirmed': 'ok', 'Closed': 'closed', 'Upload not finished': 'warn', 'Waiting for your reply': 'warn', 'Awaiting payment': 'warn',
+    // visa review stages
+    'Action needed': 'action', 'Documents verified': 'ok', 'Visa approved': 'ok',
+  };
 
   function set(name, value) {
     var el = result.querySelector('[data-r="' + name + '"]');
@@ -54,7 +58,13 @@
     set('upload', r.upload);
     result.querySelector('[data-r-upload]').hidden = !r.upload;
     set('message', r.message);
-    result.querySelector('[data-r-msgbox]').hidden = !r.message;
+    var box = result.querySelector('[data-r-msgbox]'), nextBox = result.querySelector('.next-step');
+    var action = r.stage === 'Action needed';
+    box.hidden = !r.message;
+    box.classList.toggle('action', action);
+    box.querySelector('b').textContent = action ? 'What we need from you' : 'Message from our team';
+    // Action needed: the staff message comes first, before the next step
+    if (action) nextBox.parentNode.insertBefore(box, nextBox); else nextBox.parentNode.insertBefore(box, nextBox.nextSibling);
     formPanel.hidden = true;
     result.hidden = false;
     status.className = 'status';

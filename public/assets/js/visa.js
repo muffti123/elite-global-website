@@ -357,6 +357,9 @@
   // ---- Validation per step ----------------------------------------------
   var panels = $$('.step', form);
 
+  // Step 1: confirm the email address with a code (the web app requires the token)
+  var verify = EG.emailVerify({ key: 'visa', box: $('[data-verify]', form), email: F.email, name: F.name, hp: F.company_website });
+
   function validateLead() {
     return EG.checkAll([
       function () { return check.text(F.name, 2); },
@@ -367,6 +370,7 @@
       function () { return airport.validate(); },
       function () { return check.radio(form, 'flightTicket'); },
       function () { return check.radio(form, 'priorKsa'); },
+      function () { return check.email(F.email) ? verify.validate() : true; },
     ], panels[0]);
   }
 
@@ -492,6 +496,7 @@
       flightTicket: EG.radioValue(form, 'flightTicket'), priorKsa: EG.radioValue(form, 'priorKsa'),
       westernVisa: EG.radioValue(form, 'westernVisa'), extraInfo: F.extraInfo.value.trim(), heard: F.heard.value,
       consent: F.consent.checked,
+      emailToken: verify.token(),
       passengers: state.pax.map(function (p) { return { name: p.name.trim(), category: p.category }; }),
       docs: {
         shared: { ticket: !!state.shared.ticket, hotel: !!state.shared.hotel },
@@ -531,6 +536,7 @@
           startUploads();
           return;
         }
+        if (res && res.reverify) { wizard.go(0, { force: true }); verify.reset(res.error); return; }
         var step = res && res.field === 'passengers' ? 1 : res && res.field && F[res.field] ? 0 : -1;
         if (step >= 0) wizard.go(step, { force: true });
         if (step === 0) { var f = F[res.field]; if (f.length && !f.tagName) f = f[0]; EG.setInvalid(f, true, res.error); f.focus(); }
@@ -696,7 +702,7 @@
     return EG.postAction('finalizeVisaApplication', { leadId: state.leadId, token: state.token }, { retries: 2, timeout: 45000 })
       .then(function (res) {
         state.running = false;
-        if (res && res.ok) { finish(res.leadId); return; }
+        if (res && res.ok) { finish(res.leadId, res.emailed); return; }
         if (res && res.missing) {
           res.missing.forEach(function (i) {
             var p = i === 0 ? state.sharedItem : state.pax[i - 1];
@@ -716,8 +722,9 @@
   }
   retryAllBtn.addEventListener('click', function () { uploadAll(); });
 
-  function finish(leadId) {
+  function finish(leadId, emailed) {
     state.phase = 'done';
+    $('[data-emailed]').hidden = emailed !== true;
     urls.forEach(function (u) { URL.revokeObjectURL(u); });
     urls.clear();
     var n = state.pax.length;
