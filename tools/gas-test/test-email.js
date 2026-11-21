@@ -87,8 +87,12 @@ module.exports = function (g, ok, t) {
   ok('every other Review Status emailed once with its wording', Object.keys(want).every((st) => to('v@e.co').filter((m) => m.subject.indexOf(want[st]) !== -1).length === 1),
     to('v@e.co').map((m) => m.subject).join(' | '));
   ok('Track page: Review Status decides the visa stage', Object.keys(C.TRACK.REVIEW).every((st) => { setCell(v.leadId, 'Review Status', st); return track(v.leadId, 'v@e.co').stage === C.TRACK.REVIEW[st][0]; }));
-  setCell(v.leadId, 'Lead Status', 'Lost'); setCell(v.leadId, 'Review Status', 'Visa Processing');
-  ok('Review Status wins over Lead Status for visa leads', track(v.leadId, 'v@e.co').stage === 'Visa in processing');
+  setCell(v.leadId, 'Review Status', 'Visa Processing');
+  setCell(v.leadId, 'Lead Status', 'Contacted');
+  ok('Review Status wins over other Lead Statuses for visa leads', track(v.leadId, 'v@e.co').stage === 'Visa in processing');
+  setCell(v.leadId, 'Lead Status', 'Lost');
+  const lostR = track(v.leadId, 'v@e.co');
+  ok('Lost always shows Closed, even with a Review Status', lostR.stage === 'Closed' && lostR.nextStep === 'Contact us if you have questions.', JSON.stringify(lostR));
   setCell(v.leadId, 'Lead Status', 'New Lead');
   // a non-visa row is ignored; a missed edit (blank Review Updated) starts the window when first seen
   setCell(cu.leadId, 'Review Status', 'Verified'); ctx.onTrackerEdit({ range: tr.getRange(ctx.findLeadRow_(tr, cu.leadId), colOf('Review Status')) });
@@ -192,9 +196,22 @@ module.exports = function (g, ok, t) {
   props.TEST_OTP_BYPASS = '';
   ok('bypass off → TEST names get a real code email', (() => { clearW(); resetLimits(); const n = mail.outbox.length; sendCode('qa5@example.com', 'TEST QA'); return mail.outbox.length === n + 1; })());
   props.SITE_URL = 'https://www.example.org';
-  let refused = ''; try { ctx.setTestOtpBypass(true); } catch (e) { refused = e.message; }
-  ok('setTestOtpBypass(true) refused outside staging', /staging only/.test(refused) && props.TEST_OTP_BYPASS !== 'on');
+  let refused = ''; try { ctx.enableTestOtpBypass(); } catch (e) { refused = e.message; }
+  ok('enableTestOtpBypass() (no arguments) refused outside staging', /staging only/.test(refused) && props.TEST_OTP_BYPASS !== 'on');
   delete props.SITE_URL;
+  ctx.enableTestOtpBypass();
+  ok('enableTestOtpBypass() on staging → on; disableTestOtpBypass() → off', props.TEST_OTP_BYPASS === 'on' && (ctx.disableTestOtpBypass(), !('TEST_OTP_BYPASS' in props)));
+  // Run-button settings: no argument → instructions only, nothing changed; edited Script Properties are checked
+  const staffBefore = props.STAFF_EMAIL;
+  ctx.setStaffEmail(); ctx.setSiteUrl(); ctx.setStaffEmail({ authMode: 'FULL' });
+  ok('setStaffEmail() / setSiteUrl() with no argument explain how to edit Script Properties, change nothing',
+    props.STAFF_EMAIL === staffBefore && !('SITE_URL' in props) && logs.some((l) => /Script Properties/.test(l) && /STAFF_EMAIL = /.test(l)) && logs.some((l) => /SITE_URL = https/.test(l)));
+  props.STAFF_EMAIL = 'staff@example.org, not-an-email';
+  ctx.checkEmailSettings();
+  ok('checkEmailSettings flags an invalid STAFF_EMAIL entry; only valid addresses are used', ctx.staffEmail_() === 'staff@example.org' && logs.some((l) => /some addresses are not valid/.test(l)));
+  props.SITE_URL = 'www.no-https.example'; ctx.checkEmailSettings();
+  ok('an invalid SITE_URL is flagged and the default is used', ctx.settings_().siteUrl === 'https://elite-global-staging.netlify.app' && logs.some((l) => /SITE_URL is not a valid https/.test(l)));
+  props.STAFF_EMAIL = staffBefore; delete props.SITE_URL;
 
   // submissions need a valid token for the same email
   resetLimits();

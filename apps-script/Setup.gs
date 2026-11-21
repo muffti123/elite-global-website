@@ -15,9 +15,10 @@
  *   showSystemInfo()     – prints the folder, tracker and web app URLs in the log
  *   cleanupTestData()    – removes every lead whose name starts with "TEST" (all tabs + Drive)
  *   setOwnerEmail()      – stores the expected owner account for this environment
- *   setStaffEmail()      – where staff alerts and the daily summary go (Script Property STAFF_EMAIL)
- *   showNotifySettings() – prints the email settings (provider, staff email, site URL, on/off)
+ *   checkEmailSettings() – prints the email settings (STAFF_EMAIL, SITE_URL, provider, on/off, quota, queue);
+ *                          change them in Project Settings → Script Properties (setStaffEmail / setSiteUrl explain how)
  *   sendEmailSamples()   – sends one sample of every email to STAFF_EMAIL for approval
+ *   enableTestOtpBypass() / disableTestOtpBypass() – STAGING ONLY: fixed email code for TEST names @example.com
  *   resetSetupFlag()     – ⚠️ forgets every stored ID (only after deleting the Drive folder)
  * =====================================================================
  */

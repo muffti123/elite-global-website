@@ -24,9 +24,11 @@ function settings_() {
   const p = PropertiesService.getScriptProperties();
   const get = function (k, d) { const v = p.getProperty(k); return v === null || String(v).trim() === '' ? d : String(v).trim(); };
   return {
-    staffEmail: get('STAFF_EMAIL', ''),
-    siteUrl: get('SITE_URL', CONFIG.EMAIL.DEFAULT_SITE_URL).replace(/\/+$/, ''),
+    staffEmail: validEmails_(get('STAFF_EMAIL', '')).join(','),
+    staffEmailRaw: get('STAFF_EMAIL', ''),
+    siteUrl: siteUrlOk_(get('SITE_URL', '')) ? get('SITE_URL', '').replace(/\/+$/, '') : CONFIG.EMAIL.DEFAULT_SITE_URL,
     siteUrlSet: get('SITE_URL', '') !== '',
+    siteUrlValid: get('SITE_URL', '') === '' || siteUrlOk_(get('SITE_URL', '')),
     notifyStaff: get('NOTIFY_STAFF', 'on').toLowerCase() !== 'off',
     notifyCustomer: get('NOTIFY_CUSTOMER', 'on').toLowerCase() !== 'off',
     provider: get('EMAIL_PROVIDER', 'mailapp').toLowerCase() === 'brevo' ? 'brevo' : 'mailapp',
@@ -49,39 +51,75 @@ function ensureEmailSettings_() {
   otpSecret_();
   const s = settings_();
   if (!s.siteUrlSet) {
-    Logger.log('⚠️ SITE_URL is not set — emails link to ' + s.siteUrl + '. On production run setSiteUrl("https://…").');
+    Logger.log('⚠️ SITE_URL is not set — emails link to ' + s.siteUrl + '. On production set SITE_URL in ' + SETTINGS_HOWTO + '.');
   }
   if (s.provider === 'brevo' && (!s.brevoKey || !s.senderEmail)) {
     Logger.log('⚠️ EMAIL_PROVIDER is brevo but BREVO_API_KEY or SENDER_EMAIL is missing — emails will be queued.');
   }
 }
 
-/** Editor: where staff alerts and the daily summary go (one address, or several separated by commas). */
+/** Valid addresses from a comma-separated list (lower-case). */
+function validEmails_(value) {
+  return String(value || '').split(',').map(function (e) { return e.trim().toLowerCase(); })
+    .filter(function (e) { return EMAIL_RE.test(e); });
+}
+function siteUrlOk_(u) { return /^https:\/\/[^\s/]+(\/[^\s]*)?$/.test(String(u || '').trim()); }
+
+const SETTINGS_HOWTO = 'Apps Script editor → Project Settings (gear icon) → Script Properties → Edit script properties';
+
+/**
+ * Staff alerts and the daily summary go to Script Property STAFF_EMAIL. From the Run button: edit
+ * STAFF_EMAIL in Project Settings → Script Properties (one address, or several separated by commas),
+ * then run checkEmailSettings. Developers can also call setStaffEmail("name@example.com").
+ */
 function setStaffEmail(email) {
-  const list = String(email || '').split(',').map(function (e) { return e.trim().toLowerCase(); }).filter(String);
-  if (!list.length || !list.every(function (e) { return EMAIL_RE.test(e); })) {
-    throw new Error('setStaffEmail: please give a valid email address, e.g. setStaffEmail("name@example.com").');
+  if (email === undefined || email === null || typeof email === 'object') { // Run button: no argument (or an event object)
+    Logger.log('To change who gets staff alerts and the daily summary:\n  ' + SETTINGS_HOWTO +
+      '\n  → STAFF_EMAIL = the address (several: separate with commas) → Save.\nThen run checkEmailSettings to confirm.' +
+      '\nCurrent STAFF_EMAIL: ' + (settings_().staffEmailRaw || '(empty → script owner)'));
+    return;
+  }
+  const list = validEmails_(email);
+  if (!list.length || list.length !== String(email).split(',').filter(function (e) { return e.trim(); }).length) {
+    throw new Error('setStaffEmail: please give valid email addresses, e.g. setStaffEmail("name@example.com").');
   }
   PropertiesService.getScriptProperties().setProperty('STAFF_EMAIL', list.join(','));
   Logger.log('STAFF_EMAIL set (' + list.length + ' address' + (list.length > 1 ? 'es' : '') + ').');
 }
 
-/** Editor: the website address used in email links and the logo (no trailing slash). */
+/**
+ * Website address used in email links and the logo (Script Property SITE_URL). From the Run button: edit
+ * SITE_URL in Project Settings → Script Properties (e.g. https://www.your-domain, no slash at the end),
+ * then run checkEmailSettings. Developers can also call setSiteUrl("https://…").
+ */
 function setSiteUrl(url) {
-  const u = String(url || '').trim().replace(/\/+$/, '');
-  if (!/^https:\/\/[^\s/]+(\/[^\s]*)?$/.test(u)) throw new Error('setSiteUrl: please give the https:// address of the website.');
+  if (url === undefined || url === null || typeof url === 'object') {
+    Logger.log('To change the website address used in emails:\n  ' + SETTINGS_HOWTO +
+      '\n  → SITE_URL = https://… (no slash at the end) → Save.\nThen run checkEmailSettings to confirm.' +
+      '\nCurrent SITE_URL: ' + settings_().siteUrl + (settings_().siteUrlSet ? '' : ' (default)'));
+    return;
+  }
+  const u = String(url).trim().replace(/\/+$/, '');
+  if (!siteUrlOk_(u)) throw new Error('setSiteUrl: please give the https:// address of the website.');
   PropertiesService.getScriptProperties().setProperty('SITE_URL', u);
   Logger.log('SITE_URL set to ' + u);
 }
+
+/** Run button: checks the email settings in Script Properties and prints them (same as showNotifySettings). */
+function checkEmailSettings() { return showNotifySettings(); }
 
 /** Editor: prints the email settings. The Brevo key is never printed. */
 function showNotifySettings() {
   const s = settings_();
   let quota = '';
   try { quota = String(MailApp.getRemainingDailyQuota()); } catch (e) { quota = 'unknown'; }
-  Logger.log('\nEmail settings (Script Properties):' +
+  const raw = String(s.staffEmailRaw || '').split(',').filter(function (e) { return e.trim(); });
+  const badStaff = raw.length && validEmails_(s.staffEmailRaw).length !== raw.length;
+  Logger.log('\nEmail settings (Script Properties — change them in ' + SETTINGS_HOWTO + '):' +
     '\n  STAFF_EMAIL      ' + (s.staffEmail || '(empty → script owner)') +
-    '\n  SITE_URL         ' + s.siteUrl + (s.siteUrlSet ? '' : '  (default — set it on production)') +
+    (badStaff ? '   ⚠️ some addresses are not valid and are ignored: check STAFF_EMAIL' : '') +
+    '\n  SITE_URL         ' + s.siteUrl + (!s.siteUrlValid ? '   ⚠️ SITE_URL is not a valid https:// address — the default is used'
+      : s.siteUrlSet ? '' : '  (default — set it on production)') +
     '\n  NOTIFY_STAFF     ' + (s.notifyStaff ? 'on' : 'off') +
     '\n  NOTIFY_CUSTOMER  ' + (s.notifyCustomer ? 'on' : 'off') +
     '\n  EMAIL_PROVIDER   ' + s.provider +

@@ -9,7 +9,7 @@
  *  - The token is "<expiry>.<sha256(email)>.<HMAC>" (secret OTP_SECRET in Script Properties):
  *    stateless and never containing the email itself.
  *  - The code email contains no text typed by the visitor (it cannot be used to send spam).
- *  - Staging only: Script Property TEST_OTP_BYPASS=on lets TEST names with @example.com emails use
+ *  - Staging only (enableTestOtpBypass / disableTestOtpBypass): TEST_OTP_BYPASS=on lets TEST names with @example.com emails use
  *    CONFIG.OTP.TEST_CODE without an email being sent.
  *  - Never log the email, the code or the token.
  */
@@ -56,6 +56,11 @@ function setTestOtpBypass(on) {
     Logger.log('TEST_OTP_BYPASS off.');
   }
 }
+
+/** Run button (staging only): turn the test code on for TEST names with @example.com emails. */
+function enableTestOtpBypass() { setTestOtpBypass(true); }
+/** Run button: turn the test code off (do this after testing). */
+function disableTestOtpBypass() { setTestOtpBypass(false); }
 
 function renderCodeEmail_(code) {
   return renderEmail_({
