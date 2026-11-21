@@ -3,8 +3,8 @@
 **Project:** Umrah Lead Generation System — website forms + Apps Script web app + Google Sheets/Drive
 **Client:** Elite Global World Travel & Tours Ltd. (RC: 7787410)
 **Developer:** Abdulmumin (independent full-stack developer)
-**Document version:** 3.3 — supersedes v2.x (Google Forms) and the original *Project Handover Note*
-**Last updated:** 21 November 2026 (v3.3: review workflow, emails, email verification — §3.6; v3.2: Track my application — §3.5; v3.1: round 1 client feedback — §0.1)
+**Document version:** 3.4 — supersedes v2.x (Google Forms) and the original *Project Handover Note*
+**Last updated:** 22 November 2026 (v3.4: Track session + self-service corrections — §3.7; v3.3: review workflow, emails, email verification — §3.6; v3.2: Track my application — §3.5; v3.1: round 1 client feedback — §0.1)
 
 ---
 
@@ -201,7 +201,8 @@ all return the **same** message — *"We couldn't find an application with those
 reference number and the email or phone number you used."* — so references cannot be guessed. Limits:
 **5 lookups per reference and 20 per email/phone value per 10 minutes** (hashed keys in CacheService). The reply
 contains only: reference, service type, date received (date only), customer stage, description, next step, the
-staff *Message to Customer* (plain text, max 300 characters) and, for visa applications, the upload line. Never
+staff *Message to Customer* (plain text, max 300 characters), for visa applications the upload line, the session
+token and `canCorrect` (§3.7). Never
 name, phone, email, passport data, answers, Drive links, notes or the assigned agent. The contact is never logged.
 
 **Customer stages** (approved; `CONFIG.TRACK` in `Config.gs`). Lost wins, then an expired visa upload:
@@ -231,7 +232,7 @@ Review Status, when set, decides the stage on the Track page (it wins over every
 | Review Status (staff) | Stage shown | Description | Next step |
 |---|---|---|---|
 | Under Review | Under review | We have received all your documents and our team is checking them. | No action needed for now. We will email you if anything needs correcting. |
-| Correction Needed | **Action needed** (amber; the Message to Customer is shown first, as "What we need from you") | We need a correction or more information to continue your application. | Please read the message below, then reply to our email or contact us on WhatsApp. |
+| Correction Needed | **Action needed** (amber; the Message to Customer is shown first, as "What we need from you") | We need a correction or more information to continue your application. | Please read the message below, then use “Make the correction”, or contact us on WhatsApp. |
 | Correction Received | Correction received | Thank you — we have received your correction and are checking it. | No action needed for now. We will update you soon. |
 | Verified | Documents verified | Your documents have been checked and are ready for submission. | We will submit your visa application and keep you updated. |
 | Visa Processing | Visa in processing | Your visa application has been submitted and is being processed. | Processing times vary. We will email you as soon as there is a decision. |
@@ -279,6 +280,53 @@ setting (the key only as "set"), flags invalid values, and shows the remaining M
 #### 3.6.5 Volume and provider
 ~500 applications/day ≈ **3,000 emails/day** (codes, staff alerts, confirmations, ~3 status emails per visa). MailApp on a gmail.com account allows ~100 recipients/day, so **production must use Brevo** on a paid plan (the free plan is 300/day). Switching is a Script Property change (`EMAIL_PROVIDER=brevo` + key + verified sender); nothing in the code changes. With MailApp, normal emails stop at the last 20 quota units so codes can still be sent; the rest waits in the queue.
 
+### 3.7 Track session and self-service corrections (v3.4)
+**Track session.** A successful lookup also returns a **session token** `<idle expiry>.<max expiry>.<Lead ID>.<HMAC>`
+(HMAC-SHA256 with `OTP_SECRET`; no email or phone inside). The page keeps only the token and the time of the last
+activity in **sessionStorage** (this tab): a refresh or reopening in the same tab looks the application up with
+`trackApplication {session}` — no contact check — and shows the status again. It ends on **Log out** (button on the
+status view; `endTrackSession` revokes every token of that session), when the tab is closed, after **60 minutes
+without activity** (sliding: every lookup returns a fresh token; activity on the page refreshes it quietly when less
+than 30 minutes are left) or after **8 hours** at most. An ended session shows the lookup form with *"Please look up
+your application again."* Session lookups have their own limit (**30 per Lead ID per 10 minutes**); a tampered,
+expired, logged-out or other-lead token gets the same not-found reply as §3.5. The token is never logged.
+
+**Staff side.** Lead Tracker column **Correction For** (dropdown, schema 6): Passport photo · Passport data page ·
+Personal details · Travel details · Flight ticket · Hotel booking · Other (see message). With Review Status
+**Correction Needed**, the email has a gold **Fix my application** button → `<SITE_URL>/track.html?id=<Lead ID>`
+(no token, email or phone in the URL); the customer still enters their email or phone to log in.
+
+**Customer side.**
+- The Track page shows **Make the correction** only when the server says `canCorrect`: a visa lead, not Lost,
+  Review Status Correction Needed (one correction round = the Review Updated time of that status).
+- **Step-up check:** `sendCorrectionCode {session}` emails a code to the email **on the application** (the reply
+  shows it masked, e.g. `a•••@g•••.com`); same rules as §3.6.4 (30 min, resend after 60 s, 5 per hour, global cap,
+  5 attempts), in its own code scope. `verifyCorrectionCode {session, code}` → a **correction token** valid
+  60 minutes, bound to the Lead ID and the round, **used once** (at submit). Staging: `TEST_OTP_BYPASS` covers TEST
+  leads with @example.com emails (checked against the stored name and email).
+- **`correct-visa.html`** (same brand, `noindex`; the token is in sessionStorage, never in the URL): the staff message
+  at the top, the part from Correction For highlighted, the answers (name, country, travel date, departure airport,
+  Yes/No questions, additional information), every passenger (name, category) and every file as **"Uploaded ✓ —
+  Replace"** (optional flight ticket / hotel booking: "No file — Add file"). The old files are never sent to the
+  browser (`loadCorrection` returns their file type only). **Email and phone are not editable** — "To change your
+  email or phone, contact us on WhatsApp". The number of passengers cannot change.
+- Replacements follow the application rules (§3.2): photo checks and 25–50 KB compression on the device, passport
+  and document type/size rules, one file per request (`uploadCorrectionFile`) with Retry; they wait in
+  `Correction (pending)` in the lead's folder.
+- **`submitCorrection`** (only while Review Status is still Correction Needed; once per round; under the lock): old
+  files move to `Replaced <d MMM yyyy HH:mm>/` in the lead's folder (renamed `NN – file`, `All – file` for shared
+  documents; **never deleted**), the new files take their place; Visa Passengers, Visa Applications and the Lead Tracker
+  are updated (counts follow the categories); Follow-up Notes gets the line *"Correction submitted <date>: <what
+  changed>."* (staff text kept); Review Status → **Correction Received** with Review Updated stamped, so the normal
+  Correction Received email follows (no extra customer email); an **immediate staff alert** lists what changed, with
+  links to the row and the folder. "Nothing changed" is refused.
+- Success: *"Thank you — your correction has been received."* → back to the Track page (same session), now showing
+  Correction received.
+- Unfinished corrections: the pending folder goes to the **Drive bin** (restorable) when the token expires —
+  `runEmailJobs`, `cleanupTestData` and `setupEliteGlobal` clean up. Original files are never touched.
+- Staging only: `testRequestCorrection` (no arguments) sets Correction Needed on the newest finished TEST visa lead
+  with an @example.com email and logs its Lead ID only; refused unless SITE_URL is staging.
+
 ### 3.4 Contact box on `index.html`
 | Field | Type | Required |
 |---|---|---|
@@ -320,6 +368,7 @@ Success: the form resets and shows "Your reference number is EG-GE-…".
 | 22 | Message to Customer | **Staff** | Optional short message shown to the customer on track.html (plain text, first 300 characters). Header note: "Visible to the customer on the Track page — keep it short and professional" (v3.2). Also included in status emails; required before a Correction Needed email is sent |
 | 23 | Review Status | **Staff** | Visa: dropdown Under Review, Correction Needed, Correction Received, Verified, Visa Processing, Visa Approved, Not Approved / Closed. Set to Under Review at finalize; every change is emailed to the customer after 5 unchanged minutes (§3.6) (v3.3) |
 | 24 | Review Updated | Auto | Time of the last Review Status / Message to Customer edit (starts the 5-minute undo window) |
+| 26 | Correction For | Staff | v6 dropdown (§3.7): what the customer should correct; highlighted on the correction page; kept after a submit |
 | 25 | Last Customer Email | Auto | Last customer email, e.g. "Status: Verified · 22 Nov 2026 09:05", "Queued: …", "Not sent (test lead) · …" |
 
 Columns 16–25 were appended after Drive Folder (v3.1–v3.3) and are found by header name, so existing rows,
@@ -357,7 +406,9 @@ Elite Global – Lead Generation System/
 │   └── EG-VO-00012 – <lead name>/
 │       ├── flight-ticket.*, hotel-booking.*   (only when shared by all passengers)
 │       ├── 01 – <passenger name>/  passport.pdf|jpg|png, photo.jpg|png, flight-ticket.*, hotel-booking.* (optional)
-│       └── 02 – <passenger name>/  …
+│       ├── 02 – <passenger name>/  …
+│       ├── Replaced <d MMM yyyy HH:mm>/  01 – photo.jpg, All – hotel-booking.pdf …  (files replaced by a correction, §3.7)
+│       └── Correction (pending)/  replacements until submit (binned when the correction token expires)
 └── (retired, closed) Google Forms 1–3 and their response sheets
 ```
 File extensions follow the file's **real** type (magic bytes), never the customer's file name.
@@ -369,10 +420,10 @@ File extensions follow the file's **real** type (magic bytes), never the custome
 ### 5.1 Transport
 `POST <web app /exec URL>` with a `text/plain;charset=utf-8` JSON body (a "simple" request: no CORS
 preflight). Apps Script answers with a 302 to `script.googleusercontent.com`, which serves the JSON with
-`Access-Control-Allow-Origin: *`. `GET` returns a health check `{"ok":true,"service":…,"version":1,"schema":5}` (schema = tracker version written by `setupEliteGlobal`: 3 = v3 columns + Visa Applications tab, 4 = Message to Customer, 5 = Review Status, Review Updated, Last Customer Email).
+`Access-Control-Allow-Origin: *`. `GET` returns a health check `{"ok":true,"service":…,"version":1,"schema":5}` (schema = tracker version written by `setupEliteGlobal`: 3 = v3 columns + Visa Applications tab, 4 = Message to Customer, 5 = Review Status, Review Updated, Last Customer Email, 6 = Correction For).
 
 Every request: `{"action": "<name>", "hp": "<honeypot>", …}` → `{"ok":true,"leadId":…}` or
-`{"ok":false,"error":"<friendly>","field"?:"<name>","missing"?:[…],"reverify"?:true}` (`reverify`: the email must be confirmed again).
+`{"ok":false,"error":"<friendly>","field"?:"<name>","missing"?:[…],"reverify"?:true,"relogin"?:true,"restart"?:true}` (`reverify`: the email must be confirmed again; `relogin`: the Track session ended; `restart`: the correction token ended — start again from the Track page).
 
 ### 5.2 Actions
 | Action | Input | Writes | Returns |
@@ -382,7 +433,13 @@ Every request: `{"action": "<name>", "hp": "<honeypot>", …}` → `{"ok":true,"
 | `createVisaApplication` | lead fields §3.2 (`departureAirport`, `departureAirportOther`), `emailToken`, `consent:true`, `passengers:[{name, category}]` (1–50), `docs:{shared:{ticket,hotel}, passengers:[{ticket,hotel}]}` (optional) | Drive folder, Lead Tracker row (status `Uploading 0/N`), Visa Applications row, upload state | leadId `EG-VO-…`, token |
 | `uploadPassenger` | leadId, token, index (1…N), name, category, `passport:{name,mime,b64}`, `photo:{mime,b64}` | `NN – name/` passport + photo (replaced on retry; documents kept), Visa Passengers row (upsert), status `Uploading k/N` | uploaded, total, photoKb |
 | `uploadDocument` | leadId, token, `scope` ("all" or 1…N), `kind` (ticket/hotel), name, `file:{name,mime,b64}` | `flight-ticket.*` / `hotel-booking.*` (replaced on retry), links in Visa Passengers / Visa Applications. Only documents declared at create | scope, kind |
-| `trackApplication` | leadId, contact (email or phone) | nothing (read-only) | §3.5 fields only, or the generic not-found message |
+| `trackApplication` | leadId, contact (email or phone) — or session | nothing (read-only) | §3.5 fields + session token + canCorrect, or the generic not-found message |
+| `endTrackSession` | session | revokes the session (CacheService) | ok |
+| `sendCorrectionCode` | session | code hash in CacheService; code email to the stored address | masked, resendIn |
+| `verifyCorrectionCode` | session, code | correction state `CORR_<LeadID>` | ctoken (60 min, single use), minutes |
+| `loadCorrection` | ctoken | nothing | answers, passengers (name, category, file types), shared file types, Correction For, message, masked email |
+| `uploadCorrectionFile` | ctoken, slot (0 shared, 1…N), kind (passport/photo/ticket/hotel), `file:{name,mime,b64}` | file in `Correction (pending)` (a retry replaces it) | slot, kind |
+| `submitCorrection` | ctoken, answers, `passengers:[{index,name,category}]` | §3.7 submit; staff alert | leadId |
 | `sendEmailCode` | email, name | code hash in CacheService; code email (§3.6.4) | resendIn |
 | `verifyEmailCode` | email, code | nothing | token (24 h) |
 | `finalizeVisaApplication` | leadId, token | status `Complete: N passengers` (all passengers and declared documents arrived), Review Status Under Review, deletes upload state; staff alert + combined confirmation email | leadId, emailed (repeat-safe); else `missing` (0 = shared documents) |
@@ -551,6 +608,9 @@ Run `node tools/check-lists.js` and `node tools/qa/run.js static` before every s
 - [ ] `sendEmailSamples()`: every email approved (logo, colours, footer, links, phone layout)
 - [ ] New lead → staff alert at once; customise / visa → confirmation email; visa → Review Status Under Review
 - [ ] Review Status change → email 5–10 min later; change + undo within 5 min → no email; Correction Needed waits for a Message to Customer; daily summary arrives ~08:00
+- [ ] `setupEliteGlobal` adds Correction For (dropdown); health check `"schema":6`
+- [ ] Track: refresh keeps the status; Log out / new tab / 60 min idle → "Please look up your application again."
+- [ ] Correction round on staging (`testRequestCorrection`, `tools/qa/correction-live.js`): Fix my application button, Make the correction, code, replace a photo, submit → Correction Received, Notes line, Replaced folder, staff alert, Correction Received email; second round works
 - [ ] `cleanupTestData()` run: TEST rows gone from 4 tabs, TEST visa folders in the Drive bin
 - [ ] Sharing on the tracker and the Visa Applications folder checked (named staff only)
 
