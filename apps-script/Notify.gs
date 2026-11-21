@@ -110,7 +110,7 @@ function renderEmail_(o) {
 /** Contact lines shared by customer emails. */
 function contactSmall_() {
   const C = CONFIG.COMPANY_INFO;
-  return ['Questions? Call ' + C.phone + ', chat with us on WhatsApp (https://wa.me/' + C.whatsapp + ') or reply to this email.',
+  return ['Questions? Call ' + C.phone + ', message us on WhatsApp (link below) or reply to this email.',
     'Can\'t find our emails? Please check your spam or junk folder and mark us as "not spam".'];
 }
 
@@ -221,8 +221,8 @@ function renderConfirmation_(lead) {
     preheader: 'Your reference number is ' + lead.leadId,
     heading: visa ? 'Your application is under review' : 'Thank you for your request',
     paragraphs: visa
-      ? ['Dear ' + lead.name + ',', 'Thank you for choosing Elite Global. We have received your Umrah visa application and all your documents. ' + R[1],
-        R[2]]
+      ? ['Dear ' + lead.name + ',', 'Thank you for choosing Elite Global. We have received your Umrah visa application and all your documents, ' +
+        'and our team is now checking them.', R[2]]
       : ['Dear ' + lead.name + ',', 'Thank you for choosing Elite Global. We have received your request for a customised Umrah experience.',
         'A member of our team will contact you shortly by phone or WhatsApp to discuss your plans.'],
     rows: [['Reference number', lead.leadId], ['Service', visa ? 'Umrah visa only' : 'Customised Umrah'],
@@ -263,10 +263,15 @@ function sendConfirmation_(lead) {
 // ---------------------------------------------------------------------
 // REVIEW STATUS EMAILS
 // ---------------------------------------------------------------------
+// Email wording per Review Status (the Track page uses CONFIG.TRACK.REVIEW; the "Next step" differs only
+// where the email itself is the place to act).
+const REVIEW_EMAIL_NEXT = {
+  'Correction Needed': 'Please reply to this email with what we need, or send it to us on WhatsApp.',
+};
 const REVIEW_INTRO = {
   'Under Review': 'Your Umrah visa application is now being reviewed by our team.',
   'Correction Needed': 'We have checked your application and need a correction or more information before we can continue.',
-  'Correction Received': 'Thank you — we have received your correction.',
+  'Correction Received': 'Thank you — we have received your correction and are checking it.',
   'Verified': 'Good news: your documents have been checked and verified.',
   'Visa Processing': 'Your visa application has been submitted and is now being processed.',
   'Visa Approved': 'Congratulations — your Umrah visa has been approved.',
@@ -280,9 +285,9 @@ function renderStatusEmail_(lead, status, message) {
     subject: 'Elite Global — ' + (action ? 'Action needed on your visa application' : 'Visa application update: ' + st[0]) + ' (' + lead.leadId + ')',
     preheader: st[1],
     heading: action ? 'Action needed' : st[0],
-    paragraphs: ['Dear ' + lead.name + ',', REVIEW_INTRO[status], st[1] === REVIEW_INTRO[status] ? '' : st[1]].filter(String),
+    paragraphs: ['Dear ' + lead.name + ',', REVIEW_INTRO[status]],
     box: message ? { title: action ? 'What we need from you' : 'Message from our team', text: message } : null,
-    rows: [['Reference number', lead.leadId], ['Status', st[0]], ['Next step', st[2]]],
+    rows: [['Reference number', lead.leadId], ['Status', st[0]], ['Next step', REVIEW_EMAIL_NEXT[status] || st[2]]],
     button: { label: 'Track your application', url: trackUrl_(lead.leadId) },
     small: contactSmall_(),
   });
