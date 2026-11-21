@@ -46,6 +46,11 @@ ok('migration is idempotent (second run changes nothing)', JSON.stringify(tr.cel
 const head = []; for (let c = 1; c <= tr.getMaxColumns(); c++) head.push(tr.get(1, c));
 ok('v3 headers appended P–U in order', head.slice(15, 21).join('|') === 'Email|Country|Departure|Passengers|Lead Source|Application Status', head.slice(15).join('|'));
 ok('v4: Message to Customer appended as column V with its note', head[21] === 'Message to Customer' && /Visible to the customer on the Track page/.test((tr.notes || {})['1,22']), head[21]);
+ok('v5: only Review Status has the dropdown (not the columns inserted after it)', (tr.validation || {})[23] && (tr.validation[23].list || []).length === 7 && !(tr.validation || {})[24] && !(tr.validation || {})[25],
+  JSON.stringify([23, 24, 25].map((c) => (tr.validation || {})[c] ? 'list' : null)));
+tr.validation[24] = tr.validation[23]; tr.validation[25] = tr.validation[23]; // a tracker set up before this fix
+ctx.upgradeTracker_(ss);
+ok('setup repairs a copied dropdown on Review Updated / Last Customer Email (Review Status keeps it)', !tr.validation[24] && !tr.validation[25] && tr.validation[23] && tr.validation[23].list.length === 7);
 ok('v5: Review Status, Review Updated, Last Customer Email appended W–Y (Review Status has its note)', head.slice(22, 25).join('|') === 'Review Status|Review Updated|Last Customer Email' && /emailed once the status has stayed the same for 5 minutes/.test((tr.notes || {})['1,23']), head.slice(22).join('|'));
 ok('first 15 columns and Lead IDs unchanged', H2.every((h, i) => tr.get(1, i + 1) === h) && [2, 3, 4].map((r) => tr.get(r, 1)).join() === 'EG-VO-00001,EG-CE-00002,EG-GE-00003');
 ok('old notes kept as they were', tr.get(3, 14) === staffNote && /^\[Complete/.test(tr.get(2, 14)));

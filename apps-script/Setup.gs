@@ -167,6 +167,7 @@ function upgradeTracker_(ss) {
     Logger.log('Added "' + H[col - 1] + '" column to the Lead Tracker.');
   }
   addTrackerColumns_(sh);
+  repairColumnValidation_(sh);
   backfillV3Columns_(sh);
 
   // Make the sales filter cover every web-app column
@@ -213,6 +214,8 @@ function addTrackerColumns_(sh) {
     if (spec.align) body.setHorizontalAlignment(spec.align);
     if (spec.auto) body.protect().setDescription(name + ' is updated automatically').setWarningOnly(true);
     if (spec.wrap) body.setWrap(true).setVerticalAlignment('top');
+    // Sheets copies the left neighbour's dropdown into an inserted column: only "list" columns keep one
+    body.setDataValidation(null);
     if (spec.list) {
       body.setDataValidation(SpreadsheetApp.newDataValidation().requireValueInList(CONFIG[spec.list], true)
         .setAllowInvalid(false).setHelpText('Choose a status from the list.').build());
@@ -221,6 +224,20 @@ function addTrackerColumns_(sh) {
     if (spec.note) cell.setNote(spec.note);
     head[last - 1] = name;
     Logger.log('Added "' + name + '" column to the Lead Tracker.');
+  });
+}
+
+/**
+ * Columns appended by the web app: only Review Status has a dropdown. Removes a dropdown that Sheets copied
+ * into Review Updated / Last Customer Email (or any other appended web-app column) when they were inserted
+ * next to it. Safe to repeat.
+ */
+function repairColumnValidation_(sh) {
+  const cols = trackerCols_(sh);
+  const rows = sh.getMaxRows() - 1;
+  Object.keys(CONFIG.EXTRA_COLS).forEach(function (name) {
+    if (CONFIG.EXTRA_COLS[name].list) return;
+    sh.getRange(2, cols[name], rows, 1).setDataValidation(null);
   });
 }
 

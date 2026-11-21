@@ -26,7 +26,19 @@ module.exports = function (dir) {
     getMaxRows() { return this.rows; }, getMaxColumns() { return this.cols; },
     getLastRow() { let m = 0; for (const k in this.cells) if (this.cells[k] !== '') m = Math.max(m, +k.split(',')[0]); return m; },
     getLastColumn() { let m = 0; for (const k in this.cells) if (this.cells[k] !== '') m = Math.max(m, +k.split(',')[1]); return m; },
-    insertRowsAfter(a, n) { this.rows += n; }, insertColumnsAfter(a, n) { this.cols += n; },
+    insertRowsAfter(a, n) { this.rows += n; },
+    // like Sheets: inserted columns copy the data validation of the column they are inserted after
+    insertColumnsAfter(a, n) {
+      this.cols += n; this.validation = this.validation || {};
+      const shifted = {};
+      Object.keys(this.validation).forEach((c) => { shifted[+c > a ? +c + n : c] = this.validation[c]; });
+      for (let i = 1; i <= n; i++) if (shifted[a]) shifted[a + i] = shifted[a];
+      this.validation = shifted;
+    },
+    checkValid(c, v) {
+      const rule = (this.validation || {})[c];
+      if (rule && rule.list && v !== '' && v !== null && v !== undefined && rule.list.indexOf(v) === -1) throw new Error(rule.help || 'Invalid value (data validation)');
+    },
     deleteColumns(a, n) { this.cols -= n; },
     deleteRow(r) {
       const next = {};
@@ -45,8 +57,8 @@ module.exports = function (dir) {
   Range.prototype = {
     getValues() { const o = []; for (let i = 0; i < this.nr; i++) { const row = []; for (let j = 0; j < this.nc; j++) row.push(this.sh.get(this.r + i, this.c + j)); o.push(row); } return o; },
     getValue() { return this.sh.get(this.r, this.c); },
-    setValues(v) { if (v.length !== this.nr || v[0].length !== this.nc) throw new Error('setValues size mismatch'); v.forEach((row, i) => row.forEach((x, j) => this.sh.set(this.r + i, this.c + j, x))); return this; },
-    setValue(v) { this.sh.set(this.r, this.c, v); return this; },
+    setValues(v) { if (v.length !== this.nr || v[0].length !== this.nc) throw new Error('setValues size mismatch'); v.forEach((row, i) => row.forEach((x, j) => this.r + i > 1 && this.sh.checkValid(this.c + j, x))); v.forEach((row, i) => row.forEach((x, j) => this.sh.set(this.r + i, this.c + j, x))); return this; },
+    setValue(v) { if (this.r > 1) this.sh.checkValid(this.c, v); this.sh.set(this.r, this.c, v); return this; },
     setFormula(f) { this.sh.set(this.r, this.c, f); return this; },
     setFormulaR1C1() { return this; },
     getRow() { return this.r; }, getColumn() { return this.c; }, getNumRows() { return this.nr; }, getSheet() { return this.sh; },
@@ -59,7 +71,9 @@ module.exports = function (dir) {
       return { matchEntireCell() { return this; }, findNext: () => hits[0] || null, findAll: () => hits };
     },
     setNumberFormat: chain, setBackground: chain, setFontColor: chain, setFontWeight: chain, setVerticalAlignment: chain,
-    setHorizontalAlignment: chain, setWrap: chain, setDataValidation: chain,
+    setHorizontalAlignment: chain, setWrap: chain,
+    setDataValidation(rule) { this.sh.validation = this.sh.validation || {}; for (let j = 0; j < this.nc; j++) this.sh.validation[this.c + j] = rule; return this; },
+    clearDataValidations() { return this.setDataValidation(null); },
     setNote(n) { this.sh.notes = this.sh.notes || {}; this.sh.notes[this.r + ',' + this.c] = n; return this; },
   };
   function Spreadsheet(id, name) { this.id = id; this.name = name; this.sheets = []; }
@@ -103,9 +117,13 @@ module.exports = function (dir) {
       getProperty: (k) => (k in props ? props[k] : null), setProperty: (k, v) => { props[k] = String(v); },
       deleteProperty: (k) => { delete props[k]; }, getProperties: () => Object.assign({}, props), setProperties: (o) => Object.assign(props, o),
     }) },
-    SpreadsheetApp: { openById: (id) => { if (!books[id]) throw new Error('no spreadsheet ' + id); return books[id]; },
+    SpreadsheetApp: { flush() {}, openById: (id) => { if (!books[id]) throw new Error('no spreadsheet ' + id); return books[id]; },
       create: (name) => { const id = 'SS' + Object.keys(books).length; const b = new Spreadsheet(id, name); b.sheets = [new Sheet('Sheet1', 1000, 26)]; books[id] = b; return b; },
-      newDataValidation: () => new Proxy({}, { get: (t, k) => (k === 'build' ? () => ({}) : () => t.__p || (t.__p = new Proxy({}, { get: (a, b) => (b === 'build' ? () => ({}) : () => a.__self || (a.__self = new Proxy({}, { get: () => () => ({ build: () => ({}) }) })) ) }))) }),
+      newDataValidation: () => {
+        const b = { requireValueInList(l) { b.list = l; return b; }, requireNumberGreaterThanOrEqualTo() { return b; },
+          setAllowInvalid() { return b; }, setHelpText(h) { b.help = h; return b; }, build() { return { list: b.list, help: b.help }; } };
+        return b;
+      },
       // every builder method returns the builder; build() returns a rule object
       newConditionalFormatRule: () => { const b = new Proxy({}, { get: (o, k) => (k === 'build' ? () => ({}) : () => b) }); return b; } },
     LockService: { getScriptLock: () => ({ tryLock: () => true, releaseLock() {} }) },

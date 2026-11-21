@@ -135,11 +135,14 @@ function leadFromTracker_(leadId) {
 }
 
 function setLastCustomerEmail_(leadId, label) {
-  const sh = trackerSheet_();
-  const row = findLeadRow_(sh, leadId);
-  if (!row) return;
-  const stamp = Utilities.formatDate(new Date(), 'Africa/Lagos', 'd MMM yyyy HH:mm');
-  sh.getRange(row, trackerCols_(sh)['Last Customer Email']).setValue(label + ' · ' + stamp);
+  try {
+    const sh = trackerSheet_();
+    const row = findLeadRow_(sh, leadId);
+    if (!row) return;
+    const stamp = Utilities.formatDate(new Date(), 'Africa/Lagos', 'd MMM yyyy HH:mm');
+    sh.getRange(row, trackerCols_(sh)['Last Customer Email']).setValue(label + ' · ' + stamp);
+    SpreadsheetApp.flush();
+  } catch (e) { console.error('Last Customer Email not updated: ' + e.message); }
 }
 
 /** Sets Review Status + Review Updated (used at finalize; staff edits go through onTrackerEdit). */

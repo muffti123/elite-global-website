@@ -10,7 +10,9 @@ function withLock_(fn) {
   const lock = LockService.getScriptLock();
   if (!lock.tryLock(30000)) fail_('We are very busy right now. Please try again in a moment.');
   try {
-    return fn();
+    const out = fn();
+    SpreadsheetApp.flush(); // write now: errors surface here (not after the reply) and before the lock is released
+    return out;
   } finally {
     lock.releaseLock();
   }
