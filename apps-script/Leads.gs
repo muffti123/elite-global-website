@@ -90,6 +90,9 @@ function appendTrackerRow_(r) {
     'Lead Source': safeCell_(r.source || ''),
     'Application Status': r.status || CONFIG.STATUS.RECEIVED,
     'Message to Customer': '', // staff only; shown on track.html
+    'Review Status': '',       // visa: set to Under Review at finalize, then by staff
+    'Review Updated': '',
+    'Last Customer Email': '',
   };
   // Write the contiguous block of web-app columns; staff columns outside it are untouched.
   const last = Math.max.apply(null, CONFIG.HEADERS.map(function (h) { return cols[h]; }));
@@ -158,6 +161,15 @@ function applyRowRules_(sh, startRow, numRows) {
   // Total Travellers = Adults + Children + Infants (blank until a count is entered)
   sh.getRange(startRow, 9, numRows, 1)
     .setFormulaR1C1('=IF(COUNT(RC[-3]:RC[-1])=0,"",RC[-3]+RC[-2]+RC[-1])');
+
+  // Review Status dropdown (v5 column, found by name; absent on a brand-new tracker until upgraded)
+  const head = sh.getRange(1, 1, 1, sh.getMaxColumns()).getValues()[0];
+  const rc = head.indexOf('Review Status') + 1;
+  if (rc) {
+    sh.getRange(startRow, rc, numRows, 1).setDataValidation(
+      SpreadsheetApp.newDataValidation().requireValueInList(CONFIG.REVIEW_STATUSES, true)
+        .setAllowInvalid(false).setHelpText('Choose a status from the list.').build());
+  }
 }
 
 function toInt_(v) {
@@ -186,7 +198,7 @@ function submitContact_(d) {
   };
   rateLimit_('phone:' + a.phone.replace(/\D/g, ''));
 
-  return withLock_(function () {
+  const res = withLock_(function () {
     const leadId = nextLeadId_(CONFIG.FORMS.CONTACT.idPrefix);
     const now = new Date();
     appendTrackerRow_({
@@ -202,6 +214,11 @@ function submitContact_(d) {
     console.log('submitContact ok ' + leadId);
     return { ok: true, leadId: leadId };
   });
+  notifyNewLead_({
+    leadId: res.leadId, kind: 'contact', name: a.name, phone: a.phone, email: '', country: '',
+    travelDate: a.travelDate, passengers: a.travellers, extra: [['Enquiry', a.enquiryType]],
+  });
+  return res;
 }
 
 // ---------------------------------------------------------------------
@@ -235,11 +252,12 @@ function submitCustomRequest_(d) {
   };
   a.departureAirport = vAirport_(d.departureAirport, d.departureAirportOther, a.country);
   if (a.adults + a.children + a.infants < 1) fail_('Please enter at least one traveller.', 'adults');
+  requireEmailToken_(d.emailToken, a.email);
   rateLimit_('email:' + a.email);
 
   const services = a.services.concat(a.servicesOther ? ['Other: ' + a.servicesOther] : []);
 
-  return withLock_(function () {
+  const res = withLock_(function () {
     const leadId = nextLeadId_(CONFIG.FORMS.CUSTOM.idPrefix);
     const now = new Date();
     appendTrackerRow_({
@@ -259,4 +277,12 @@ function submitCustomRequest_(d) {
     console.log('submitCustomRequest ok ' + leadId);
     return { ok: true, leadId: leadId };
   });
+  const lead = {
+    leadId: res.leadId, kind: 'custom', name: a.name, phone: a.phone, email: a.email, country: a.country,
+    travelDate: a.travelDate, passengers: a.adults + a.children + a.infants,
+    extra: [['Departure', a.departureAirport], ['Budget', a.budget]],
+  };
+  notifyNewLead_(lead);
+  res.emailed = sendConfirmation_(lead);
+  return res;
 }

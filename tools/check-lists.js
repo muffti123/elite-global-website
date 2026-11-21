@@ -20,7 +20,7 @@ const report = (ok, msg) => { console.log((ok ? 'OK    ' : 'FAIL  ') + msg); if 
 // Server lists
 const gas = { Math };
 vm.createContext(gas);
-vm.runInContext(read('apps-script/Config.gs') + '\n;this.__L = LISTS; this.__C = COUNTRIES;', gas);
+vm.runInContext(read('apps-script/Config.gs') + '\n;this.__L = LISTS; this.__C = COUNTRIES; this.__I = CONFIG.COMPANY_INFO;', gas);
 const server = Object.assign({}, gas.__L, { COUNTRIES: gas.__C });
 
 // Website lists
@@ -57,6 +57,16 @@ const unknown = Object.keys(airJson).filter((c) => !server.COUNTRIES.includes(c)
 report(unknown.length === 0, 'airport countries are all in COUNTRIES (Nigeria is curated separately)' + (unknown.length ? ': ' + unknown.join(', ') : ''));
 const badCodes = Object.values(airJson).flat().filter((a) => !/^[A-Z]{3}$/.test(a[0]) || !a[1]);
 report(badCodes.length === 0, 'every airport has an IATA code and a name' + (badCodes.length ? ': ' + JSON.stringify(badCodes.slice(0, 3)) : ''));
+
+// Company details used in emails (Config.gs COMPANY_INFO) must equal the website's SITE_CONFIG.company
+const cfg = { window: {} };
+vm.createContext(cfg);
+vm.runInContext(read("public/assets/js/config.js"), cfg);
+const webCo = cfg.window.SITE_CONFIG.company;
+['name', 'rc', 'address', 'phone', 'whatsapp', 'email', 'instagram'].forEach((k) => {
+  const same = gas.__I[k] === webCo[k];
+  report(same, 'company ' + k + ' (emails) == config.js' + (same ? '' : ': ' + JSON.stringify(gas.__I[k]) + ' vs ' + JSON.stringify(webCo[k])));
+});
 
 console.log(failed ? `\n${failed} mismatch(es). Update public/assets/js/lists.js (or index.html) to match apps-script/Config.gs.` : '\nAll lists match.');
 process.exit(failed ? 1 : 0);

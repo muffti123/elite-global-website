@@ -15,6 +15,9 @@
  *   showSystemInfo()     – prints the folder, tracker and web app URLs in the log
  *   cleanupTestData()    – removes every lead whose name starts with "TEST" (all tabs + Drive)
  *   setOwnerEmail()      – stores the expected owner account for this environment
+ *   setStaffEmail()      – where staff alerts and the daily summary go (Script Property STAFF_EMAIL)
+ *   showNotifySettings() – prints the email settings (provider, staff email, site URL, on/off)
+ *   sendEmailSamples()   – sends one sample of every email to STAFF_EMAIL for approval
  *   resetSetupFlag()     – ⚠️ forgets every stored ID (only after deleting the Drive folder)
  * =====================================================================
  */
@@ -58,7 +61,12 @@ function setupEliteGlobal() {
   removeLegacyTriggers_();
   closeLegacyForms_();
 
-  // 5. Housekeeping + info
+  // 5. Email Log spreadsheet, email settings, triggers (status emails, queue, daily summary)
+  ensureEmailLog_(root);
+  ensureEmailSettings_();
+  ensureTriggers_(ss);
+
+  // 6. Housekeeping + info
   purgeStaleUploads_();
   writeSystemInfo_();
   p.setProperties({ SETUP_DONE: 'yes', SCHEMA_VERSION: CONFIG.SCHEMA_VERSION });
@@ -204,10 +212,33 @@ function addTrackerColumns_(sh) {
     if (spec.align) body.setHorizontalAlignment(spec.align);
     if (spec.auto) body.protect().setDescription(name + ' is updated automatically').setWarningOnly(true);
     if (spec.wrap) body.setWrap(true).setVerticalAlignment('top');
+    if (spec.list) {
+      body.setDataValidation(SpreadsheetApp.newDataValidation().requireValueInList(CONFIG[spec.list], true)
+        .setAllowInvalid(false).setHelpText('Choose a status from the list.').build());
+      addReviewColours_(sh, body);
+    }
     if (spec.note) cell.setNote(spec.note);
     head[last - 1] = name;
     Logger.log('Added "' + name + '" column to the Lead Tracker.');
   });
+}
+
+/** Colour-coded Review Status (added next to the existing Lead Status colours). */
+function addReviewColours_(sh, range) {
+  const colours = {
+    'Under Review': ['#e3ecff', '#102d70'],
+    'Correction Needed': ['#ffe9d6', '#a04a00'],
+    'Correction Received': ['#fff4d6', '#8a5a00'],
+    'Verified': ['#e8e3ff', '#4b2fa0'],
+    'Visa Processing': ['#eef0f4', '#3d4660'],
+    'Visa Approved': ['#dff3e6', '#176b38'],
+    'Not Approved / Closed': ['#fde2e2', '#a01818'],
+  };
+  const rules = sh.getConditionalFormatRules().concat(Object.keys(colours).map(function (status) {
+    return SpreadsheetApp.newConditionalFormatRule().whenTextEqualTo(status)
+      .setBackground(colours[status][0]).setFontColor(colours[status][1]).setRanges([range]).build();
+  }));
+  sh.setConditionalFormatRules(rules);
 }
 
 /**
@@ -370,6 +401,8 @@ function collectInfo_() {
     ['Drive folder', folderUrl('FOLDER_ID')],
     ['Visa Applications folder (passports + photos)', folderUrl('VISA_FOLDER_ID')],
     ['Central Lead Tracker', tracker ? tracker.getUrl() : '(missing — run setupEliteGlobal)'],
+    ['Email Log (sent emails + queue)', emailLogUrl_()],
+    ['Emails', emailSettingsLine_()],
     ['', ''],
     ['Web app URL → public/assets/js/config.js webAppUrl',
       webApp ? webApp : 'Not deployed yet: Deploy → New deployment → Web app (Execute as: Me, Who has access: Anyone)'],

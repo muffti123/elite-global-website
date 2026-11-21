@@ -45,6 +45,7 @@ function createVisaApplication_(d) {
   }).join('');
 
   const docs = docsDeclared_(d.docs, list.length);
+  requireEmailToken_(d.emailToken, a.email);
   rateLimit_('email:' + a.email);
 
   const leadId = withLock_(function () { return nextLeadId_(CONFIG.FORMS.VISA.idPrefix); });
@@ -220,10 +221,21 @@ function finalizeVisaApplication_(d) {
   }
   withLock_(function () {
     setApplicationStatus_(leadId, CONFIG.STATUS.complete(st.n));
+    setReviewStatus_(leadId, 'Under Review'); // review workflow starts; Lead Status is untouched
     deleteUploadState_(leadId);
   });
   console.log('finalizeVisaApplication ok ' + leadId);
-  return { ok: true, leadId: leadId };
+
+  // Emails never fail the application: staff alert + one combined "received + under review" email
+  const res = { ok: true, leadId: leadId };
+  const lead = leadFromTracker_(leadId);
+  if (lead) {
+    try { lead.folderUrl = DriveApp.getFolderById(st.f).getUrl(); } catch (e) { lead.folderUrl = ''; }
+    lead.kind = 'visa';
+    notifyNewLead_(lead);
+    res.emailed = sendConfirmation_(lead);
+  }
+  return res;
 }
 
 // ---------------------------------------------------------------------
