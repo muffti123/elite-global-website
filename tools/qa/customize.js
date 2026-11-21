@@ -1,5 +1,6 @@
 // Browser test: customize-umrah.html (+ live TEST submit). Usage: node customize.js <base> <chrome> [--submit]
 const puppeteer = require('puppeteer-core');
+const emailcode = require('./emailcode');
 const [base, exe, flag] = process.argv.slice(2);
 const res = []; const ok = (n, c, i = '') => res.push(`${c ? 'PASS' : 'FAIL'}  ${n}${i ? '  — ' + i : ''}`);
 (async () => {
@@ -8,6 +9,7 @@ const res = []; const ok = (n, c, i = '') => res.push(`${c ? 'PASS' : 'FAIL'}  $
   const errors = []; p.on('console', m => m.type() === 'error' && errors.push(m.text())); p.on('pageerror', e => errors.push(String(e)));
   let dialogs = 0; p.on('dialog', async d => { dialogs++; await d.dismiss(); });
   await p.setViewport({ width: 1280, height: 900 });
+  if (flag !== '--submit') await emailcode.mock(p); // static: the code actions are answered in the browser
   await p.goto(base + '/customize-umrah.html', { waitUntil: 'networkidle0' });
 
   const label = () => p.$eval('#stepLabel', e => e.textContent);
@@ -29,6 +31,9 @@ const res = []; const ok = (n, c, i = '') => res.push(`${c ? 'PASS' : 'FAIL'}  $
   await p.click(cbIn); await p.keyboard.type('Nig'); await p.keyboard.press('Enter');
   const cb3 = await p.evaluate(() => ({ v: document.querySelector('[name=country]').value, t: document.querySelector('.cb-input').value, exp: document.querySelector('.cb-input').getAttribute('aria-expanded'), step: document.querySelector('#stepLabel').textContent }));
   ok('country combobox: filter, Esc, Enter', cb1.exp === 'true' && cb1.first === "Côte d'Ivoire" && cb1.ad && cb2.v === '' && cb2.t === '' && cb3.v === 'Nigeria' && cb3.t === 'Nigeria' && cb3.exp === 'false' && cb3.step.startsWith('Step 1'), JSON.stringify([cb1, cb2, cb3]));
+  await next();
+  ok('step 1 needs the email confirmed', (await label()).startsWith('Step 1') && (await invalid()).join() === 'emailCode', (await invalid()).join());
+  ok('email confirmed with the code' + (flag === '--submit' ? ' (staging TEST code)' : ' (mocked)'), await emailcode.confirm(p));
   await next();
   ok('step 2 reached', (await label()).startsWith('Step 2'));
   await next();
@@ -103,6 +108,7 @@ const res = []; const ok = (n, c, i = '') => res.push(`${c ? 'PASS' : 'FAIL'}  $
     ok('live submit → Lead ID', /^EG-CE-\d{5}$/.test(id), id + ' in ' + (Date.now() - t0) + ' ms ' + (await p.$eval('#formStatus', e => e.textContent)));
     const tl = await p.$eval('#successPanel [data-track-link]', (e) => e.getAttribute('href'));
     ok('success: Track this application → track.html?id=<Lead ID>', tl === 'track.html?id=' + id, tl);
+    ok('success: "We\'ve emailed you" note hidden for a TEST @example.com lead (no email sent)', await p.$eval('[data-emailed]', (e) => e.hidden));
     const before = dialogs;
     await p.goto(base + '/index.html', { waitUntil: 'domcontentloaded' });
     ok('no leave warning after success', dialogs === before);

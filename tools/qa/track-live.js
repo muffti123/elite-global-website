@@ -1,5 +1,6 @@
 // LIVE test (staging only): create TEST leads and track them. Usage: node track-live.js <base> <chrome> <fixturesDir>
 // Sends TEST data + SPECIMEN files to SITE_CONFIG.webAppUrl. Run cleanupTestData() afterwards.
+// Email confirmation uses the staging test code: Script Property TEST_OTP_BYPASS=on (setTestOtpBypass(true)).
 const fs = require('fs');
 const path = require('path');
 const puppeteer = require('puppeteer-core');
@@ -17,6 +18,13 @@ const b64 = (f) => fs.readFileSync(path.join(FX, f)).toString('base64');
   const call = (action, payload) => p.evaluate((a, d) => window.EG.postAction(a, d, { retries: 0, timeout: 120000 }), action, payload);
   const track = (leadId, contact) => call('trackApplication', { hp: '', leadId, contact });
   const future = new Date(Date.now() + 45 * 864e5).toISOString().slice(0, 10);
+  // verified-email token through the real actions (TEST name + @example.com → staging test code, no email sent)
+  const tokenFor = async (email, name) => {
+    const s1 = await call('sendEmailCode', { hp: '', email, name });
+    const s2 = s1.ok ? await call('verifyEmailCode', { hp: '', email, code: '246810' }) : s1;
+    if (!s2.ok) throw new Error('email code for ' + email + ': ' + s2.error + ' — is TEST_OTP_BYPASS on in staging?');
+    return s2.token;
+  };
   const clean = (r) => Object.keys(r).every((k) => ALLOWED.includes(k)) && !/TEST|@|\+?234|0800|drive|docs\.google/i.test(JSON.stringify(r));
 
   // 1. Contact enquiry → track by phone in another format
@@ -24,14 +32,19 @@ const b64 = (f) => fs.readFileSync(path.join(FX, f)).toString('base64');
   const t1 = await track(ge.leadId, '+234 800 000 0005');
   ok('contact lead (0800 000 0005) tracked with +234 800 000 0005', ge.ok && t1.ok && t1.service === 'General enquiry' && t1.stage === 'Received' && clean(t1), ge.leadId + ' ' + JSON.stringify(t1));
 
-  // 2. Customise request → track by email in upper case
-  const ce = await call('submitCustomRequest', {
+  // 2. Customise request → track by email in upper case (needs a verified-email token)
+  const ceBody = {
     hp: '', name: 'TEST Track Custom', phone: '+234 800 000 0006', email: 'qa-track@example.com', country: 'Nigeria',
     adults: '1', children: '0', infants: '0', departureAirport: 'KAN', departureAirportOther: '', travelDate: future,
     flightTicket: 'No', arrivalCity: 'Jeddah', nightsMadinah: '3', nightsMakkah: '4', hotelCategory: '4-star',
     haramDistance: 'Walking distance', preferredHotel: '', services: [], servicesOther: '', visaAssist: 'Yes',
     budget: 'I need guidance on the budget', experience: '', hotelOrAirline: '', special: 'Automated staging check.', heard: 'Website',
-  });
+  };
+  const noTok = await call('submitCustomRequest', ceBody);
+  const otherTok = await call('submitCustomRequest', Object.assign({ emailToken: await tokenFor('qa-track-other@example.com', 'TEST Track Other') }, ceBody));
+  ok('without a verified-email token, or with another email\'s token → refused (reverify)', [noTok, otherTok].every((r) => !r.ok && r.reverify === true && r.field === 'email'), JSON.stringify(noTok));
+  const ce = await call('submitCustomRequest', Object.assign({ emailToken: await tokenFor('qa-track@example.com', 'TEST Track Custom') }, ceBody));
+  ok('customise accepted with the token; no confirmation email for TEST @example.com (emailed:false)', ce.ok && ce.emailed === false, JSON.stringify(ce));
   const t2 = await track(ce.leadId.toLowerCase(), 'QA-TRACK@EXAMPLE.COM');
   ok('customise lead tracked by email in UPPER CASE (lower-case ID)', ce.ok && t2.ok && t2.leadId === ce.leadId && t2.service === 'Customised Umrah' && t2.upload === undefined && clean(t2), ce.leadId + ' ' + JSON.stringify(t2));
 
@@ -40,6 +53,7 @@ const b64 = (f) => fs.readFileSync(path.join(FX, f)).toString('base64');
     hp: '', name: 'TEST Track Visa', phone: '+234 800 000 0007', email: 'qa-track-visa@example.com', country: 'Nigeria',
     travelDate: future, departureAirport: 'LOS', departureAirportOther: '', flightTicket: 'No', priorKsa: 'No', westernVisa: '',
     extraInfo: '', heard: '', consent: true, passengers: [{ name: 'TEST Track Pax', category: 'Adult (18+)' }],
+    emailToken: await tokenFor('qa-track-visa@example.com', 'TEST Track Visa'),
   });
   const up = vo.ok && await call('uploadPassenger', {
     leadId: vo.leadId, token: vo.token, index: 1, name: 'TEST Track Pax', category: 'Adult (18+)',
@@ -50,6 +64,8 @@ const b64 = (f) => fs.readFileSync(path.join(FX, f)).toString('base64');
   const t3 = await track(vo.leadId, '08000000007');
   ok('visa lead before finalize: "Upload not finished (1 of 1 …)"', t3a.ok && t3a.upload === 'Upload not finished (1 of 1 passengers received)', JSON.stringify(t3a));
   ok('visa lead after finalize: "All documents for your 1 passenger received"', fin && fin.ok && t3.ok && t3.service === 'Visa only' && t3.upload === 'All documents for your 1 passenger received' && clean(t3), vo.leadId + ' ' + JSON.stringify(t3));
+  ok('visa after finalize: Review Status Under Review → stage "Under review"; emailed:false (TEST @example.com)', t3.stage === 'Under review' && fin.emailed === false, JSON.stringify({ stage: t3.stage, emailed: fin && fin.emailed }));
+  ok('before finalize the visa lead has no review stage yet', t3a.stage === 'Received', t3a.stage);
 
   // 4. Wrong contact and unknown ID → the same generic reply
   const w1 = await track(vo.leadId, 'wrong@example.com');

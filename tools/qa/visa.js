@@ -1,6 +1,7 @@
 // Browser test: apply-visa.html. Usage: node visa.js <base> <chrome> <fixturesDir> [offline|live]
 const path = require('path');
 const puppeteer = require('puppeteer-core');
+const emailcode = require('./emailcode');
 const [base, exe, FX, mode = 'offline'] = process.argv.slice(2);
 const fx = (f) => path.join(FX, f);
 const res = []; const ok = (n, c, i = '') => { res.push(`${c ? 'PASS' : 'FAIL'}  ${n}${i ? '  — ' + i : ''}`); console.log(res[res.length - 1]); };
@@ -13,6 +14,7 @@ async function open(b) {
   p.on('pageerror', (e) => p.errors.push(String(e)));
   p.on('dialog', async (d) => { p.dialogs++; await d.dismiss(); });
   await p.setViewport({ width: 1280, height: 900 });
+  if (mode === 'offline') await emailcode.mock(p); // the code actions are answered in the browser
   await p.goto(base + '/apply-visa.html', { waitUntil: 'networkidle0' });
   return p;
 }
@@ -25,6 +27,7 @@ async function fillLead(p, tag) {
   await p.$eval('[name=travelDate]', (e, v) => { e.value = v; }, d);
   await p.select('[name=departureAirport]', 'LOS'); await p.click('#flightTicket-1'); await p.click('#priorKsa-1');
   await p.select('[name=heard]', 'Website');
+  if (!(await emailcode.confirm(p))) throw new Error('email confirmation failed: ' + await p.$eval('[data-verify-status]', (e) => e.textContent));
 }
 const cards = (p) => p.$$('#paxList .pax');
 async function waitIdle(p) { await p.waitForFunction(() => !/Checking…|Resizing…/.test(document.querySelector('#paxList').innerText), { timeout: 60000 }); }

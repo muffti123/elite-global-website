@@ -128,6 +128,20 @@ const replyFor = (body) => (body.action === 'trackApplication' && body.leadId ==
   ok('home contact success: "Track this application" → track.html?id=EG-GE-00042', link === 'track.html?id=EG-GE-00042 | Track this application', link);
   await p.close();
 
+  // Visa review stage "Action needed": amber badge, the staff message first ("What we need from you")
+  const ACTION = Object.assign({}, FOUND, { stage: 'Action needed', description: 'We need a correction or more information to continue your application.',
+    nextStep: 'Please read the message below, then reply to our email or contact us on WhatsApp.', message: 'Please upload a clearer passport photo.' });
+  p = await open(b, 'track?id=EG-VO-00012', (body) => (replyFor(body).ok ? ACTION : replyFor(body)));
+  await p.type('[name=contact]', 'qa@example.com'); await p.click('#trackBtn');
+  await p.waitForFunction(() => !document.querySelector('#trackResult').hidden, { timeout: 10000 });
+  const act = await p.evaluate(() => {
+    const box = document.querySelector('[data-r-msgbox]'), next = document.querySelector('.next-step');
+    return { tone: document.querySelector('[data-r="stage"]').getAttribute('data-tone'), title: box.querySelector('b').textContent, shown: !box.hidden,
+      first: !!(box.compareDocumentPosition(next) & Node.DOCUMENT_POSITION_FOLLOWING), bg: getComputedStyle(document.querySelector('[data-r="stage"]')).backgroundColor };
+  });
+  ok('"Action needed": action tone, message shown first as "What we need from you"', act.tone === 'action' && act.shown && act.first && act.title === 'What we need from you' && act.bg === 'rgb(255, 233, 214)', JSON.stringify(act));
+  await p.close();
+
   // Success screens of the application pages carry the link placeholder (href set with the Lead ID on success)
   for (const pg of ['apply-visa', 'customize-umrah']) {
     p = await open(b, pg + '.html', () => ({ ok: false }));
