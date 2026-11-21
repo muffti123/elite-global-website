@@ -20,6 +20,7 @@
  *   sendEmailSamples()   – sends one sample of every email to STAFF_EMAIL for approval
  *   checkRecentEmailJobs() – the last 20 review-email decisions (sent / waiting / held / …), no personal data
  *   enableTestOtpBypass() / disableTestOtpBypass() – STAGING ONLY: fixed email code for TEST names @example.com
+ *   testRequestCorrection() – STAGING ONLY: sets Correction Needed on the newest TEST visa lead (@example.com)
  *   resetSetupFlag()     – ⚠️ forgets every stored ID (only after deleting the Drive folder)
  * =====================================================================
  */
@@ -70,6 +71,7 @@ function setupEliteGlobal() {
 
   // 6. Housekeeping + info
   purgeStaleUploads_();
+  purgeStaleCorrections_();
   writeSystemInfo_();
   p.setProperties({ SETUP_DONE: 'yes', SCHEMA_VERSION: CONFIG.SCHEMA_VERSION });
 
@@ -219,8 +221,8 @@ function addTrackerColumns_(sh) {
     body.setDataValidation(null);
     if (spec.list) {
       body.setDataValidation(SpreadsheetApp.newDataValidation().requireValueInList(CONFIG[spec.list], true)
-        .setAllowInvalid(false).setHelpText('Choose a status from the list.').build());
-      addReviewColours_(sh, body);
+        .setAllowInvalid(false).setHelpText(spec.help || 'Choose a status from the list.').build());
+      if (name === 'Review Status') addReviewColours_(sh, body);
     }
     if (spec.note) cell.setNote(spec.note);
     head[last - 1] = name;
@@ -229,7 +231,7 @@ function addTrackerColumns_(sh) {
 }
 
 /**
- * Columns appended by the web app: only Review Status has a dropdown. Removes a dropdown that Sheets copied
+ * Columns appended by the web app: only the list columns (Review Status, Correction For) have a dropdown. Removes a dropdown that Sheets copied
  * into Review Updated / Last Customer Email (or any other appended web-app column) when they were inserted
  * next to it. Safe to repeat.
  */

@@ -95,6 +95,7 @@ function appendTrackerRow_(r) {
     'Review Status': '',       // visa: set to Under Review at finalize, then by staff
     'Review Updated': '',
     'Last Customer Email': '',
+    'Correction For': '',      // visa: staff, with Correction Needed
   };
   // Write the contiguous block of web-app columns; staff columns outside it are untouched.
   const last = Math.max.apply(null, CONFIG.HEADERS.map(function (h) { return cols[h]; }));
@@ -164,14 +165,16 @@ function applyRowRules_(sh, startRow, numRows) {
   sh.getRange(startRow, 9, numRows, 1)
     .setFormulaR1C1('=IF(COUNT(RC[-3]:RC[-1])=0,"",RC[-3]+RC[-2]+RC[-1])');
 
-  // Review Status dropdown (v5 column, found by name; absent on a brand-new tracker until upgraded)
+  // Dropdowns of the appended list columns (Review Status v5, Correction For v6), found by name
   const head = sh.getRange(1, 1, 1, sh.getMaxColumns()).getValues()[0];
-  const rc = head.indexOf('Review Status') + 1;
-  if (rc) {
-    sh.getRange(startRow, rc, numRows, 1).setDataValidation(
-      SpreadsheetApp.newDataValidation().requireValueInList(CONFIG.REVIEW_STATUSES, true)
-        .setAllowInvalid(false).setHelpText('Choose a status from the list.').build());
-  }
+  Object.keys(CONFIG.EXTRA_COLS).forEach(function (name) {
+    const spec = CONFIG.EXTRA_COLS[name];
+    const c = head.indexOf(name) + 1;
+    if (!spec.list || !c) return;
+    sh.getRange(startRow, c, numRows, 1).setDataValidation(
+      SpreadsheetApp.newDataValidation().requireValueInList(CONFIG[spec.list], true)
+        .setAllowInvalid(false).setHelpText(spec.help || 'Choose a status from the list.').build());
+  });
 }
 
 function toInt_(v) {

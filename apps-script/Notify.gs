@@ -287,7 +287,8 @@ function sendConfirmation_(lead) {
 // Email wording per Review Status (the Track page uses CONFIG.TRACK.REVIEW; the "Next step" differs only
 // where the email itself is the place to act).
 const REVIEW_EMAIL_NEXT = {
-  'Correction Needed': 'Please reply to this email with what we need, or send it to us on WhatsApp.',
+  'Correction Needed': 'Use the button below: look up your application with your email or phone number, then choose ' +
+    '“Make the correction”. You can also reply to this email or message us on WhatsApp.',
 };
 const REVIEW_INTRO = {
   'Under Review': 'Your Umrah visa application is now being reviewed by our team.',
@@ -309,7 +310,8 @@ function renderStatusEmail_(lead, status, message) {
     paragraphs: ['Dear ' + lead.name + ',', REVIEW_INTRO[status]],
     box: message ? { title: action ? 'What we need from you' : 'Message from our team', text: message } : null,
     rows: [['Reference number', lead.leadId], ['Status', st[0]], ['Next step', REVIEW_EMAIL_NEXT[status] || st[2]]],
-    button: { label: 'Track your application', url: trackUrl_(lead.leadId) },
+    // Correction Needed: the customer fixes it on the website (Track page → Make the correction). No token in the link.
+    button: { label: action ? 'Fix my application' : 'Track your application', url: trackUrl_(lead.leadId) },
     small: contactSmall_(),
   });
 }
@@ -480,6 +482,7 @@ function runEmailJobs() {
     const deadline = Date.now() + CONFIG.EMAIL.JOB_BUDGET_MS;
     const q = runEmailQueue_(deadline);
     const s = processReviewEmails_(deadline);
+    try { purgeStaleCorrections_(); } catch (e) { console.error('purgeStaleCorrections: ' + e.message); }
     console.log('runEmailJobs status sent=' + s.sent + ' queued=' + s.queued + ' held=' + s.held + ' waiting=' + s.waiting +
       ' · queue sent=' + q.sent + ' waiting=' + q.waiting + ' failed=' + q.failed);
     return { status: s, queue: q };
@@ -623,6 +626,8 @@ function sendEmailSamples() {
     samples.push(['status: ' + st, renderStatusEmail_(lead, st, msg)]);
   });
   samples.push(['daily summary', renderSummary_(collectSummary_())]);
+  samples.push(['staff alert (correction submitted)', renderCorrectionAlert_({ leadId: lead.leadId, name: lead.name, row: 2, correctionFor: 'Passport photo',
+    trackerUrl: lead.trackerUrl, folderUrl: lead.folderUrl, changes: ['Passenger 1 photo replaced', 'Travel date changed'] })]);
   samples.push(['error notice', renderErrorEmail_('sampleAction', new Error('Sample error — nothing is wrong'))]);
   samples.forEach(function (s, i) {
     const m = s[1];

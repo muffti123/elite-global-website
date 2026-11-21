@@ -77,58 +77,73 @@ function renderCodeEmail_(code) {
 // ACTION: sendEmailCode
 // ---------------------------------------------------------------------
 function sendEmailCode_(d) {
-  const O = CONFIG.OTP;
   const email = vEmail_(d.email, 'email');
   const name = str_(d.name, CONFIG.LIMITS.NAME_MAX);
+  const bypass = testBypassOn_() && isTestLead_(name, email);
+  issueCode_(email, email, bypass, 'email');
+  console.log('sendEmailCode ' + (bypass ? 'test' : 'sent'));
+  return { ok: true, resendIn: CONFIG.OTP.RESEND_S };
+}
+
+/**
+ * Sends a new code to `email` with the shared rules (resend after 60 s, 5 per hour per email, global
+ * hourly cap). `scope` names the code — the email itself for Step 1, 'corr|<LeadID>|<email>' for a
+ * correction — so a Step 1 code can never confirm a correction and the other way round.
+ * bypass (staging TEST leads only): no email, the fixed test code.
+ */
+function issueCode_(scope, email, bypass, field) {
+  const O = CONFIG.OTP;
   const cache = CacheService.getScriptCache();
-  const key = otpKey_(email);
-  if (cache.get(key + '_W')) fail_('Please wait a minute before asking for another code.', 'email');
+  const key = otpKey_(scope);
+  if (cache.get(key + '_W')) fail_('Please wait a minute before asking for another code.', field);
   rateLimit_('otp:' + email, O.HOURLY_MAX, 3600,
     'You have asked for ' + O.HOURLY_MAX + ' codes in the last hour. Please wait a while, or contact us on WhatsApp.');
   rateLimit_('otp:all', O.GLOBAL_HOURLY, 3600,
     'We cannot send codes right now. Please try again later, or contact us on WhatsApp.');
 
-  const bypass = testBypassOn_() && isTestLead_(name, email);
   const code = bypass ? O.TEST_CODE : newCode_();
   if (!bypass) {
     const m = renderCodeEmail_(code);
     const r = sendEmail_({ to: email, kind: 'code', urgent: true, subject: m.subject, html: m.html, text: m.text });
-    if (r !== 'ok') fail_('We could not send the code right now. Please try again in a few minutes, or contact us on WhatsApp.', 'email');
+    if (r !== 'ok') fail_('We could not send the code right now. Please try again in a few minutes, or contact us on WhatsApp.', field);
   }
-  cache.put(key, JSON.stringify({ h: codeHash_(code, email), x: Date.now() + O.TTL_S * 1000, n: 0 }), O.TTL_S);
+  cache.put(key, JSON.stringify({ h: codeHash_(code, scope), x: Date.now() + O.TTL_S * 1000, n: 0 }), O.TTL_S);
   cache.put(key + '_W', '1', O.RESEND_S);
-  console.log('sendEmailCode ' + (bypass ? 'test' : 'sent'));
-  return { ok: true, resendIn: O.RESEND_S };
 }
 
 // ---------------------------------------------------------------------
 // ACTION: verifyEmailCode
 // ---------------------------------------------------------------------
 function verifyEmailCode_(d) {
-  const O = CONFIG.OTP;
   const email = vEmail_(d.email, 'email');
-  const code = String(d.code === undefined || d.code === null ? '' : d.code).replace(/\s/g, '');
+  checkCode_(email, d.code, 'verifyEmailCode');
+  console.log('verifyEmailCode ok');
+  return { ok: true, token: makeEmailToken_(email) };
+}
+
+/** Checks a code for `scope` (see issueCode_). Wrong, expired and the 5th wrong attempt fail; a correct code is used up. */
+function checkCode_(scope, raw, logName) {
+  const O = CONFIG.OTP;
+  const code = String(raw === undefined || raw === null ? '' : raw).replace(/\s/g, '');
   if (!/^\d{6}$/.test(code)) fail_('Please enter the 6-digit code from the email.', 'code');
   const cache = CacheService.getScriptCache();
-  const key = otpKey_(email);
+  const key = otpKey_(scope);
   let entry = null;
   try { entry = JSON.parse(cache.get(key) || 'null'); } catch (e) { entry = null; }
   if (!entry || Date.now() > entry.x) { cache.remove(key); fail_(OTP_EXPIRED, 'code'); }
-  if (entry.h !== codeHash_(code, email)) {
+  if (entry.h !== codeHash_(code, scope)) {
     entry.n += 1;
     if (entry.n >= O.ATTEMPTS) {
       cache.remove(key);
-      console.log('verifyEmailCode locked');
+      console.log(logName + ' locked');
       fail_('Too many wrong attempts. Please request a new code.', 'code');
     }
     cache.put(key, JSON.stringify(entry), Math.max(1, Math.ceil((entry.x - Date.now()) / 1000)));
-    console.log('verifyEmailCode wrong');
+    console.log(logName + ' wrong');
     const left = O.ATTEMPTS - entry.n;
     fail_(OTP_WRONG + ' (' + left + (left === 1 ? ' attempt' : ' attempts') + ' left)', 'code');
   }
   cache.remove(key);
-  console.log('verifyEmailCode ok');
-  return { ok: true, token: makeEmailToken_(email) };
 }
 
 // ---------------------------------------------------------------------

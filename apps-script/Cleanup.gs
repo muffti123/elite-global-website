@@ -12,7 +12,7 @@ function cleanupTestData() {
   const isTest = function (name) { return /^\s*'?TEST/i.test(String(name || '')); };
   const ss = trackerSS_();
   const testIds = {};
-  const removed = { tracker: 0, visa: 0, passengers: 0, custom: 0, contact: 0, folders: 0, uploads: 0, legacy: 0, emails: 0 };
+  const removed = { tracker: 0, visa: 0, passengers: 0, custom: 0, contact: 0, folders: 0, uploads: 0, corrections: 0, legacy: 0, emails: 0 };
 
   // 1. Lead Tracker — remember the Lead IDs of TEST leads
   const tr = ss.getSheetByName(CONFIG.TRACKER_TAB);
@@ -72,6 +72,8 @@ function cleanupTestData() {
     if (getUploadState_(id)) { deleteUploadState_(id); removed.uploads++; }
   });
   removed.uploads += purgeStaleUploads_();
+  // … and unfinished corrections of TEST leads, then expired ones (pending files → Drive bin)
+  removed.corrections = purgeStaleCorrections_(testIds);
 
   // 5. Retired Google Forms + their response sheets (only if they still exist)
   removed.legacy = cleanupLegacyForms_(isTest);
@@ -84,7 +86,7 @@ function cleanupTestData() {
 
   Logger.log('Removed TEST data — tracker rows: ' + removed.tracker + ', visa applications: ' + removed.visa + ', visa passengers: ' + removed.passengers +
     ', custom requests: ' + removed.custom + ', contact enquiries: ' + removed.contact +
-    ', visa folders moved to bin: ' + removed.folders + ', upload states: ' + removed.uploads +
+    ', visa folders moved to bin: ' + removed.folders + ', upload states: ' + removed.uploads + ', correction states: ' + removed.corrections +
     ', retired-form records: ' + removed.legacy + ', email log/queue rows: ' + removed.emails + '.');
 }
 

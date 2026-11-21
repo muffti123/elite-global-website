@@ -52,6 +52,8 @@ tr.validation[24] = tr.validation[23]; tr.validation[25] = tr.validation[23]; //
 ctx.upgradeTracker_(ss);
 ok('setup repairs a copied dropdown on Review Updated / Last Customer Email (Review Status keeps it)', !tr.validation[24] && !tr.validation[25] && tr.validation[23] && tr.validation[23].list.length === 7);
 ok('v5: Review Status, Review Updated, Last Customer Email appended W–Y (Review Status has its note)', head.slice(22, 25).join('|') === 'Review Status|Review Updated|Last Customer Email' && /emailed once the status has stayed the same for 5 minutes/.test((tr.notes || {})['1,23']), head.slice(22).join('|'));
+ok('v6: Correction For appended as column Z with its own dropdown (7 choices), help text and note', head[25] === 'Correction For' && tr.validation[26] && tr.validation[26].list.join('|') === C.CORRECTION_FOR.join('|') &&
+  C.CORRECTION_FOR.length === 7 && /what the customer should correct/.test(tr.validation[26].help) && /correction page/.test((tr.notes || {})['1,26']), head.slice(25).join('|'));
 ok('first 15 columns and Lead IDs unchanged', H2.every((h, i) => tr.get(1, i + 1) === h) && [2, 3, 4].map((r) => tr.get(r, 1)).join() === 'EG-VO-00001,EG-CE-00002,EG-GE-00003');
 ok('old notes kept as they were', tr.get(3, 14) === staffNote && /^\[Complete/.test(tr.get(2, 14)));
 const row = (r) => [16, 17, 18, 19, 20, 21].map((c) => tr.get(r, c));
@@ -64,7 +66,7 @@ tr.set(4, 17, 'Typed by staff');
 ctx.upgradeTracker_(ss);
 ok('re-run keeps staff-entered values', tr.get(4, 17) === 'Typed by staff');
 
-ok('schema version 5', C.SCHEMA_VERSION === '5');
+ok('schema version 6', C.SCHEMA_VERSION === '6');
 ok('health check reports the stored schema', (() => { props.SCHEMA_VERSION = '5'; return JSON.parse(ctx.doGet()).schema === 5; })());
 
 // --- Email Log spreadsheet + settings + triggers (setup pieces), twice ---------------------------
@@ -164,7 +166,7 @@ const resetLimits = () => Object.keys(g.cache).forEach((k) => delete g.cache[k])
 const track = (leadId, contact) => { resetLimits(); return ctx.trackApplication_({ leadId, contact }); };
 const trackRaw = (leadId, contact) => ctx.trackApplication_({ leadId, contact });
 const NF = JSON.stringify({ ok: false, error: C.TRACK.NOT_FOUND });
-const ALLOWED = ['ok', 'leadId', 'service', 'received', 'stage', 'description', 'nextStep', 'message', 'upload'];
+const ALLOWED = ['ok', 'leadId', 'service', 'received', 'stage', 'description', 'nextStep', 'message', 'upload', 'session', 'canCorrect'];
 const colOf = (h) => ctx.trackerCols_(tr)[h];
 const setCell = (id, h, v) => tr.set(ctx.findLeadRow_(tr, id), colOf(h), v);
 
@@ -221,6 +223,7 @@ const tlogs = logs.filter((l) => /^trackApplication/.test(l));
 ok('logs: only found / not-found / limited — never the contact or a missed ID', tlogs.length > 10 && tlogs.every((l) => /^trackApplication (found|not-found|limited)$/.test(l)), [...new Set(tlogs)].join(' | '));
 
 require('./test-email')(g, ok, { v, vd, v2, cu, c1, tok, future, track, setCell, colOf, tr, elog });
+require('./test-correction')(g, ok, { tok, future, setCell, colOf, tr, b64 });
 
 // --- cleanup -----------------------------------------------------------------------------------
 ctx.cleanupTestData();
