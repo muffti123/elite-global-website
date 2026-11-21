@@ -96,7 +96,8 @@ window.EG = window.EG || {};
             sendBtn.hidden = true;
             codeIn.value = '';
             EG.setInvalid(sendBtn, false);
-            say('ok', 'We\'ve sent a 6-digit code to <b>' + EG.escapeHtml(addr) + '</b>. It is valid for 30 minutes.' + spamHelp());
+            say('ok', 'We\'ve sent a 6-digit code to <b>' + EG.escapeHtml(addr) + '</b>. It is valid for 30 minutes.<br>' +
+              '<span class="inbox-note" data-inbox-note>' + EG.inboxNote() + '</span>');
             countdown(res.resendIn || RESEND_S);
             codeIn.focus();
             return;

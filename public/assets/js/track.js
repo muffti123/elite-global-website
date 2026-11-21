@@ -36,6 +36,10 @@
 
   function showStatus(type, html) { status.className = 'status ' + type; status.innerHTML = html; }
 
+  // Deliverability note (WhatsApp link from SITE_CONFIG)
+  var inbox = $('[data-inbox-note]');
+  if (inbox) inbox.innerHTML = EG.inboxNote('We email you about every update.');
+
   var STAGE_TONE = {
     'Confirmed': 'ok', 'Closed': 'closed', 'Upload not finished': 'warn', 'Waiting for your reply': 'warn', 'Awaiting payment': 'warn',
     // visa review stages

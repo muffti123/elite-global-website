@@ -341,3 +341,12 @@ form.track-form{display:grid;grid-template-columns:1fr;gap:16px}
 @media (max-width:420px){.verify-code{grid-template-columns:1fr}.verify-code .btn{width:100%}}
 .stage-badge[data-tone="action"]{background:#ffe9d6;color:#8a3a00}
 .staff-msg.action{border-left:4px solid var(--gold);background:#fff8e6}
+/* Pick-only dropdowns (data-combobox="select") */
+.cb-select .cb-input{cursor:pointer;caret-color:transparent}
+.cb-select .cb-input::selection{background:transparent}
+.cb-input::placeholder{color:#6b7489;font-weight:400}
+/* Deliverability note ("check Spam/Junk or Promotions") */
+.inbox-note{display:block;font-size:14px;line-height:1.55;color:var(--muted)}
+.inbox-note a{color:#8a5a00;font-weight:700;text-decoration:underline}
+.verify-status .inbox-note{margin-top:6px}
+.track-inbox{max-width:720px;margin:14px auto 0;text-align:center}

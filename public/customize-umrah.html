@@ -95,8 +95,8 @@
 <div class="grid2">
 <label class="field">Preferred Duration in Madinah (nights)<input name="nightsMadinah" type="number" inputmode="numeric" min="0" max="999" step="1" placeholder="0"><span class="help">Number of nights you would like to spend in Madinah. Enter 0 if none.</span><span class="err-msg" id="e-nightsMadinah">Please enter a whole number of 0 or more.</span></label>
 <label class="field">Preferred Duration in Makkah (nights)<input name="nightsMakkah" type="number" inputmode="numeric" min="0" max="999" step="1" placeholder="0"><span class="help">Number of nights you would like to spend in Makkah. Enter 0 if none.</span><span class="err-msg" id="e-nightsMakkah">Please enter a whole number of 0 or more.</span></label>
-<label class="field">Preferred Hotel Category<select name="hotelCategory" data-list="HOTEL_CAT" data-placeholder="Select a category"></select><span class="err-msg" id="e-hotelCategory">Please choose a hotel category.</span></label>
-<label class="field">Preferred Distance from Haram<select name="haramDistance" data-list="HARAM_DIST" data-placeholder="Select a distance"></select><span class="err-msg" id="e-haramDistance">Please choose a distance from the Haram.</span></label>
+<label class="field">Preferred Hotel Category<select data-combobox="select" name="hotelCategory" data-list="HOTEL_CAT" data-placeholder="Select a category"></select><span class="err-msg" id="e-hotelCategory">Please choose a hotel category.</span></label>
+<label class="field">Preferred Distance from Haram<select data-combobox="select" name="haramDistance" data-list="HARAM_DIST" data-placeholder="Select a distance"></select><span class="err-msg" id="e-haramDistance">Please choose a distance from the Haram.</span></label>
 <label class="field full">Preferred Hotel <span class="opt">(optional)</span><input name="preferredHotel" maxlength="100" placeholder="Name of a specific hotel, if any"></label>
 </div>
 </div>
@@ -116,19 +116,19 @@
 <div class="panel step" data-title="Visa &amp; Budget">
 <h2>Visa and Budget Preferences</h2><p class="lead">This helps us prepare the right proposal for you.</p>
 <fieldset class="field"><legend>Do you require Umrah visa assistance?</legend><div class="choices" data-choices="visaAssist" data-list="VISA_ASSIST"></div><span class="err-msg" id="e-visaAssist">Please choose an option.</span></fieldset>
-<label class="field" style="display:block;margin-top:16px">What is your estimated budget per person?<select name="budget" data-list="BUDGET" data-placeholder="Select a budget"></select><span class="err-msg" id="e-budget">Please choose a budget.</span></label>
+<label class="field" style="display:block;margin-top:16px">What is your estimated budget per person?<select data-combobox="select" name="budget" data-list="BUDGET" data-placeholder="Select a budget"></select><span class="err-msg" id="e-budget">Please choose a budget.</span></label>
 </div>
 
 <!-- 6. Travel Experience, Special Requests and Lead Source -->
 <div class="panel step" data-title="Experience &amp; Requests">
 <h2>Travel Experience and Special Requests</h2><p class="lead">All questions on this step are optional.</p>
 <div class="grid2">
-<label class="field">Preferred Travel Experience <span class="opt">(optional)</span><select name="experience" data-list="EXPERIENCE" data-placeholder="Select an option"></select></label>
+<label class="field">Preferred Travel Experience <span class="opt">(optional)</span><select data-combobox="select" name="experience" data-list="EXPERIENCE" data-placeholder="Select an option"></select></label>
 <label class="field">Preferred Hotel or Airline <span class="opt">(optional)</span><input name="hotelOrAirline" maxlength="100"></label>
 <label class="field full">Special Requests / Additional Information <span class="opt">(optional)</span><textarea name="special" maxlength="2000"></textarea></label>
 </div>
 <h3>Lead Source</h3>
-<label class="field" style="display:block;max-width:420px">How did you hear about Elite Global? <span class="opt">(optional)</span><select name="heard" data-list="HEARD" data-placeholder="Select an option"></select></label>
+<label class="field" style="display:block;max-width:420px">How did you hear about Elite Global? <span class="opt">(optional)</span><select data-combobox="select" name="heard" data-list="HEARD" data-placeholder="Select an option"></select></label>
 </div>
 
 <!-- 7. Review -->
@@ -154,7 +154,7 @@
 <div class="ref" id="leadId" data-lead-id></div>
 <p>Our travel consultants will review your preferences and contact you to discuss the best arrangements for your journey. Please quote your reference number when we contact you.</p>
 <p>We look forward to being part of your Umrah experience.</p>
-<p class="emailed-note" data-emailed hidden>We've emailed you a confirmation (check your spam folder).</p>
+<p class="emailed-note inbox-note" data-emailed data-inbox-note hidden>We've emailed you. If it isn't in your inbox within 5 minutes, check Spam/Junk or Promotions and mark it 'Not spam' — or message us on WhatsApp.</p>
 <div class="success-actions"><a class="btn btn-gold" href="track.html" data-track-link>Track this application</a><a class="btn btn-outline" href="index.html">Back to home</a></div>
 </div>
 </div></section>

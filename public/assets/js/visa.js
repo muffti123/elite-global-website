@@ -65,6 +65,7 @@
     p.el = node;
     var nameIn = node.querySelector('[data-name]'), cat = node.querySelector('[data-category]');
     EG.fillSelect(cat, LISTS.PASSENGER_CATEGORIES, 'Select category');
+    EG.combobox(cat); // brand dropdown (pick-only), same as every other select
     $$('.err-msg', node).forEach(function (m, i) { m.id = 'pax' + p.id + '-err' + i; });
     nameIn.addEventListener('input', function () { p.name = nameIn.value; if (nameIn.value.trim().length >= 2) EG.setInvalid(nameIn, false); });
     cat.addEventListener('change', function () { p.category = cat.value; if (cat.value) EG.setInvalid(cat, false); });
@@ -724,7 +725,9 @@
 
   function finish(leadId, emailed) {
     state.phase = 'done';
-    $('[data-emailed]').hidden = emailed !== true;
+    var note = $('[data-emailed]');
+    note.innerHTML = EG.inboxNote(); // with the WhatsApp link
+    note.hidden = emailed !== true;
     urls.forEach(function (u) { URL.revokeObjectURL(u); });
     urls.clear();
     var n = state.pax.length;

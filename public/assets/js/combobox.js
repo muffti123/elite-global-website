@@ -4,6 +4,10 @@
  * of truth: its value is what is validated and sent, and its options can change at any time
  * (e.g. the airport list when the country changes). Typing filters the options (accents and case
  * ignored: "cote" finds "Côte d'Ivoire"); ↑/↓ move, Enter chooses, Esc closes / restores.
+ * <select data-combobox="select"> is pick-only (short lists): no typing or phone keyboard, a letter
+ * jumps to the first option starting with it.
+ * Choosing an option (click, tap or Enter) closes the list, shows the value and moves focus to the
+ * next field. Esc, Tab and a click outside also close it.
  */
 window.EG = window.EG || {};
 (function () {
@@ -30,6 +34,13 @@ window.EG = window.EG || {};
     input.setAttribute('autocomplete', 'off');
     input.setAttribute('autocapitalize', 'none');
     input.setAttribute('spellcheck', 'false');
+    var pickOnly = select.getAttribute('data-combobox') === 'select';
+    if (pickOnly) {
+      input.readOnly = true;
+      input.setAttribute('inputmode', 'none');
+      input.setAttribute('aria-autocomplete', 'none');
+      wrap.className += ' cb-select';
+    }
     var toggle = document.createElement('button');
     toggle.type = 'button';
     toggle.className = 'cb-toggle';
@@ -88,7 +99,11 @@ window.EG = window.EG || {};
         li._opt = o;
         li._key = norm(o.textContent + ' ' + (o.getAttribute('data-keywords') || ''));
         li.addEventListener('mousedown', function (e) { e.preventDefault(); }); // keep focus in the input
-        li.addEventListener('click', function () { choose(li); });
+        li.addEventListener('click', function (e) {
+          // The combobox sits inside a <label>: without this the click is passed on to the input and reopens the list
+          e.preventDefault(); e.stopPropagation();
+          choose(li, true);
+        });
         list.appendChild(li);
         return li;
       });
@@ -143,7 +158,7 @@ window.EG = window.EG || {};
       wrap.classList.remove('open');
       input.removeAttribute('aria-activedescendant');
     }
-    function choose(li) {
+    function choose(li, advance) {
       var changed = select.value !== li._opt.value;
       select.value = li._opt.value;
       self.sync();
@@ -152,6 +167,16 @@ window.EG = window.EG || {};
         select.dispatchEvent(new Event('input', { bubbles: true }));
         select.dispatchEvent(new Event('change', { bubbles: true }));
       }
+      if (advance) focusNext();
+    }
+    /** Moves focus to the next visible field after this one (choosing an option "moves on"). */
+    function focusNext() {
+      var scope = input.form || document;
+      var all = Array.prototype.filter.call(scope.querySelectorAll('input,select,textarea,button,a[href],[tabindex]'), function (el) {
+        return el === input || (el.tabIndex >= 0 && !el.disabled && el.type !== 'hidden' && el.getClientRects().length > 0);
+      });
+      var next = all[all.indexOf(input) + 1];
+      if (next) next.focus(); else input.blur();
     }
     /** On leaving: an exact (normalised) match is chosen; anything else reverts to the current value. */
     function commit() {
@@ -169,9 +194,13 @@ window.EG = window.EG || {};
       close();
     }
 
-    input.addEventListener('input', function () { open(input.value); });
-    input.addEventListener('focus', function () { input.select(); });
-    input.addEventListener('click', function () { if (list.hidden) open(); });
+    input.addEventListener('input', function () { if (!pickOnly) open(input.value); });
+    input.addEventListener('focus', function () { if (!pickOnly) input.select(); });
+    input.addEventListener('click', function () { if (list.hidden) open(); else if (pickOnly) close(); });
+    // A click or tap anywhere outside closes the list
+    document.addEventListener('pointerdown', function (e) {
+      if (!list.hidden && !wrap.contains(e.target)) { self.sync(); close(); }
+    });
     input.addEventListener('keydown', function (e) {
       switch (e.key) {
         case 'ArrowDown':
@@ -186,15 +215,28 @@ window.EG = window.EG || {};
           if (!list.hidden && shown.length) { e.preventDefault(); setActive(e.key === 'Home' ? 0 : shown.length - 1); }
           break;
         case 'Enter':
-          if (!list.hidden && shown[active]) { e.preventDefault(); e.stopPropagation(); choose(shown[active]); }
+          if (!list.hidden && shown[active]) { e.preventDefault(); e.stopPropagation(); choose(shown[active], true); }
+          break;
+        case ' ':
+          if (pickOnly) { e.preventDefault(); if (list.hidden) open(); else if (shown[active]) choose(shown[active], true); }
           break;
         case 'Escape':
           if (!list.hidden) { e.preventDefault(); e.stopPropagation(); self.sync(); close(); }
           else if (input.value) { e.preventDefault(); self.sync(); }
           break;
         case 'Tab':
-          if (!list.hidden && shown[active] && norm(input.value) && norm(input.value) !== norm(selectedText())) choose(shown[active]);
+          if (!pickOnly && !list.hidden && shown[active] && norm(input.value) && norm(input.value) !== norm(selectedText())) choose(shown[active]);
+          close();
           break;
+        default:
+          // pick-only: a letter jumps to the first option starting with it
+          if (pickOnly && e.key.length === 1 && /\S/.test(e.key) && !e.ctrlKey && !e.metaKey && !e.altKey) {
+            if (list.hidden) open();
+            var k = norm(e.key);
+            var at = shown.findIndex(function (li, i) { return i > active && li._key.indexOf(k) === 0; });
+            if (at < 0) at = shown.findIndex(function (li) { return li._key.indexOf(k) === 0; });
+            if (at >= 0) setActive(at);
+          }
       }
     });
     input.addEventListener('blur', function () { setTimeout(function () { if (document.activeElement !== input) commit(); }, 0); });

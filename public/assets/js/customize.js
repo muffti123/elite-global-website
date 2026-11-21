@@ -188,7 +188,9 @@
 
   function showSuccess(leadId, emailed) {
     done = true;
-    $('[data-emailed]').hidden = emailed !== true;
+    var note = $('[data-emailed]');
+    note.innerHTML = EG.inboxNote(); // with the WhatsApp link
+    note.hidden = emailed !== true;
     form.hidden = true;
     $('#stepper').hidden = true;
     $('#stepLabel').hidden = true;
