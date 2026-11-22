@@ -25,12 +25,16 @@ const ACTIONS = {
   loadCorrection: loadCorrection_,
   uploadCorrectionFile: uploadCorrectionFile_,
   submitCorrection: submitCorrection_,
+  sendVisaCode: sendVisaCode_,
+  verifyVisaCode: verifyVisaCode_,
+  listVisaFiles: listVisaFiles_,
+  downloadVisaFile: downloadVisaFile_,
 };
 
 /**
  * Health check: opening the web app URL in a browser shows {"ok":true,...}.
  * schema = SCHEMA_VERSION written by setupEliteGlobal (3 = v3 columns + Visa Applications tab;
- * 4 = Message to Customer column; 5 = Review Status, Review Updated, Last Customer Email; 6 = Correction For).
+ * 4 = Message to Customer column; 5 = Review Status, Review Updated, Last Customer Email; 6 = Correction For; 7 = Visa Files + Approved Visa folders).
  */
 function doGet() {
   const schema = Number(PropertiesService.getScriptProperties().getProperty('SCHEMA_VERSION') || 0);
@@ -62,7 +66,8 @@ function doPost(e) {
       if (err.missing) out.missing = err.missing;
       if (err.reverify) out.reverify = true; // email token missing/expired: confirm the email again
       if (err.relogin) out.relogin = true;   // Track session ended: look up the application again
-      if (err.restart) out.restart = true;   // correction token ended: start again from the Track page
+      if (err.restart) out.restart = true;   // correction / download token ended: start again from the Track page
+      if (err.relist) out.relist = true;     // visa download: the file list changed, show it again
       return json_(out);
     }
     // Unexpected: log the error class only — never the request (it may hold passport data).
@@ -81,7 +86,7 @@ function honeypotReply_(action) {
   if (action === 'sendEmailCode') return { ok: true, resendIn: CONFIG.OTP.RESEND_S };        // nothing is sent
   if (action === 'verifyEmailCode') return { ok: false, error: OTP_WRONG, field: 'code' };
   if (action === 'endTrackSession') return { ok: true };
-  if (CORRECTION_ACTIONS.indexOf(action) !== -1) return { ok: false, error: SESSION_ENDED, relogin: true };
+  if (CORRECTION_ACTIONS.indexOf(action) !== -1 || VISA_ACTIONS.indexOf(action) !== -1) return { ok: false, error: SESSION_ENDED, relogin: true };
   const fake = 'EG-' + (action === 'submitContact' ? 'GE' : action === 'submitCustomRequest' ? 'CE' : 'VO') +
     '-' + ('0000' + Math.floor(Math.random() * 99999)).slice(-5);
   return action === 'createVisaApplication'

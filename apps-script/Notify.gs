@@ -289,6 +289,8 @@ function sendConfirmation_(lead) {
 const REVIEW_EMAIL_NEXT = {
   'Correction Needed': 'Use the button below: look up your application with your email or phone number, then choose ' +
     '“Make the correction”. You can also reply to this email or message us on WhatsApp.',
+  'Visa Approved': 'Use the button below: look up your application with your email or phone number, then choose ' +
+    '“Download your visa”. Our team will also contact you about the next steps.',
 };
 const REVIEW_INTRO = {
   'Under Review': 'Your Umrah visa application is now being reviewed by our team.',
@@ -300,18 +302,28 @@ const REVIEW_INTRO = {
   'Not Approved / Closed': 'There is an update on your visa application: it has been closed.',
 };
 
-function renderStatusEmail_(lead, status, message) {
+/**
+ * visa (Visa Approved only): {attach: true, count} → "attached" line; {tooLarge: true} → the too-large line.
+ * Visa Approved always has the gold "Download your visa" button (Track page link, no token).
+ */
+function renderStatusEmail_(lead, status, message, visa) {
   const st = CONFIG.TRACK.REVIEW[status];
   const action = status === 'Correction Needed';
+  const approved = status === 'Visa Approved';
+  const paragraphs = ['Dear ' + lead.name + ',', REVIEW_INTRO[status]];
+  if (approved && visa && visa.attach) {
+    paragraphs.push('Your visa is attached to this email' + (visa.count > 1 ? ' (' + visa.count + ' files)' : '') +
+      '. You can also download it at any time from the Track page.');
+  } else if (approved && visa && visa.tooLarge) paragraphs.push(VISA_TOO_LARGE_NOTE);
   return renderEmail_({
     subject: 'Elite Global — ' + (action ? 'Your visa application needs a correction' : 'Visa application update: ' + st[0]) + ' (' + lead.leadId + ')',
     preheader: st[1],
     heading: action ? 'We need a correction' : st[0],
-    paragraphs: ['Dear ' + lead.name + ',', REVIEW_INTRO[status]],
+    paragraphs: paragraphs,
     box: message ? { title: action ? 'What we need from you' : 'Message from our team', text: message } : null,
     rows: [['Reference number', lead.leadId], ['Status', st[0]], ['Next step', REVIEW_EMAIL_NEXT[status] || st[2]]],
     // Correction Needed: the customer fixes it on the website (Track page → Make the correction). No token in the link.
-    button: { label: action ? 'Fix my application' : 'Track your application', url: trackUrl_(lead.leadId) },
+    button: { label: action ? 'Fix my application' : approved ? 'Download your visa' : 'Track your application', url: trackUrl_(lead.leadId) },
     small: contactSmall_(),
   });
 }
@@ -355,10 +367,17 @@ function processReviewEmails_(deadline) {
     const status = String(get('Review Status') || '').trim();
     if (!leadId || String(get('Lead Category')) !== CONFIG.FORMS.VISA.category || !CONFIG.TRACK.REVIEW[status]) return;
     const lastEmail = String(get('Last Customer Email') || '');
+    const row = i + 2;
+    const emailed = lastEmail.indexOf('Status: ' + status + ' ·') !== -1;
+    // Visa Files is refreshed only while it matters: Visa Processing, or Visa Approved before its email
+    // (held or waiting). Afterwards it is recounted when the customer opens the download (and by setup).
+    let scan = null;
+    if ((status === 'Visa Processing' || (status === 'Visa Approved' && !emailed)) && Date.now() < deadline) {
+      scan = refreshVisaFiles_({ leadId: leadId, row: row }, false, sh, cols);
+    }
     // The customer's latest email is already about this status (sent, queued or skipped): nothing new to say.
     // A status is never emailed twice in a row; a new correction round needs another status in between.
-    if (lastEmail.indexOf('Status: ' + status + ' ·') !== -1) return;
-    const row = i + 2;
+    if (emailed) return;
     const updated = get('Review Updated');
     if (!(updated instanceof Date) || isNaN(updated)) { // the edit trigger missed it: start the window now
       sh.getRange(row, cols['Review Updated']).setValue(new Date());
@@ -379,6 +398,12 @@ function processReviewEmails_(deadline) {
       out.held++;
       return;
     }
+    const visaFiles = scan ? scan.files.length : Number(get('Visa Files')) || 0;
+    if (status === 'Visa Approved' && !visaFiles) {
+      decide(leadId, status, 'held', 'no visa file yet');
+      out.held++;
+      return;
+    }
     if (emailDone_(key)) { // emailed before (e.g. changed back to an earlier status)
       decide(leadId, status, 'not sent', 'this status was already emailed to this customer');
       return;
@@ -393,9 +418,18 @@ function processReviewEmails_(deadline) {
       out.skipped++;
       return;
     }
-    const m = renderStatusEmail_(lead, status, message);
+    const after = { lastEmail: 'Status: ' + status };
+    let visa = null;
+    if (status === 'Visa Approved') { // ATTACH_VISA: the files are attached at delivery (up to 15 MB together)
+      const on = settings_().attachVisa;
+      const total = scan ? scan.files.reduce(function (a, x) { return a + x.size; }, 0) : 0;
+      const tooLarge = on && total > CONFIG.VISA_DELIVERY.ATTACH_MAX;
+      visa = { attach: on && !tooLarge, tooLarge: tooLarge, count: visaFiles };
+      after.visa = { id: leadId, attach: visa.attach, why: !on ? 'ATTACH_VISA off' : tooLarge ? 'too large' : '' };
+    }
+    const m = renderStatusEmail_(lead, status, message, visa);
     const r = sendEmail_({ to: lead.email, kind: 'status', key: key, leadId: leadId, subject: m.subject, html: m.html,
-      text: m.text, after: { lastEmail: 'Status: ' + status } });
+      text: m.text, after: after });
     decide(leadId, status, r === 'ok' ? 'sent' : r, r === 'queued' ? 'waiting for email quota' : r === 'ok' ? 'emailed to the customer' : 'see the Email Log');
     if (r === 'ok') out.sent++;
     else if (r === 'queued') {
@@ -536,6 +570,10 @@ function collectSummary_() {
           waitingReview.push(id + ' — ' + status + ' since ' + fmtDate_(up));
         }
         if (status === 'Correction Needed' && !cleanMessage_(get('Message to Customer'))) held.push(id + ' — Correction Needed, Message to Customer is empty');
+        if (status === 'Visa Approved' && !(Number(get('Visa Files')) > 0) &&
+          String(get('Last Customer Email') || '').indexOf('Status: Visa Approved ·') === -1) {
+          held.push(id + ' — Visa Approved, no visa file yet in "Approved Visa"');
+        }
       }
       const ls = String(get('Lead Status') || '').trim();
       const rec = get('Date Received');
@@ -563,7 +601,7 @@ function renderSummary_(s) {
     paragraphs: ['Visa applications by Review Status:'],
     rows: rows,
     lists: [
-      { title: 'Held emails (Correction Needed without a Message to Customer)', items: cap(s.held) },
+      { title: 'Held emails (Correction Needed without a Message to Customer, Visa Approved without a visa file)', items: cap(s.held) },
       { title: 'Visa reviews waiting more than ' + CONFIG.EMAIL.WAIT_DAYS + ' days', items: cap(s.waitingReview) },
       { title: 'New leads not contacted for more than ' + CONFIG.EMAIL.WAIT_DAYS + ' days', items: cap(s.waitingNew) },
     ],
@@ -620,10 +658,15 @@ function sendEmailSamples() {
     ['confirmation (visa = received + under review)', renderConfirmation_(lead)],
     ['confirmation (customise)', renderConfirmation_(custom)],
   ];
+  const attach = {}; // sample index → SPECIMEN attachment
   CONFIG.REVIEW_STATUSES.forEach(function (st) {
     const msg = st === 'Correction Needed' ? 'Please upload a clearer passport photo with a plain white background.\nThe current photo is too dark.' :
-      st === 'Visa Approved' ? 'Your e-visa will be sent to you on WhatsApp today.' : '';
-    samples.push(['status: ' + st, renderStatusEmail_(lead, st, msg)]);
+      st === 'Visa Approved' ? 'Please check the names and passport numbers on your visa and tell us at once if anything is wrong.' : '';
+    if (st !== 'Visa Approved') { samples.push(['status: ' + st, renderStatusEmail_(lead, st, msg)]); return; }
+    samples.push(['status: Visa Approved (ATTACH_VISA off: Download button only)', renderStatusEmail_(lead, st, msg, { attach: false })]);
+    attach[samples.length] = [Utilities.newBlob(specimenVisaPdf_(1), 'application/pdf', visaFileName_(lead.leadId, 1, 1, 'PDF'))];
+    samples.push(['status: Visa Approved (ATTACH_VISA on: SPECIMEN visa attached)', renderStatusEmail_(lead, st, msg, { attach: true, count: 1 })]);
+    samples.push(['status: Visa Approved (ATTACH_VISA on, over 15 MB: not attached)', renderStatusEmail_(lead, st, msg, { tooLarge: true })]);
   });
   samples.push(['daily summary', renderSummary_(collectSummary_())]);
   samples.push(['staff alert (correction submitted)', renderCorrectionAlert_({ leadId: lead.leadId, name: lead.name, row: 2, correctionFor: 'Passport photo',
@@ -631,7 +674,8 @@ function sendEmailSamples() {
   samples.push(['error notice', renderErrorEmail_('sampleAction', new Error('Sample error — nothing is wrong'))]);
   samples.forEach(function (s, i) {
     const m = s[1];
-    const r = deliver_({ to: to, kind: 'sample', subject: '[SAMPLE ' + (i + 1) + '/' + samples.length + '] ' + m.subject, html: m.html, text: m.text });
+    const r = deliver_({ to: to, kind: 'sample', subject: '[SAMPLE ' + (i + 1) + '/' + samples.length + '] ' + m.subject, html: m.html, text: m.text,
+      attachments: attach[i] || null });
     Logger.log((r.result === 'ok' ? '✅ ' : '⚠️ ') + 'Sample ' + (i + 1) + ' — ' + s[0] + ': ' + r.result + (r.detail ? ' (' + r.detail + ')' : ''));
   });
 }

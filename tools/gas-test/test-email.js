@@ -81,6 +81,10 @@ module.exports = function (g, ok, t) {
   edit(v.leadId, 'Review Status', 'Verified');
   clock.offset += 6 * MIN; jobs(); jobs();
   ok('a status already emailed is never sent again (Verified twice → one email)', to('v@e.co').filter((m) => /Documents verified/.test(m.subject)).length === 1);
+  // Visa Approved waits for a file in "Approved Visa" (VisaDelivery.gs; tested in test-visa.js)
+  const giveVisa = (id) => ctx.approvedVisaFolder_(ctx.leadFolder_(ctx.trackRow_(id)), true)
+    .createFile(ctx.Utilities.newBlob(ctx.specimenVisaPdf_(1), 'application/pdf', 'visa.pdf'));
+  giveVisa(v.leadId); giveVisa(vd.leadId);
   const want = { 'Correction Received': 'Correction received', 'Visa Processing': 'Visa in processing', 'Visa Approved': 'Visa approved', 'Not Approved / Closed': 'Closed' };
   Object.keys(want).forEach((st) => { edit(v.leadId, 'Review Status', st); clock.offset += 6 * MIN; jobs(); });
   ok('every other Review Status emailed once with its wording', Object.keys(want).every((st) => to('v@e.co').filter((m) => m.subject.indexOf(want[st]) !== -1).length === 1),
@@ -296,15 +300,23 @@ module.exports = function (g, ok, t) {
   const nS = mail.outbox.length;
   ctx.sendEmailSamples();
   const samples = mail.outbox.slice(nS);
-  ok('sendEmailSamples: one of every email type to STAFF_EMAIL', samples.length === 16 && samples.every((m) => m.to === 'staff@example.org' && /^\[SAMPLE \d+\/16\] Elite Global — /.test(m.subject)), samples.length + '');
+  ok('sendEmailSamples: one of every email type to STAFF_EMAIL', samples.length === 18 && samples.every((m) => m.to === 'staff@example.org' && /^\[SAMPLE \d+\/18\] Elite Global — /.test(m.subject)), samples.length + '');
   ok('samples are not written to the Email Log', !logRows().some((r) => r[2] === 'sample'));
 
   // --- deliverability: every email type -----------------------------------------------------------
   const SITE = 'https://elite-global-staging.netlify.app';
   const subj = (m) => m.subject.replace(/^\[SAMPLE \d+\/\d+\] /, '');
   const visible = (h) => h.replace(/<style[\s\S]*?<\/style>/g, ' ').replace(/<[^>]+>/g, ' ').replace(/&[a-z#0-9]+;/gi, ' ');
-  const customer = [0, 4, 5, 6, 7, 8, 9, 10, 11, 12].map((i) => samples[i]);
-  const staffMail = [1, 2, 3, 13, 14, 15].map((i) => samples[i]);
+  const customer = [0, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14].map((i) => samples[i]);
+  const staffMail = [1, 2, 3, 15, 16, 17].map((i) => samples[i]);
+  const va = samples.slice(11, 14);
+  const dl = /<td style="border-radius:9px;background:#F5AE00"><a href="https:\/\/elite-global-staging\.netlify\.app\/track\.html\?id=EG-VO-01234"[^>]*>Download your visa<\/a>/;
+  ok('samples: Visa Approved with the gold "Download your visa" button (Track link only) in all 3 versions', va.length === 3 && va.every((m) => /Visa approved/.test(m.subject) && dl.test(m.htmlBody) &&
+    /Download your visa: https:\/\/elite-global-staging\.netlify\.app\/track\.html\?id=EG-VO-01234\n/.test(m.body)), va.map((m) => m.subject).join(' | '));
+  ok('samples: button only (no attachment) · SPECIMEN PDF attached · too large → "please download it from the Track page"',
+    !va[0].attachments && !/attached/.test(va[0].body) &&
+    va[1].attachments && va[1].attachments.length === 1 && va[1].attachments[0].getName() === 'EG-VO-01234 – Visa 1 of 1.pdf' && /Your visa is attached to this email/.test(va[1].body) &&
+    !va[2].attachments && /Your visa is too large to attach — please download it from the Track page\./.test(va[2].body));
   ok('every email has an HTML and a plain-text version (no tags in the text)', samples.every((m) => m.htmlBody && m.body && m.body.length > 200 && !/<\/?(p|a|div|table|tr|td|br|b|img|h1|ul|li|span)\b/i.test(m.body)));
   ok('sender name "Elite Global World Travel & Tours", Reply-To = company email', samples.every((m) => m.name === 'Elite Global World Travel & Tours' && m.replyTo === 'eliteglobaltravelsng@gmail.com'));
   const caps = samples.map((m) => (subj(m) + ' ' + visible(m.htmlBody) + ' ' + m.body).replace(/https?:\/\/\S+/g, ' ').match(/\b[A-Z]{4,}\b/g) || []).flat();

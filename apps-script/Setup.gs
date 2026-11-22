@@ -21,6 +21,7 @@
  *   checkRecentEmailJobs() – the last 20 review-email decisions (sent / waiting / held / …), no personal data
  *   enableTestOtpBypass() / disableTestOtpBypass() – STAGING ONLY: fixed email code for TEST names @example.com
  *   testRequestCorrection() – STAGING ONLY: sets Correction Needed on the newest TEST visa lead (@example.com)
+ *   testApproveVisa()    – STAGING ONLY: SPECIMEN visa files + Visa Approved on the newest TEST visa lead (@example.com)
  *   resetSetupFlag()     – ⚠️ forgets every stored ID (only after deleting the Drive folder)
  * =====================================================================
  */
@@ -59,6 +60,7 @@ function setupEliteGlobal() {
   p.setProperty('TRACKER_ID', ss.getId());
   upgradeTracker_(ss);
   if (p.getProperty('LEAD_SEQ') === null) p.setProperty('LEAD_SEQ', '0');
+  setupVisaDelivery_(); // "Approved Visa" in every visa lead folder + Visa Files recount (schema 7)
 
   // 4. Retire the Google Forms system
   removeLegacyTriggers_();

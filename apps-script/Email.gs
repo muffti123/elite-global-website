@@ -34,6 +34,7 @@ function settings_() {
     provider: get('EMAIL_PROVIDER', 'mailapp').toLowerCase() === 'brevo' ? 'brevo' : 'mailapp',
     brevoKey: get('BREVO_API_KEY', ''),
     senderEmail: get('SENDER_EMAIL', ''),
+    attachVisa: get('ATTACH_VISA', 'off').toLowerCase() === 'on', // Visa Approved email attaches the visa
   };
 }
 
@@ -125,6 +126,8 @@ function showNotifySettings() {
     '\n  EMAIL_PROVIDER   ' + s.provider +
     '\n  BREVO_API_KEY    ' + (s.brevoKey ? 'set' : 'not set') +
     '\n  SENDER_EMAIL     ' + (s.senderEmail || '(not set)') +
+    '\n  ATTACH_VISA      ' + (s.attachVisa ? 'on (the Visa Approved email attaches the visa files, up to 15 MB together)'
+      : 'off (the Visa Approved email has the Download button only; set ATTACH_VISA = on to attach)') +
     '\n  TEST_OTP_BYPASS  ' + (testBypassOn_() ? 'on (staging tests only)' : 'off') +
     '\n  MailApp quota left today: ' + quota +
     '\n  Email queue: ' + emailQueueCount_() + ' waiting');
@@ -213,7 +216,7 @@ function sendEmail_(m) {
     if (!m.to) return logEmail_(m, 'skipped', 'no recipient');
     if (m.key && emailDone_(m.key)) { console.log('email ' + m.kind + ' duplicate'); return 'duplicate'; }
     const r = deliver_(m);
-    if (r.result === 'ok') { afterSend_(m); return logEmail_(m, 'ok', ''); }
+    if (r.result === 'ok') { afterSend_(m); return logEmail_(m, 'ok', r.detail || ''); }
     if (r.result === 'queue') {
       if (m.urgent) return logEmail_(m, 'unavailable', r.detail);
       enqueueEmail_(m, r.detail);
@@ -225,10 +228,24 @@ function sendEmail_(m) {
   }
 }
 
-/** Sends through the configured provider. Returns {result: 'ok'|'queue'|'failed', detail}. */
+/**
+ * Sends through the configured provider. Returns {result: 'ok'|'queue'|'failed', detail}.
+ * Attachments: m.attachments (blobs, samples only), or m.after.visa = {id, attach, why} (Visa Approved
+ * email): the visa files are read from Drive at delivery, so the queue never holds file contents.
+ * Only "attached N files" / "not attached (…)" is ever logged about them.
+ */
 function deliver_(m) {
   const s = settings_();
   const C = CONFIG.COMPANY_INFO;
+  let atts = m.attachments || null;
+  let note = '';
+  const v = m.after && m.after.visa;
+  if (!atts && v) {
+    if (v.attach) { const a = visaAttachments_(v.id); atts = a.blobs; note = a.detail; }
+    else note = 'not attached (' + (v.why || 'ATTACH_VISA off') + ')';
+  }
+  if (atts && !atts.length) atts = null;
+  const ok = { result: 'ok', detail: note };
   if (s.provider === 'brevo') {
     if (!s.brevoKey || !s.senderEmail) return { result: 'queue', detail: 'Brevo not configured' };
     const payload = {
@@ -237,6 +254,7 @@ function deliver_(m) {
       replyTo: { email: C.email, name: CONFIG.EMAIL.SENDER_NAME },
       subject: m.subject, htmlContent: m.html, textContent: m.text,
     };
+    if (atts) payload.attachment = atts.map(function (b) { return { name: b.getName(), content: Utilities.base64Encode(b.getBytes()) }; });
     for (let attempt = 0; attempt < 2; attempt++) {
       let code = 0;
       try {
@@ -246,7 +264,7 @@ function deliver_(m) {
         });
         code = res.getResponseCode();
       } catch (e) { code = -1; }
-      if (code >= 200 && code < 300) return { result: 'ok' };
+      if (code >= 200 && code < 300) return ok;
       const transient = code === -1 || code === 429 || code >= 500;
       if (!transient) return { result: 'failed', detail: 'Brevo HTTP ' + code };
       if (attempt === 0) Utilities.sleep(2000);
@@ -259,9 +277,10 @@ function deliver_(m) {
   if (MailApp.getRemainingDailyQuota() - need < reserve) return { result: 'queue', detail: 'MailApp quota' };
   for (let attempt = 0; attempt < 2; attempt++) {
     try {
-      MailApp.sendEmail({ to: m.to, subject: m.subject, htmlBody: m.html, body: m.text,
-        name: CONFIG.EMAIL.SENDER_NAME, replyTo: C.email });
-      return { result: 'ok' };
+      const o = { to: m.to, subject: m.subject, htmlBody: m.html, body: m.text, name: CONFIG.EMAIL.SENDER_NAME, replyTo: C.email };
+      if (atts) o.attachments = atts;
+      MailApp.sendEmail(o);
+      return ok;
     } catch (e) {
       if (/too many times|quota/i.test(e && e.message)) return { result: 'queue', detail: 'MailApp quota' };
       if (attempt === 0) Utilities.sleep(2000);
@@ -308,7 +327,7 @@ function runEmailQueue_(deadline) {
     const res = deliver_(m);
     if (res.result === 'ok') {
       afterSend_(m);
-      logEmail_(m, 'ok', 'from queue');
+      logEmail_(m, 'ok', 'from queue' + (res.detail ? ' · ' + res.detail : ''));
       done.push(i + 2);
       out.sent++;
       return;

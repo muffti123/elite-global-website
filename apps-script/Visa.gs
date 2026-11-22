@@ -224,6 +224,8 @@ function finalizeVisaApplication_(d) {
     setReviewStatus_(leadId, 'Under Review'); // review workflow starts; Lead Status is untouched
     deleteUploadState_(leadId);
   });
+  // Where staff will put the approved visa (VisaDelivery.gs)
+  try { approvedVisaFolder_(DriveApp.getFolderById(st.f), true); } catch (e) { console.error('Approved Visa folder: ' + e.message); }
   console.log('finalizeVisaApplication ok ' + leadId);
 
   // Emails never fail the application: staff alert + one combined "received + under review" email
