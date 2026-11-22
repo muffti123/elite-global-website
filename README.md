@@ -240,8 +240,10 @@ git remote -v   # 1 fetch URL (personal), 2 push URLs (personal, org)
   - *Emails sent* close to the quota: switch to Brevo (below), or a bigger Brevo plan.
   - *Lead Tracker size* over 7 M of 10 M cells: run `archiveNow`, and close old leads from the "please close" list.
   - *Email Log size* over 7 M cells: tell the developer (the log keeps 90 days).
-  - *Busy replies* in the hundreds: many customers at the same moment. The website retries for them, but tell the
-    developer if it happens every day.
+  - *Busy replies* in the hundreds: many customers at the same moment. The website retries for them (for about
+    1½ minutes), but tell the developer if it happens every day.
+  - *Script lock* — longest hold 14 s or more (70 % of the 20 s wait): one step held the lock too long, so others had
+    to wait. Tell the developer (the action name is shown). Normal holds are well under a second.
 - Hidden tabs **Due** (status emails waiting to be sent) and the hidden column **Emails Sent** are used by the system —
   please don't edit them.
 

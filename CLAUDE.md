@@ -76,7 +76,9 @@ No Google Forms in the customer journey; the old ones are closed and kept in Dri
    The approved visa is only ever sent as bytes through the web app (or attached): never change Drive sharing, never
    send a Drive link or file ID; download tokens live in page memory only.
    Scale (PRD §3.9, §5.5): keep work under `withLock_` to IDs, key claims, state and row writes — Drive, emails and
-   file moves outside; submits carry a submission key (`sid`) so retries never duplicate; anything that grows with
+   file moves outside; new leads go through `createLeadRow_` (claim + ID + one checked row; never scan column A under
+   the lock — `nextRowFallback_` runs outside it); detail-tab rows are appended outside the lock; reads of many rows
+   are one contiguous block; submits carry a submission key (`sid`) so retries never duplicate; anything that grows with
    traffic lives in sheets (Due tab, Emails Sent), never in Script Properties (9 KB per value) or only in CacheService;
    archive = copy → verify → index → delete, never the other way round.
    `TEST_OTP_BYPASS` is for staging only (`enableTestOtpBypass` / `disableTestOtpBypass`) — never on production.

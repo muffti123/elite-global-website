@@ -418,19 +418,32 @@ Index (read-only: no correction, no writes; the visa download still works — Dr
 
 **Bursts.** The script lock is held only for Lead ID numbers, submission-key claims, state and row writes (Drive work,
 emails and file moves outside it — `submitCorrection` now moves files between two short locks and records each move, so
-an interrupted submit resumes without moving anything twice). The lock wait is 10 s; then the reply is
+an interrupted submit resumes without moving anything twice). **Creating a lead** holds the lock only for the sid
+claim, the Lead ID and one tracker row (a 2-row read that checks the stored next row — the row above holds a Lead ID, the
+row itself is empty — and one row write, plus one property write); the header is read and the detail-tab row is
+appended (`appendRow`, one atomic call) outside it. Visa create keeps two tiny locks (claim + Lead ID; then the row once
+the Drive folder exists, so a Drive failure never leaves a row without a folder). If the stored next row does not check
+out (staff sorted or deleted rows, the archive or clean-up ran) the lock is released, the row after the last Lead ID is
+found **outside the lock** with one Ctrl+↑ lookup (`getNextDataCell`, logged "next row fallback", counted in System
+health) and the lock is taken again — column A is never scanned under the lock. Upload and finalize keep their tracker
+cell writes under the lock: they write into an existing row, whose position can shift when the archive or clean-up
+deletes rows (both under the lock). Every hold is timed (log line "lock <action> held N ms", System health "Script
+lock"; staging load tests read the numbers with `qaTiming`). The lock wait is 20 s; then the reply is
 `{ok:false, busy:true}`. Google errors that mean "busy" (lock timeout, service invoked too many times, temporary
 Sheets/Drive errors) also answer busy — JSON, no error email — and are counted for System health. The website
 (`api.js`) retries busy replies, non-JSON replies (Google's overload page), HTTP 429/5xx and — for actions safe to
-repeat — network errors after 2, 5, 10 and 20 s (±30 % jitter), showing *"We're busy — still sending, please keep this
+repeat — network errors after 2, 5, 10, 20, 30 and 30 s (±30 % jitter, ~97 s in all; uploads keep their own retry loop
+for network errors and never re-run the busy wait), showing *"We're busy — still sending, please keep this
 page open"*. **No duplicates:** contact, customise, visa create and correction submit carry a submission key `sid`
 (random; the same for every retry and for a re-click with the same answers, 6 h). The server claims it inside the same
 lock as the Lead ID and stores the reply (CacheService, 6 h): a retry gets the first reply (same Lead ID, same upload
 token), a retry while the first is still running gets busy. Email-code actions are never repeated automatically.
 Lead IDs stay unique (one counter, under the lock); a number taken by a request that then failed is a gap.
 **Lookups:** a cached Lead ID → row (CacheService) is checked against column A before use (staff sort/delete rows, the
-archive deletes them) and falls back to TextFinder; the next tracker row comes from a checked cache instead of reading
-column A.
+archive deletes them) and falls back to TextFinder; the next tracker row comes from a checked stored counter (see above).
+Reads of many rows always take one contiguous block (benchmark at 20,000 rows: one block 2.5 s, 8 single columns 7.7 s,
+column A alone 2.5 s, TextFinder 0.07 s); the archive reads column A of each tab outside its lock and re-checks every
+row by Lead ID under it (a row that moved stops the batch — nothing lost, resumed next night).
 
 **Daily trigger time.** `runEmailJobs` (every 5 min) reads only the hidden **Due** tab (Lead ID, Due At, Reason; written
 under the lock by Review Status edits, finalize, correction submits, the test helpers and the hourly scan; rows removed
@@ -607,7 +620,7 @@ Staging is a gmail.com account; production is Google Workspace. The code is buil
 |---|---|---|
 | Execution time | 6 min per call | One passenger per upload request (≈ 5–10 s); jobs stop on a time budget (email jobs 4 min, archive 4.5 min) and continue next run |
 | **Simultaneous executions** | **~30 per user** — every customer runs as the owner | Short locks; Google's overload page / network errors / busy are retried by the website with backoff + jitter; submission keys make retries safe; load-tested with up to 50 at once |
-| Script lock | one at a time, per script | Held only for IDs, key claims, state and row writes (≤ 1–2 s); web requests wait ≤ 10 s, then busy; the nightly archive holds it per batch (≤ ~10 s) |
+| Script lock | one at a time, per script | Held only for IDs, key claims, state and row writes (create: claim + ID + one row; no column scan ever); web requests wait ≤ 20 s, then busy (the website retries for ~97 s); every hold is timed (System health ⚠️ at 70 % of the wait); the nightly archive holds it per batch of 200 (column A read outside) |
 | **Script Properties** | **9 KB per value, 500 KB in total**; 50k (Workspace 500k) reads/writes per day | Only small values: counters, flags, per-application upload/correction state (~200 B, purged), health records (< 1 KB × 8 days), archive file IDs, last 20 email decisions. Anything that grows with traffic (the Due list, email keys) lives in sheets, never in properties |
 | **CacheService** | **100 KB per value, max 6 h**, may be evicted | Rate counters, codes, row-number hints (always re-checked against the sheet), submission-key replies (< 1 KB, 6 h). Nothing that must survive is kept only in the cache |
 | **Trigger runtime** | **90 min / day** (Workspace 6 h) | Email jobs read only the Due tab every 5 min (full scan hourly); onTrackerEdit exits at once on other tabs; archive works only on the 1st and while unfinished; measured daily in System health with ⚠️ at 70 % |
