@@ -8,18 +8,28 @@
 const BUSY_MSG = 'We\'re very busy right now. Please try again in a moment.';
 
 /**
- * Runs fn while holding the script lock (waits up to waitMs, default 10 s). Keep fn short: Lead ID numbers,
- * state and row writes only — Drive work, emails and anything slow belong outside. Busy → {busy: true} reply.
+ * Runs fn while holding the script lock (waits up to waitMs, default LOCK_WAIT_MS 20 s). Keep fn short: Lead ID
+ * numbers, key claims, state and row writes only — Drive work, emails and anything slow belong outside.
+ * Busy → {busy: true} reply. Every hold is timed (LOCK_STATS_, logged as "lock <action> held … ms"; no personal data).
  */
+let LOCK_STATS_ = { action: '', n: 0, held: 0, wait: 0, max: 0 };
+function lockStatsReset_(action) { LOCK_STATS_ = { action: action || '', n: 0, held: 0, wait: 0, max: 0 }; }
 function withLock_(fn, waitMs) {
   const lock = LockService.getScriptLock();
-  if (!lock.tryLock(waitMs || CONFIG.LIMITS_GOOGLE.LOCK_WAIT_MS)) fail_(BUSY_MSG, null, { busy: true });
+  const t0 = Date.now();
+  const got = lock.tryLock(waitMs || CONFIG.LIMITS_GOOGLE.LOCK_WAIT_MS);
+  const t1 = Date.now();
+  LOCK_STATS_.wait += t1 - t0;
+  if (!got) { console.log('lock ' + (LOCK_STATS_.action || 'job') + ' busy after ' + (t1 - t0) + ' ms'); fail_(BUSY_MSG, null, { busy: true }); }
   try {
     const out = fn();
     SpreadsheetApp.flush(); // write now: errors surface here (not after the reply) and before the lock is released
     return out;
   } finally {
     lock.releaseLock();
+    const held = Date.now() - t1;
+    LOCK_STATS_.n++; LOCK_STATS_.held += held; LOCK_STATS_.max = Math.max(LOCK_STATS_.max, held);
+    console.log('lock ' + (LOCK_STATS_.action || 'job') + ' held ' + held + ' ms (waited ' + (t1 - t0) + ' ms)');
   }
 }
 

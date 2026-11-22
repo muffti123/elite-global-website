@@ -50,6 +50,8 @@ function doPost(e) {
   let action = '';
   const t0 = Date.now();
   let busy = false;
+  let qa = false;
+  lockStatsReset_('');
   try {
     const body = e && e.postData && e.postData.contents;
     if (!body) fail_('Empty request.');
@@ -61,16 +63,18 @@ function doPost(e) {
 
     action = String(d.action || '');
     if (!Object.prototype.hasOwnProperty.call(ACTIONS, action)) fail_('Unknown request.');
+    LOCK_STATS_.action = action;
+    qa = d.qaTiming === true;
 
     // Bots fill the hidden field: pretend it worked and store nothing.
     if (d.hp) return json_(honeypotReply_(action));
 
-    return json_(ACTIONS[action](d));
+    return json_(qaTiming_(qa, ACTIONS[action](d), t0));
   } catch (err) {
     if (err && (err.busy || (!err.userFacing && BUSY_RE.test(String(err && err.message))))) {
       busy = true;
       console.log('doPost ' + action + ' busy');
-      return json_({ ok: false, busy: true, error: err.userFacing ? err.message : BUSY_MSG });
+      return json_(qaTiming_(qa, { ok: false, busy: true, error: err.userFacing ? err.message : BUSY_MSG }, t0));
     }
     if (err && err.userFacing) {
       const out = { ok: false, error: err.message };
@@ -88,8 +92,19 @@ function doPost(e) {
     notifyError_(err, action);
     return json_({ ok: false, error: 'Sorry, something went wrong on our side. Please try again in a moment.' });
   } finally {
-    if (action) recordAction_(action, Date.now() - t0, busy);
+    if (action) recordAction_(action, Date.now() - t0, busy, LOCK_STATS_);
   }
+}
+
+/**
+ * STAGING ONLY (TEST_OTP_BYPASS on): with {qaTiming: true} the reply carries this request's lock timings
+ * {qa: {n, held, max, wait, ms}} for tools/qa/load-live.js. Numbers only; never on production (bypass is off there).
+ */
+function qaTiming_(qa, out, t0) {
+  if (!qa || !out || typeof out !== 'object') return out;
+  try { if (!testBypassOn_()) return out; } catch (e) { return out; }
+  const s = LOCK_STATS_;
+  return Object.assign({}, out, { qa: { n: s.n, held: s.held, max: s.max, wait: s.wait, ms: Date.now() - t0 } });
 }
 
 /**

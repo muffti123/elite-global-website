@@ -27,12 +27,17 @@ function recordRun_(kind, ms) {
 }
 function countHealth_(name, n) { healthUpdate_(function (h) { h[name] = (h[name] || 0) + (n || 1); }); }
 
-/** A web-app action: count, busy replies, slowest action. */
-function recordAction_(action, ms, busy) {
+/** A web-app action: count, busy replies, slowest action, script-lock holds {n, ms, max, a: action of the longest}. */
+function recordAction_(action, ms, busy, lock) {
   healthUpdate_(function (h) {
     h.act = (h.act || 0) + 1;
     if (busy) h.busy = (h.busy || 0) + 1;
     if (!h.slow || ms > h.slow[1]) h.slow = [action, ms];
+    if (lock && lock.n) {
+      const l = h.lock || (h.lock = { n: 0, ms: 0, max: 0, a: '' });
+      l.n += lock.n; l.ms += lock.held;
+      if (lock.max > l.max) { l.max = lock.max; l.a = action; }
+    }
   });
 }
 
@@ -79,6 +84,10 @@ function healthRows_() {
   rows.push(['Emails sent yesterday', s.provider === 'brevo' ? mail + ' (Brevo — see the Brevo dashboard for its limit)'
     : warn(mail, lim.mail) + mail + ' of ' + lim.mail + ' (MailApp, ' + pct(mail, lim.mail) + ' %)']);
   rows.push(['Website requests yesterday', String(y.act || 0) + ' · busy replies ' + (y.busy || 0) + (y.slow ? ' · slowest ' + y.slow[0] + ' ' + Math.round(y.slow[1] / 100) / 10 + ' s' : '')]);
+  // Every create / upload waits for the script lock: a long hold means bursts queue up (⚠️ at 70 % of the 20 s wait)
+  const lk = y.lock;
+  rows.push(['Script lock yesterday', lk && lk.n ? warn(lk.max, L.LOCK_WAIT_MS) + lk.n + ' holds · average ' + Math.round(lk.ms / lk.n) + ' ms · longest ' +
+    lk.max + ' ms (' + lk.a + ')' : 'not used']);
   let cells = 0, rowsN = 0, due = 0;
   try {
     const ss = trackerSS_();

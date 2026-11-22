@@ -1,8 +1,9 @@
 // LIVE load test (STAGING ONLY): N customers submit at the same moment — contact, customise and visa (with a
 // SPECIMEN passport + photo upload and finalize), a third each. Same retry rules as the website (api.js): busy
-// JSON, a non-JSON reply (Google's overload page), HTTP 429/5xx or a network error → wait 2, 5, 10, 20 s (±30 %)
-// and send again with the same submission key. Reports the success rate, busy retries, p50/p95 time and
-// duplicates (must be 0, counted by the staging-only action loadTestReport). TEST names + @example.com only,
+// JSON, a non-JSON reply (Google's overload page), HTTP 429/5xx or a network error → wait 2, 5, 10, 20, 30, 30 s
+// (±30 %) and send again with the same submission key. Reports the success rate, busy retries, p50/p95 time,
+// duplicates (must be 0, counted by the staging-only action loadTestReport) and how long each action held the
+// script lock (qaTiming: staging-only lock timings in each reply — numbers only). TEST names + @example.com only,
 // TEST_OTP_BYPASS must be on (no code emails; no staff alerts for "TEST Load" names). Run cleanupTestData after.
 //   node load-live.js <fixturesDir> [N=25, max 50]
 const fs = require('fs');
@@ -15,17 +16,25 @@ const cfg = fs.readFileSync(path.join(__dirname, '../../public/assets/js/config.
 const URL = (/webAppUrl:\s*'([^']+)'/.exec(cfg) || [])[1] || '';
 if (URL.indexOf('/s/' + STAGING_ID + '/exec') === -1) { console.error('Refused: config.js webAppUrl is not the staging web app.'); process.exit(2); }
 const TAG = crypto.randomBytes(3).toString('hex').toUpperCase(); // run tag, e.g. 4F2A9C
-const WAITS = [2000, 5000, 10000, 20000];
+const WAITS = [2000, 5000, 10000, 20000, 30000, 30000]; // same as public/assets/js/api.js
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const jitter = (ms) => Math.round(ms * (0.7 + Math.random() * 0.6));
 const b64 = (f) => fs.readFileSync(path.join(FX, f)).toString('base64');
 const PASSPORT = b64('passport.jpg'), PHOTO = b64('photo-40kb.jpg');
 const SID_ACTIONS = { submitContact: 1, submitCustomRequest: 1, createVisaApplication: 1 };
 let busyRetries = 0, networkRetries = 0;
+const lockStats = {}; // action → {held: [ms per request that got the lock], waits: [ms], busy: n}
+function noteLock(action, out) {
+  if (!out || !out.qa) return;
+  const s = lockStats[action] || (lockStats[action] = { held: [], waits: [], busy: 0 });
+  if (out.busy) s.busy++;
+  if (out.qa.n) s.held.push(out.qa.held);
+  s.waits.push(out.qa.wait);
+}
 
 /** POST like api.js: busy / non-JSON / 429 / 5xx / network → retry with backoff; same body (sid) every time. */
 async function call(action, payload) {
-  const data = Object.assign({ action }, payload);
+  const data = Object.assign({ action, qaTiming: true }, payload);
   if (SID_ACTIONS[action]) data.sid = 'sid-' + crypto.randomBytes(16).toString('hex');
   const body = JSON.stringify(data);
   for (let b = 0; ; b++) {
@@ -39,11 +48,12 @@ async function call(action, payload) {
       else {
         const text = await res.text();
         try { out = JSON.parse(text); } catch (e) { busy = true; }
+        noteLock(action, out);
         if (out && out.busy) busy = true;
       }
     } catch (e) { busy = true; networkRetries++; }
     if (!busy) return out;
-    if (b >= WAITS.length) return { ok: false, busy: true, error: 'still busy after ' + WAITS.length + ' retries' };
+    if (b >= WAITS.length) return { ok: false, busy: true, error: 'still busy after ' + WAITS.length + ' retries (~97 s)' };
     busyRetries++;
     await sleep(jitter(WAITS[b]));
   }
@@ -109,6 +119,16 @@ async function one(i, kind) {
     'Tracker rows for this run: ' + (rep && rep.ok ? rep.rows + ' rows, ' + rep.names + ' distinct names → duplicates ' + (rep.rows - rep.names) : 'report failed: ' + (rep && rep.error)),
   ];
   results.filter((r) => !r.ok).forEach((r) => lines.push('  failed ' + r.kind + (r.id ? ' ' + r.id : '') + ': ' + r.error));
+  const pc = (a, p) => { const s = a.slice().sort((x, y) => x - y); return s.length ? s[Math.min(s.length - 1, Math.floor(p * s.length))] : 0; };
+  lines.push('Script lock per action (ms held per request: avg / p95 / max · wait p95 · busy replies):');
+  Object.keys(lockStats).filter((a) => a !== 'loadTestReport').forEach((a) => {
+    const s = lockStats[a];
+    if (!s.held.length && !s.busy) return;
+    const avg = s.held.length ? Math.round(s.held.reduce((x, y) => x + y, 0) / s.held.length) : 0;
+    lines.push('  ' + a.padEnd(24) + ' ' + String(avg).padStart(5) + ' / ' + String(pc(s.held, 0.95)).padStart(5) + ' / ' + String(pc(s.held, 1)).padStart(5) +
+      ' · wait ' + pc(s.waits, 0.95) + ' · busy ' + s.busy + ' (' + s.held.length + ' holds)');
+  });
+  if (!Object.keys(lockStats).length) lines.push('  (no timings: the deployed web app does not report qaTiming yet)');
   console.log(lines.join('\n'));
   const dup = rep && rep.ok ? rep.rows - rep.names : -1;
   const pass = good.length === N && dup === 0 && rep.rows === N;
