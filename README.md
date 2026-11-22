@@ -67,6 +67,9 @@ node run.js live                                 # ⚠️ staging only: TEST lea
 # ⚠️ staging only, one correction round (public/ served on :3000; TEST_OTP_BYPASS on):
 node correction-live.js http://localhost:3000 <chrome> fixtures create   # then run testRequestCorrection in the editor
 node correction-live.js http://localhost:3000 <chrome> fixtures correct EG-VO-#####
+# ⚠️ staging only, one visa-delivery round (same set-up):
+node visa-live.js http://localhost:3000 <chrome> fixtures create          # then run testApproveVisa in the editor
+node visa-live.js http://localhost:3000 <chrome> fixtures download EG-VO-#####
 node shots.js                                    # desktop/tablet/phone screenshots → tools/qa/screenshots/
 node ../gas-test/test.js                         # web app logic against a mock (no Google calls)
 ```
@@ -171,6 +174,34 @@ git remote -v   # 1 fetch URL (personal), 2 push URLs (personal, org)
 - **Staging test:** `testRequestCorrection` (Run button) sets Correction Needed on the newest finished TEST visa
   lead with an @example.com email. Refused outside staging.
 
+### Sending the approved visa (Approved Visa folder)
+- **Where to put the visa:** open the application's Drive folder (Lead Tracker → Drive Folder link) → **Approved Visa**
+  → upload the visa file(s): **PDF, JPG or PNG, up to 5 MB each** — one per passenger or one combined file. Every
+  visa application has this folder (created when the upload finishes; `setupEliteGlobal` adds it to older ones;
+  if it is missing, the system creates it the next time it checks).
+- **Visa Files** (auto column) shows how many valid files are there. Files of another type (e.g. HEIC, Word) or
+  over 5 MB are **ignored**, and the cell gets a note, e.g. *"1 file ignored: too large (max 5 MB) — please upload
+  a smaller PDF, JPG or PNG"*. It is updated every 5 minutes while Review Status is **Visa Processing**, and for
+  **Visa Approved** until the customer email has gone out; after that, when the customer opens the download.
+- **Best order:** upload the visa while the status is still Visa Processing, check Visa Files is 1 or more, then set
+  **Review Status = Visa Approved**.
+- **No file yet?** The Visa Approved email is **held** ("held: no visa file yet" in `checkRecentEmailJobs`, and in
+  the daily summary's held list). It goes out on the next check (within 5 minutes) once a file is in Approved Visa.
+- **The customer** gets the Visa Approved email with a gold **Download your visa** button (Track page, reference
+  filled in). On the Track page, **Download your visa** emails a 6-digit code to the email on the application; then
+  they see each file ("Visa – 1 of 2 (PDF, 240 KB)") with a Download button, for 30 minutes (Log out ends it).
+  Downloads are named `EG-VO-00052 – Visa 1 of 2.pdf` (your file names are never shown). Up to 20 downloads per
+  application per hour. Drive sharing is never changed and no Drive link is sent.
+- **Attach the visa to the email too (optional):** Script Property **`ATTACH_VISA`** = `on` (default: off). The
+  Visa Approved email then attaches the valid files. If they are over 15 MB together nothing is attached and the
+  email says *"Your visa is too large to attach — please download it from the Track page."* The Email Log only
+  shows "attached N files" / "not attached (…)". The Download button is in the email either way.
+- **The Track page updates itself** every 2 minutes while the customer has it open (paused when the tab is hidden),
+  so they see a new status without refreshing. It does not keep them logged in: 60 minutes without activity still ends it.
+- **Staging test:** `testApproveVisa` (Run button) puts two SPECIMEN visa PDFs (a small one and one of ~4.5 MB,
+  marked "SPECIMEN — NOT A VISA") in Approved Visa of the newest finished TEST visa lead with an @example.com email
+  and sets Visa Approved. Refused outside staging.
+
 ### How status emails are delivered
 - **The customer email goes out about 5 minutes after the last Review Status change** (the system checks every
   5 minutes, so allow 5–10 minutes). **Changed it by mistake? Change it back within 5 minutes and nothing is sent.**
@@ -206,8 +237,9 @@ always changed in Script Properties.)
 | Who gets staff alerts + the summary | `STAFF_EMAIL` | An email address; several: separate with commas. Default (empty): the script owner |
 | Website address in emails | `SITE_URL` | `https://www.your-domain` (no slash at the end) — **set it on production**; default: the staging site |
 | Pause staff / customer emails | `NOTIFY_STAFF` / `NOTIFY_CUSTOMER` | `off` (emails skipped while off are not sent later); delete or `on` to resume |
+| Attach the visa to the Visa Approved email | `ATTACH_VISA` | `on` to attach (up to 15 MB together); `off` or empty: Download button only |
 | Check everything | — | Run `checkEmailSettings` (provider, addresses, quota left, queue size; the Brevo key shows only as "set") |
-| Preview every email | — | Run `sendEmailSamples` — 15 samples go to `STAFF_EMAIL` |
+| Preview every email | — | Run `sendEmailSamples` — 18 samples go to `STAFF_EMAIL` (Visa Approved three times: button only, SPECIMEN visa attached, too large) |
 | Email logo | `public/assets/brand/email-logo.png`, served from the website — run `cd tools/qa && node ../build-email-logo.js` after a logo change, then deploy `public/` |
 
 ### Switching email sending to Brevo (needed for production volume)

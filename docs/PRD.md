@@ -3,8 +3,8 @@
 **Project:** Umrah Lead Generation System — website forms + Apps Script web app + Google Sheets/Drive
 **Client:** Elite Global World Travel & Tours Ltd. (RC: 7787410)
 **Developer:** Abdulmumin (independent full-stack developer)
-**Document version:** 3.4 — supersedes v2.x (Google Forms) and the original *Project Handover Note*
-**Last updated:** 22 November 2026 (v3.4: Track session + self-service corrections — §3.7; v3.3: review workflow, emails, email verification — §3.6; v3.2: Track my application — §3.5; v3.1: round 1 client feedback — §0.1)
+**Document version:** 3.5 — supersedes v2.x (Google Forms) and the original *Project Handover Note*
+**Last updated:** 22 November 2026 (v3.5: approved visa delivery + Track live updates — §3.8; v3.4: Track session + self-service corrections — §3.7; v3.3: review workflow, emails, email verification — §3.6; v3.2: Track my application — §3.5; v3.1: round 1 client feedback — §0.1)
 
 ---
 
@@ -327,6 +327,50 @@ Personal details · Travel details · Flight ticket · Hotel booking · Other (s
 - Staging only: `testRequestCorrection` (no arguments) sets Correction Needed on the newest finished TEST visa lead
   with an @example.com email and logs its Lead ID only; refused unless SITE_URL is staging.
 
+### 3.8 Approved visa delivery and Track live updates (v3.5)
+**Staff side.** Every visa lead folder has an `Approved Visa/` subfolder (created at finalize; `setupEliteGlobal` adds it
+to existing leads, budgeted and resumable; created on demand when missing). Staff upload the visa there: **PDF, JPG or
+PNG, max 5 MB each** (one per passenger or one combined). Lead Tracker column **Visa Files** (auto, schema 7) = the
+number of valid files; other types or bigger files are ignored and the cell note says why (*"1 file ignored: too large
+(max 5 MB) — please upload a smaller PDF, JPG or PNG"*). `runEmailJobs` refreshes it only for rows that need it:
+Review Status **Visa Processing**, or **Visa Approved** whose email has not gone out yet (held or waiting). After the
+email it is recounted when the customer opens the download (and by `setupEliteGlobal`).
+
+**Held email.** Visa Approved with Visa Files = 0 → the customer email is **held** ("no visa file yet"), listed in
+`checkRecentEmailJobs` and in the daily summary; it is sent on the first check after a file is there.
+
+**Visa Approved email.** Always a gold **Download your visa** button → `<SITE_URL>/track.html?id=<Lead ID>` (no
+token, email or phone). Script Property **`ATTACH_VISA`** (default off; shown by `checkEmailSettings`): on → the valid
+files are attached (MailApp and Brevo), read from Drive when the email is delivered (also from the queue — the queue
+never holds file contents). Over **15 MB** together → nothing attached and *"Your visa is too large to attach — please
+download it from the Track page."* The Email Log shows only "attached N files" / "not attached (…)".
+
+**Customer side (Track page).**
+- **Download your visa** appears only when `canDownload`: visa lead, not Lost, Review Status Visa Approved, Visa
+  Files > 0. The next step reads *"Download your visa with the button below. Our team will also contact you about the
+  next steps."*
+- **Step-up check** like §3.7: `sendVisaCode {session}` → code to the email **on the application** (masked);
+  `verifyVisaCode {session, code}` → a **download token** `<expiry>.<session max>.<Lead ID>.<HMAC>`, 30 minutes,
+  several downloads, ended by **Log out** (the session revocation also covers it) — plus the file list. Own code scope
+  `visa|<Lead ID>|<email>`: a Step 1 or correction code can never open a download, and the other way round. The
+  token is kept in page memory only (never sessionStorage or a URL) and never logged.
+- The list shows each file as *"Visa – 1 of 2 (PDF, 240 KB)"* with a Download button (`ref` = an HMAC of the file,
+  never the Drive ID). `downloadVisaFile {dtoken, ref}` returns the bytes as base64 through the web app with a neutral
+  name (`EG-VO-00052 – Visa 1 of 2.pdf`); the first bytes are checked against the type. Drive sharing is never
+  changed; no Drive link is ever sent. Limit: **20 downloads per Lead ID per hour**. Logs: Lead ID + file count only.
+
+**Live updates.** While the status is shown and the tab is visible the page calls `trackApplication {session, poll: true}`
+every **2 minutes** — the reply has **no new token**, so polling is not activity (the 60-minute idle end still applies)
+and stays within the 30-per-10-minutes session limit. Paused while the tab is hidden; one check when it becomes visible
+again (at most every 30 s). A change (stage, description, next step, message, buttons) updates the view, is announced
+in the aria-live region and shows *"Updated just now"* with a gentle highlight (none with reduced motion); *"Last
+checked HH:MM"* is always shown. Failed checks stay quiet; after 3 in a row *"We couldn't refresh — check your
+connection"*. Polling stops when the session ends or on Log out.
+
+**Staging only:** `testApproveVisa` (no arguments) puts two generated SPECIMEN PDFs (`apps-script/Specimen.gs`: small +
+~4.5 MB, "SPECIMEN - NOT A VISA", no personal data) in Approved Visa of the newest finished TEST visa lead with an
+@example.com email and sets Visa Approved; refused unless SITE_URL is staging; logs the Lead ID only.
+
 ### 3.4 Contact box on `index.html`
 | Field | Type | Required |
 |---|---|---|
@@ -368,6 +412,7 @@ Success: the form resets and shows "Your reference number is EG-GE-…".
 | 22 | Message to Customer | **Staff** | Optional short message shown to the customer on track.html (plain text, first 300 characters). Header note: "Visible to the customer on the Track page — keep it short and professional" (v3.2). Also included in status emails; required before a Correction Needed email is sent |
 | 23 | Review Status | **Staff** | Visa: dropdown Under Review, Correction Needed, Correction Received, Verified, Visa Processing, Visa Approved, Not Approved / Closed. Set to Under Review at finalize; every change is emailed to the customer after 5 unchanged minutes (§3.6) (v3.3) |
 | 24 | Review Updated | Auto | Time of the last Review Status / Message to Customer edit (starts the 5-minute undo window) |
+| 27 | Visa Files | Auto | v7 (§3.8): valid files in Approved Visa (PDF/JPG/PNG ≤ 5 MB); note lists ignored files |
 | 26 | Correction For | Staff | v6 dropdown (§3.7): what the customer should correct; highlighted on the correction page; kept after a submit |
 | 25 | Last Customer Email | Auto | Last customer email, e.g. "Status: Verified · 22 Nov 2026 09:05", "Queued: …", "Not sent (test lead) · …" |
 
@@ -408,7 +453,8 @@ Elite Global – Lead Generation System/
 │       ├── 01 – <passenger name>/  passport.pdf|jpg|png, photo.jpg|png, flight-ticket.*, hotel-booking.* (optional)
 │       ├── 02 – <passenger name>/  …
 │       ├── Replaced <d MMM yyyy HH:mm>/  01 – photo.jpg, All – hotel-booking.pdf …  (files replaced by a correction, §3.7)
-│       └── Correction (pending)/  replacements until submit (binned when the correction token expires)
+│       ├── Correction (pending)/  replacements until submit (binned when the correction token expires)
+│       └── Approved Visa/  the approved visa, uploaded by staff (PDF/JPG/PNG ≤ 5 MB each; §3.8)
 └── (retired, closed) Google Forms 1–3 and their response sheets
 ```
 File extensions follow the file's **real** type (magic bytes), never the customer's file name.
@@ -420,10 +466,10 @@ File extensions follow the file's **real** type (magic bytes), never the custome
 ### 5.1 Transport
 `POST <web app /exec URL>` with a `text/plain;charset=utf-8` JSON body (a "simple" request: no CORS
 preflight). Apps Script answers with a 302 to `script.googleusercontent.com`, which serves the JSON with
-`Access-Control-Allow-Origin: *`. `GET` returns a health check `{"ok":true,"service":…,"version":1,"schema":5}` (schema = tracker version written by `setupEliteGlobal`: 3 = v3 columns + Visa Applications tab, 4 = Message to Customer, 5 = Review Status, Review Updated, Last Customer Email, 6 = Correction For).
+`Access-Control-Allow-Origin: *`. `GET` returns a health check `{"ok":true,"service":…,"version":1,"schema":7}` (schema = tracker version written by `setupEliteGlobal`: 3 = v3 columns + Visa Applications tab, 4 = Message to Customer, 5 = Review Status, Review Updated, Last Customer Email, 6 = Correction For, 7 = Visa Files + Approved Visa folders).
 
 Every request: `{"action": "<name>", "hp": "<honeypot>", …}` → `{"ok":true,"leadId":…}` or
-`{"ok":false,"error":"<friendly>","field"?:"<name>","missing"?:[…],"reverify"?:true,"relogin"?:true,"restart"?:true}` (`reverify`: the email must be confirmed again; `relogin`: the Track session ended; `restart`: the correction token ended — start again from the Track page).
+`{"ok":false,"error":"<friendly>","field"?:"<name>","missing"?:[…],"reverify"?:true,"relogin"?:true,"restart"?:true,"relist"?:true}` (`relist`: the visa file list changed; `reverify`: the email must be confirmed again; `relogin`: the Track session ended; `restart`: the correction or download token ended — start again from the Track page).
 
 ### 5.2 Actions
 | Action | Input | Writes | Returns |
@@ -440,6 +486,11 @@ Every request: `{"action": "<name>", "hp": "<honeypot>", …}` → `{"ok":true,"
 | `loadCorrection` | ctoken | nothing | answers, passengers (name, category, file types), shared file types, Correction For, message, masked email |
 | `uploadCorrectionFile` | ctoken, slot (0 shared, 1…N), kind (passport/photo/ticket/hotel), `file:{name,mime,b64}` | file in `Correction (pending)` (a retry replaces it) | slot, kind |
 | `submitCorrection` | ctoken, answers, `passengers:[{index,name,category}]` | §3.7 submit; staff alert | leadId |
+| `trackApplication` (poll) | session, `poll: true` | nothing | §3.5 fields + canCorrect/canDownload, **no new token** (§3.8) |
+| `sendVisaCode` | session | code hash in CacheService (scope visa\|…); code email to the stored address | masked, resendIn |
+| `verifyVisaCode` | session, code | recounts Visa Files | dtoken (30 min), minutes, `files:[{ref,label,type,kb}]` |
+| `listVisaFiles` | dtoken | recounts Visa Files | files |
+| `downloadVisaFile` | dtoken, ref | nothing (20 per Lead ID per hour) | name, mime, size, b64 |
 | `sendEmailCode` | email, name | code hash in CacheService; code email (§3.6.4) | resendIn |
 | `verifyEmailCode` | email, code | nothing | token (24 h) |
 | `finalizeVisaApplication` | leadId, token | status `Complete: N passengers` (all passengers and declared documents arrived), Review Status Under Review, deletes upload state; staff alert + combined confirmation email | leadId, emailed (repeat-safe); else `missing` (0 = shared documents) |
@@ -611,6 +662,9 @@ Run `node tools/check-lists.js` and `node tools/qa/run.js static` before every s
 - [ ] `setupEliteGlobal` adds Correction For (dropdown); health check `"schema":6`
 - [ ] Track: refresh keeps the status; Log out / new tab / 60 min idle → "Please look up your application again."
 - [ ] Correction round on staging (`testRequestCorrection`, `tools/qa/correction-live.js`): Fix my application button, Make the correction, code, replace a photo, submit → Correction Received, Notes line, Replaced folder, staff alert, Correction Received email; second round works
+- [ ] `setupEliteGlobal` adds Visa Files + Approved Visa folders; health check `"schema":7`
+- [ ] Visa delivery on staging (`testApproveVisa`, `tools/qa/visa-live.js`): Download your visa, code, 2 files (one ~4.5 MB) match byte for byte, Log out ends the token; held email without a file; ATTACH_VISA on/off with a real email
+- [ ] Track live updates: a staff change shows within 2 minutes without a refresh; hidden tab pauses
 - [ ] `cleanupTestData()` run: TEST rows gone from 4 tabs, TEST visa folders in the Drive bin
 - [ ] Sharing on the tracker and the Visa Applications folder checked (named staff only)
 
