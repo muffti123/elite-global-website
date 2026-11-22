@@ -75,6 +75,7 @@ module.exports = function (dir) {
     setHorizontalAlignment: chain, setWrap: chain,
     setDataValidation(rule) { this.sh.validation = this.sh.validation || {}; for (let j = 0; j < this.nc; j++) this.sh.validation[this.c + j] = rule; return this; },
     clearDataValidations() { return this.setDataValidation(null); },
+    getNote() { return ((this.sh.notes || {})[this.r + ',' + this.c]) || ''; },
     setNote(n) { this.sh.notes = this.sh.notes || {}; this.sh.notes[this.r + ',' + this.c] = n; return this; },
   };
   function Spreadsheet(id, name) { this.id = id; this.name = name; this.sheets = []; }
@@ -104,10 +105,17 @@ module.exports = function (dir) {
   const allFiles = [];
   function Folder(name) { this.name = name; this.id = 'F' + folders.length; this.files = []; this.subs = []; folders.push(this); }
   // Drive file: id, rename, move between folders (moveTo), bin (setTrashed)
-  function DFile(blob, parent) { Object.assign(this, { name: blob.name, bytes: blob.bytes, mime: blob.mime, id: 'D' + allFiles.length, parent }); allFiles.push(this); }
+  function DFile(blob, parent) { Object.assign(this, { name: blob.name, bytes: blob.bytes, mime: blob.mime, id: 'D' + allFiles.length, parent, created: new MockDate() }); allFiles.push(this); }
+  // bytes: signed byte array (base64Decode) or an ASCII string (newBlob of a string); size: fake size override
+  const toSigned = (b) => (typeof b === 'string' ? Array.from(Buffer.from(b, 'latin1')).map((x) => (x > 127 ? x - 256 : x)) : b);
+  function Blob(bytes, mime, name) { Object.assign(this, { bytes, mime, name }); }
+  Blob.prototype = { getBytes() { return toSigned(this.bytes); }, getName() { return this.name; }, setName(n) { this.name = n; return this; },
+    getContentType() { return this.mime; } };
   DFile.prototype = {
     getId() { return this.id; }, getName() { return this.name; }, setName(n) { this.name = n; return this; },
     getUrl() { return 'https://drive.google.com/file/d/' + this.id + '/view'; }, setTrashed(t) { this.trashed = t; }, isTrashed() { return !!this.trashed; },
+    getSize() { return this.size !== undefined ? this.size : this.bytes.length; }, getMimeType() { return this.mime; },
+    getDateCreated() { return this.created; }, getBlob() { return new Blob(this.bytes, this.mime, this.name); },
     moveTo(folder) { this.parent.files.splice(this.parent.files.indexOf(this), 1); folder.files.push(this); this.parent = folder; return this; },
   };
   Folder.prototype = {
@@ -142,7 +150,8 @@ module.exports = function (dir) {
     Utilities: {
       getUuid: () => 'uuid-' + Math.random().toString(36).slice(2),
       base64Decode: (s) => Array.from(Buffer.from(s, 'base64')).map((b) => (b > 127 ? b - 256 : b)),
-      newBlob: (bytes, mime, name) => ({ bytes, mime, name }),
+      newBlob: (bytes, mime, name) => new Blob(bytes, mime, name),
+      base64Encode: (bytes) => Buffer.from(bytes.map((b) => b & 255)).toString('base64'),
       formatDate: (d, tz, pattern) => (/^d MMM yyyy/.test(pattern)
         ? d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'Africa/Lagos' }).replace('Sept', 'Sep') +
           (/HH:mm/.test(pattern) ? ' ' + d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Africa/Lagos' }) : '')
