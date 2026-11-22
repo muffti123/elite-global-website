@@ -183,8 +183,14 @@ git remote -v   # 1 fetch URL (personal), 2 push URLs (personal, org)
   over 5 MB are **ignored**, and the cell gets a note, e.g. *"1 file ignored: too large (max 5 MB) — please upload
   a smaller PDF, JPG or PNG"*. It is updated every 5 minutes while Review Status is **Visa Processing**, and for
   **Visa Approved** until the customer email has gone out; after that, when the customer opens the download.
-- **Best order:** upload the visa while the status is still Visa Processing, check Visa Files is 1 or more, then set
-  **Review Status = Visa Approved**.
+- **Fastest order (about a minute instead of 10):**
+  1. Upload the visa to **Approved Visa**.
+  2. Set **Review Status = Visa Approved**.
+  3. Tick **Send Now** on that row. It recounts Visa Files at once and sends the Visa Approved email straight away
+     (no 5-minute wait). The box unticks itself; hover over it to read the result in its note, e.g.
+     *"Sent 22 Nov 04:30 — Visa Approved, 1 file attached"* or *"Not sent — no visa file in Approved Visa"*.
+  Without Send Now it still works on its own: Visa Files is recounted every 5 minutes and the email goes out
+  5–10 minutes after the status change.
 - **No file yet?** The Visa Approved email is **held** ("held: no visa file yet" in `checkRecentEmailJobs`, and in
   the daily summary's held list). It goes out on the next check (within 5 minutes) once a file is in Approved Visa.
 - **The customer** gets the Visa Approved email with a gold **Download your visa** button (Track page, reference
@@ -196,6 +202,15 @@ git remote -v   # 1 fetch URL (personal), 2 push URLs (personal, org)
   Visa Approved email then attaches the valid files. If they are over 15 MB together nothing is attached and the
   email says *"Your visa is too large to attach — please download it from the Track page."* The Email Log only
   shows "attached N files" / "not attached (…)". The Download button is in the email either way.
+- **Send Now works for every Review Status** of a visa application (e.g. Correction Needed once the message is
+  written). Every rule still applies: each status is emailed once, Correction Needed needs a Message to Customer,
+  Visa Approved needs a visa file, TEST leads are not emailed, and the email is queued when the daily quota is used
+  up. Several rows at once: select their Send Now cells and press **Space**. Ticks on other lead types are ignored.
+  Normal status changes (without Send Now) keep the 5-minute undo window.
+- **Recount everything now:** run **`recountVisaFiles`** in the Apps Script editor (rows at Visa Processing, or Visa
+  Approved whose email has not gone out). The log lists Lead ID + count only.
+- **The customer does not have to wait either:** when they look up a Visa Approved application and Visa Files is
+  still 0, the Track page recounts that one folder at once, so the Download button appears as soon as the file is there.
 - **The Track page updates itself** every 2 minutes while the customer has it open (paused when the tab is hidden),
   so they see a new status without refreshing. It does not keep them logged in: 60 minutes without activity still ends it.
 - **Staging test:** `testApproveVisa` (Run button) puts two SPECIMEN visa PDFs (a small one and one of ~4.5 MB,

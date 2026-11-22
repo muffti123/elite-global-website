@@ -37,7 +37,8 @@ No Google Forms in the customer journey; the old ones are closed and kept in Dri
   `Notify.gs` (template, staff alerts, confirmations, Review Status emails, triggers, daily summary), `Verify.gs`
   (email codes + token), `Correction.gs` (Correction Needed → code to the stored email → correction token → staged
   uploads → submit; old files to "Replaced <date>", never deleted), `VisaDelivery.gs` (Approved Visa folder, Visa Files,
-  download step-up + base64 download, ATTACH_VISA attachments, testApproveVisa), `Specimen.gs` (generated SPECIMEN visa PDFs), `Airports.gs` (generated), `appsscript.json`. `.clasp.json` is per environment
+  download step-up + base64 download, ATTACH_VISA attachments, recountVisaFiles, testApproveVisa; the Send Now tick
+  box is handled in `Notify.gs` onTrackerEdit — the script is standalone, so no tracker menus/dialogs), `Specimen.gs` (generated SPECIMEN visa PDFs), `Airports.gs` (generated), `appsscript.json`. `.clasp.json` is per environment
   and git-ignored.
 - `tools/gas-test/` — the Apps Script logic against an in-memory mock (`node tools/gas-test/test.js`, no deps).
 - `tools/check-lists.js` — list + airport data sync check, and company details in emails (`CONFIG.COMPANY_INFO`) == `config.js` (no deps).

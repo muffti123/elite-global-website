@@ -3,8 +3,8 @@
 **Project:** Umrah Lead Generation System — website forms + Apps Script web app + Google Sheets/Drive
 **Client:** Elite Global World Travel & Tours Ltd. (RC: 7787410)
 **Developer:** Abdulmumin (independent full-stack developer)
-**Document version:** 3.5 — supersedes v2.x (Google Forms) and the original *Project Handover Note*
-**Last updated:** 22 November 2026 (v3.5: approved visa delivery + Track live updates — §3.8; v3.4: Track session + self-service corrections — §3.7; v3.3: review workflow, emails, email verification — §3.6; v3.2: Track my application — §3.5; v3.1: round 1 client feedback — §0.1)
+**Document version:** 3.6 — supersedes v2.x (Google Forms) and the original *Project Handover Note*
+**Last updated:** 22 November 2026 (v3.6: Send Now tick box, instant recount — §3.8; v3.5: approved visa delivery + Track live updates — §3.8; v3.4: Track session + self-service corrections — §3.7; v3.3: review workflow, emails, email verification — §3.6; v3.2: Track my application — §3.5; v3.1: round 1 client feedback — §0.1)
 
 ---
 
@@ -336,6 +336,19 @@ number of valid files; other types or bigger files are ignored and the cell note
 Review Status **Visa Processing**, or **Visa Approved** whose email has not gone out yet (held or waiting). After the
 email it is recounted when the customer opens the download (and by `setupEliteGlobal`).
 
+**Send Now (v3.6, schema 8).** Lead Tracker tick-box column **Send Now**, handled by the existing installable
+`onTrackerEdit` (no new permissions; a tracker menu is not possible because the script is not bound to the
+tracker). Ticking it on a visa row (several rows: select + Space; max 50 per edit) recounts Visa Files for that row,
+then sends the current Review Status email **at once**, skipping only the 5-minute undo wait — every other rule is
+kept (once per status / round, Correction Needed needs a message, Visa Approved needs Visa Files > 0, TEST @example.com
+skipped, queued without quota). It never runs at the same time as `runEmailJobs` (waits up to ~40 s, otherwise
+"tick again in a minute"). The box is unticked and its **note** shows the result (*"Sent 22 Nov 04:30 — Visa Approved,
+1 file attached"*, *"Not sent — no visa file in Approved Visa"* …); a toast is best-effort; the decision is kept for
+`checkRecentEmailJobs`. Ticks on non-visa rows: unticked + note. Logs: Lead ID + result only. Normal status
+changes keep the 5-minute undo window. `recountVisaFiles` (Run button) recounts every Visa Processing /
+Visa-Approved-not-yet-emailed row (logs Lead ID + count). **Instant recount on the Track page:** a lookup of a Visa
+Approved lead whose Visa Files is 0 recounts that one folder at once, so the Download button appears without waiting.
+
 **Held email.** Visa Approved with Visa Files = 0 → the customer email is **held** ("no visa file yet"), listed in
 `checkRecentEmailJobs` and in the daily summary; it is sent on the first check after a file is there.
 
@@ -412,6 +425,7 @@ Success: the form resets and shows "Your reference number is EG-GE-…".
 | 22 | Message to Customer | **Staff** | Optional short message shown to the customer on track.html (plain text, first 300 characters). Header note: "Visible to the customer on the Track page — keep it short and professional" (v3.2). Also included in status emails; required before a Correction Needed email is sent |
 | 23 | Review Status | **Staff** | Visa: dropdown Under Review, Correction Needed, Correction Received, Verified, Visa Processing, Visa Approved, Not Approved / Closed. Set to Under Review at finalize; every change is emailed to the customer after 5 unchanged minutes (§3.6) (v3.3) |
 | 24 | Review Updated | Auto | Time of the last Review Status / Message to Customer edit (starts the 5-minute undo window) |
+| 28 | Send Now | Staff | v8 tick box (§3.8): recount + send the current status email at once; unticks itself, result in its note |
 | 27 | Visa Files | Auto | v7 (§3.8): valid files in Approved Visa (PDF/JPG/PNG ≤ 5 MB); note lists ignored files |
 | 26 | Correction For | Staff | v6 dropdown (§3.7): what the customer should correct; highlighted on the correction page; kept after a submit |
 | 25 | Last Customer Email | Auto | Last customer email, e.g. "Status: Verified · 22 Nov 2026 09:05", "Queued: …", "Not sent (test lead) · …" |
@@ -466,7 +480,7 @@ File extensions follow the file's **real** type (magic bytes), never the custome
 ### 5.1 Transport
 `POST <web app /exec URL>` with a `text/plain;charset=utf-8` JSON body (a "simple" request: no CORS
 preflight). Apps Script answers with a 302 to `script.googleusercontent.com`, which serves the JSON with
-`Access-Control-Allow-Origin: *`. `GET` returns a health check `{"ok":true,"service":…,"version":1,"schema":7}` (schema = tracker version written by `setupEliteGlobal`: 3 = v3 columns + Visa Applications tab, 4 = Message to Customer, 5 = Review Status, Review Updated, Last Customer Email, 6 = Correction For, 7 = Visa Files + Approved Visa folders).
+`Access-Control-Allow-Origin: *`. `GET` returns a health check `{"ok":true,"service":…,"version":1,"schema":8}` (schema = tracker version written by `setupEliteGlobal`: 3 = v3 columns + Visa Applications tab, 4 = Message to Customer, 5 = Review Status, Review Updated, Last Customer Email, 6 = Correction For, 7 = Visa Files + Approved Visa folders, 8 = Send Now).
 
 Every request: `{"action": "<name>", "hp": "<honeypot>", …}` → `{"ok":true,"leadId":…}` or
 `{"ok":false,"error":"<friendly>","field"?:"<name>","missing"?:[…],"reverify"?:true,"relogin"?:true,"restart"?:true,"relist"?:true}` (`relist`: the visa file list changed; `reverify`: the email must be confirmed again; `relogin`: the Track session ended; `restart`: the correction or download token ended — start again from the Track page).
@@ -664,6 +678,7 @@ Run `node tools/check-lists.js` and `node tools/qa/run.js static` before every s
 - [ ] Correction round on staging (`testRequestCorrection`, `tools/qa/correction-live.js`): Fix my application button, Make the correction, code, replace a photo, submit → Correction Received, Notes line, Replaced folder, staff alert, Correction Received email; second round works
 - [ ] `setupEliteGlobal` adds Visa Files + Approved Visa folders; health check `"schema":7`
 - [ ] Visa delivery on staging (`testApproveVisa`, `tools/qa/visa-live.js`): Download your visa, code, 2 files (one ~4.5 MB) match byte for byte, Log out ends the token; held email without a file; ATTACH_VISA on/off with a real email
+- [ ] Send Now: tick on a Visa Approved row with a file → email within a minute, note "Sent …"; without a file → "Not sent — no visa file …"
 - [ ] Track live updates: a staff change shows within 2 minutes without a refresh; hidden tab pauses
 - [ ] `cleanupTestData()` run: TEST rows gone from 4 tabs, TEST visa folders in the Drive bin
 - [ ] Sharing on the tracker and the Visa Applications folder checked (named staff only)
