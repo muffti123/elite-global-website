@@ -100,7 +100,7 @@ const CONFIG = {
     MAIL_WORKSPACE: 1500,
     CELLS: 10000000,           // cells per spreadsheet (whole grids)
     WARN: 0.7,                 // ⚠️ in the daily summary at 70 % of a limit
-    LOCK_WAIT_MS: 10000,       // web app: wait up to 10 s for the script lock, then answer busy
+    LOCK_WAIT_MS: 20000,       // web app: wait up to 20 s for the script lock, then answer busy (website retries ~97 s)
     SID_TTL_S: 21600,          // submission key replies kept 6 h (CacheService maximum)
     DUE_MAX: 2000,             // Due rows handled per run (the rest next run)
   },

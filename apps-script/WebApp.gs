@@ -52,6 +52,7 @@ function doPost(e) {
   let busy = false;
   let qa = false;
   lockStatsReset_('');
+  TRACKER_SS_ = null; COLS_MEMO_ = {}; // opened / read once per request (setup never runs inside a request)
   try {
     const body = e && e.postData && e.postData.contents;
     if (!body) fail_('Empty request.');

@@ -52,42 +52,44 @@ function createVisaApplication_(d) {
   if (again && again !== 'pending') { console.log('createVisaApplication replay'); return JSON.parse(again); }
   rateLimit_('email:' + a.email);
 
-  let replay = null, claimed = false;
-  return sidGuard_(sk, function () { return claimed; }, function () {
+  const state = { claimed: false };
+  return sidGuard_(sk, function () { return state.claimed; }, function () {
+  // Lock 1 (tiny): sid claim + Lead ID — the folder name needs the ID, and no tracker row exists without a folder
+  let replay = null;
   const leadId = withLock_(function () {
     replay = claimSid_(sk);
     if (replay) return '';
-    claimed = !!sk;
+    state.claimed = !!sk;
     return nextLeadId_(CONFIG.FORMS.VISA.idPrefix);
   });
   if (replay) { console.log('createVisaApplication replay'); return replay; }
 
   // Drive work happens outside the lock
   const folder = visaRootFolder_().createFolder(leadId + ' – ' + folderSafe_(a.name));
+  const folderUrl = folder.getUrl();
   const token = Utilities.getUuid();
   saveUploadState_(leadId, { t: token, n: list.length, f: folder.getId(), k: codes, u: [], c: Date.now(), d: docs, dd: [], sl: {} });
 
-  withLock_(function () {
-    const now = new Date();
-    appendTrackerRow_({
-      leadId: leadId, date: now, name: a.name, phone: a.phone,
-      category: CONFIG.FORMS.VISA.category,
+  // Lock 2: the tracker row only
+  const made = createLeadRow_({ leadId: leadId }, function () {
+    return {
+      name: a.name, phone: a.phone, category: CONFIG.FORMS.VISA.category,
       adults: counts[0], children: counts[1], infants: counts[2],
-      travelDate: a.travelDate, budget: 'N/A (visa only)',
-      folderUrl: folder.getUrl(),
+      travelDate: a.travelDate, budget: 'N/A (visa only)', folderUrl: folderUrl,
       email: a.email, country: a.country, departure: a.departureAirport,
       passengers: list.length, source: a.heard,
       status: CONFIG.STATUS.uploading(0, list.length),
-    });
-    const tab = CONFIG.TABS.VISA;
-    const row = appendDetailRow_(tab, [
-      leadId, now, a.name, a.phone, a.email, a.country, parseDate_(a.travelDate), a.departureAirport,
-      a.flightTicket, a.priorKsa, a.westernVisa, list.length, counts[0], counts[1], counts[2],
-      '', '', a.extraInfo, a.heard, '',
-    ]);
-    trackerSS_().getSheetByName(tab.name).getRange(row, tab.folderCol)
-      .setFormula('=HYPERLINK("' + folder.getUrl() + '","📁 ' + leadId + '")');
+    };
   });
+  // Visa Applications row (appendRow: atomic, no lock), the folder link written in the same call
+  const tab = CONFIG.TABS.VISA;
+  const vrow = [
+    leadId, made.now, a.name, a.phone, a.email, a.country, parseDate_(a.travelDate), a.departureAirport,
+    a.flightTicket, a.priorKsa, a.westernVisa, list.length, counts[0], counts[1], counts[2],
+    '', '', a.extraInfo, a.heard, '',
+  ];
+  vrow[tab.folderCol - 1] = '=HYPERLINK("' + folderUrl + '","📁 ' + leadId + '")';
+  appendDetailRow_(tab, vrow, [tab.folderCol]);
 
   console.log('createVisaApplication ok ' + leadId + ' passengers=' + list.length);
   const out = { ok: true, leadId: leadId, token: token, total: list.length };

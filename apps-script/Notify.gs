@@ -505,34 +505,36 @@ function onTrackerEdit(e) {
     if (r2 < r1) return;
     // Last Change (archive age): any staff edit of the row, except the auto columns
     const autoOnly = c1 === c2 && (c1 === cols['Last Change'] || c1 === cols['Emails Sent']);
-    if (!autoOnly && r2 - r1 <= 1000) {
-      const ids = sh.getRange(r1, 1, r2 - r1 + 1, 1).getValues();
+    const n = r2 - r1 + 1;
+    // one block read of the edited rows for every column used below (one call is faster than one per column)
+    const width = Math.max.apply(null, CONFIG.HEADERS.map(function (h) { return cols[h]; }));
+    const block = (!autoOnly || hit) && n <= 1000 ? sh.getRange(r1, 1, n, width).getValues() : null;
+    if (!autoOnly && block) {
       const now = new Date();
-      const lc = sh.getRange(r1, cols['Last Change'], r2 - r1 + 1, 1);
-      const cur = lc.getValues();
+      const lcCol = cols['Last Change'];
+      const cur = block.map(function (r) { return [r[lcCol - 1]]; });
       let any = false;
-      ids.forEach(function (r, i) { if (r[0] !== '') { cur[i][0] = now; any = true; } });
-      if (any) lc.setValues(cur);
+      block.forEach(function (r, i) { if (r[0] !== '') { cur[i][0] = now; any = true; } });
+      if (any) sh.getRange(r1, lcCol, n, 1).setValues(cur);
     }
     // Review Status edits start the undo window (and go on the Due list); then ticked Send Now boxes are handled
-    if (hit && r2 - r1 <= 1000) stampReviewUpdated_(sh, cols, r1, r2);
+    if (hit && block) stampReviewUpdated_(sh, cols, r1, r2, block);
     if (inside('Send Now')) sendNowRows_(e, sh, cols, r1, Math.min(r2, r1 + SEND_NOW_MAX - 1));
   } catch (err) { console.error('onTrackerEdit: ' + err.message); }
   finally { recordRun_('edit', Date.now() - t0); }
 }
 
-/** Review Updated = now for the visa rows r1..r2 (a Review Status edit starts the 5-minute undo window). */
-function stampReviewUpdated_(sh, cols, r1, r2) {
+/** Review Updated = now for the visa rows r1..r2 (a Review Status edit starts the 5-minute undo window). block = their values. */
+function stampReviewUpdated_(sh, cols, r1, r2, block) {
   {
-    const cats = sh.getRange(r1, cols['Lead Category'], r2 - r1 + 1, 1).getValues();
-    const ids = sh.getRange(r1, 1, r2 - r1 + 1, 1).getValues();
-    const stamps = sh.getRange(r1, cols['Review Updated'], r2 - r1 + 1, 1).getValues();
+    const ru = cols['Review Updated'] - 1, cat = cols['Lead Category'] - 1;
+    const stamps = block.map(function (r) { return [r[ru]]; });
     const now = new Date();
     const due = [];
-    cats.forEach(function (c, i) {
-      if (String(c[0]) === CONFIG.FORMS.VISA.category && ids[i][0]) {
+    block.forEach(function (r, i) {
+      if (String(r[cat]) === CONFIG.FORMS.VISA.category && r[0]) {
         stamps[i][0] = now;
-        due.push({ id: String(ids[i][0]), at: now.getTime() + CONFIG.EMAIL.UNDO_MIN * 60000, reason: 'status change' });
+        due.push({ id: String(r[0]), at: now.getTime() + CONFIG.EMAIL.UNDO_MIN * 60000, reason: 'status change' });
       }
     });
     if (due.length) {

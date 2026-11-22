@@ -44,10 +44,12 @@ function nextLeadId_(prefix) {
 // ---------------------------------------------------------------------
 // TRACKER ACCESS
 // ---------------------------------------------------------------------
+let TRACKER_SS_ = null; // opened once per execution (openById costs a few hundred ms)
 function trackerSS_() {
   const id = PropertiesService.getScriptProperties().getProperty('TRACKER_ID');
   if (!id) throw new Error('Setup has not been run (no TRACKER_ID).');
-  return SpreadsheetApp.openById(id);
+  if (!TRACKER_SS_ || TRACKER_SS_.id !== id) TRACKER_SS_ = { id: id, ss: SpreadsheetApp.openById(id) };
+  return TRACKER_SS_.ss;
 }
 
 function trackerSheet_() {
@@ -101,26 +103,34 @@ function touchLead_(sh, row, cols) {
  * Column number of every Lead Tracker header, found by name in row 1 (the v3 columns were appended
  * after Drive Folder, and staff may have added their own columns further right).
  */
+let COLS_MEMO_ = null; // web-app requests only (doPost sets {}): the header is read once per request
 function trackerCols_(sh) {
+  const memo = COLS_MEMO_ && COLS_MEMO_[sh.getSheetId()];
+  if (memo) return memo;
   const head = sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0];
   const cols = {};
   head.forEach(function (h, i) { if (h !== '' && !cols[h]) cols[h] = i + 1; });
   const missing = CONFIG.HEADERS.filter(function (h) { return !cols[h]; });
   if (missing.length) throw new Error('Lead Tracker is missing ' + missing.join(', ') + '. Run setupEliteGlobal().');
+  if (COLS_MEMO_) COLS_MEMO_[sh.getSheetId()] = cols;
   return cols;
 }
 
 /**
- * Appends one lead to the Lead Tracker tab. Call inside withLock_.
- * r = {leadId, date, name, phone, category, adults, children, infants, travelDate, budget, folderUrl?,
- *      email?, country?, departure?, passengers?, source?, status}
- * Follow-up Notes is left empty: it belongs to staff. The answers live in the detail tabs.
+ * Adds one lead to the Lead Tracker (createLeadRow_ — takes the lock itself, or runs inline when this execution
+ * already holds it). r = {leadId, date, name, phone, category, adults, children, infants, travelDate, budget,
+ * folderUrl?, email?, country?, departure?, passengers?, source?, status}. Returns the row.
  */
 function appendTrackerRow_(r) {
-  const sh = trackerSheet_();
-  const cols = trackerCols_(sh);
-  const row = nextEmptyRow_(sh);
-  const v = {
+  return createLeadRow_({ leadId: r.leadId }, function (leadId, now) { return r; }).row;
+}
+
+/**
+ * The Lead Tracker values of a new lead {header: value}. Follow-up Notes is left empty: it belongs to staff.
+ * The answers live in the detail tabs.
+ */
+function trackerValues_(r, row) {
+  return {
     'Lead ID': r.leadId,
     'Date Received': r.date,
     'Customer Name': safeCell_(r.name),
@@ -152,14 +162,84 @@ function appendTrackerRow_(r) {
     'Last Change': r.date,
     'Emails Sent': '',
   };
-  // Write the contiguous block of web-app columns; staff columns outside it are untouched.
-  const last = Math.max.apply(null, CONFIG.HEADERS.map(function (h) { return cols[h]; }));
-  const current = sh.getRange(row, 1, 1, last).getValues()[0];
-  CONFIG.HEADERS.forEach(function (h) { current[cols[h] - 1] = v[h]; });
-  sh.getRange(row, 1, 1, last).setValues([current]);
-  const cache = CacheService.getScriptCache();
-  cache.put('ROW_' + sh.getSheetId() + '_' + r.leadId, String(row), 21600);
-  cache.put('NEXT_ROW_' + sh.getSheetId(), String(row + 1), 21600);
+}
+
+/**
+ * Creates a lead row with the least possible work under the script lock (PRD §3.9). Outside the lock: open the
+ * tracker and read the header. Inside: claim the submission key (o.sk; o.state.claimed is set for sidGuard_),
+ * take the next Lead ID (unless o.leadId is given), check the stored next row (NEXT_ROW_<sheet> property: the row
+ * above holds a Lead ID, the row itself is empty — one 2-row read that is also the row's current content), write
+ * the row, store LEAD_SEQ + NEXT_ROW in one property write, flush. When the stored row does not check out (staff
+ * sorted or deleted rows, the archive or clean-up ran) the lock is released, the row after the last Lead ID is found
+ * OUTSIDE the lock (nextRowFallback_, logged) and the lock is taken again — column A is never scanned under the lock.
+ * record(leadId, now) → the appendTrackerRow_ record. Returns {replay} (an earlier reply for this sid) or {leadId, row, now}.
+ */
+function createLeadRow_(o, record) {
+  const sh = trackerSheet_();
+  const cols = trackerCols_(sh);
+  const width = Math.max.apply(null, CONFIG.HEADERS.map(function (h) { return cols[h]; }));
+  const key = 'NEXT_ROW_' + sh.getSheetId();
+  const state = o.state || {};
+  let hint = 0;
+  const write = function () {
+    if (o.sk && !state.claimed) {
+      const replay = claimSid_(o.sk);
+      if (replay) return { replay: replay };
+      state.claimed = true;
+    }
+    const p = PropertiesService.getScriptProperties();
+    const max = sh.getMaxRows();
+    const tries = [Number(p.getProperty(key) || 0), hint];
+    let row = 0, cur = null;
+    for (let i = 0; i < tries.length && !row; i++) {
+      const c = tries[i];
+      if (c < 2 || c > max || (i && c === tries[0])) continue;
+      const two = sh.getRange(c - 1, 1, 2, width).getValues();
+      if (String(two[0][0]) !== '' && String(two[1][0]) === '') { row = c; cur = two[1]; }
+    }
+    if (!row) return { rescan: true };
+    const props = {};
+    let leadId = o.leadId;
+    if (!leadId) {
+      const seq = Number(p.getProperty('LEAD_SEQ') || 0) + 1;
+      leadId = 'EG-' + o.prefix + '-' + ('00000' + seq).slice(-5);
+      props.LEAD_SEQ = String(seq);
+    }
+    const now = new Date();
+    const v = trackerValues_(Object.assign({ date: now }, record(leadId, now), { leadId: leadId }), row);
+    CONFIG.HEADERS.forEach(function (h) { cur[cols[h] - 1] = v[h]; }); // staff columns inside the block keep their value
+    sh.getRange(row, 1, 1, width).setValues([cur]);
+    props[key] = String(row + 1);
+    p.setProperties(props);
+    return { leadId: leadId, row: row, now: now };
+  };
+  const lock = LockService.getScriptLock();
+  const held = lock.hasLock && lock.hasLock();
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const r = held ? write() : withLock_(write);
+    if (!r.rescan) {
+      if (r.leadId) { try { CacheService.getScriptCache().put('ROW_' + sh.getSheetId() + '_' + r.leadId, String(r.row), 21600); } catch (e) { /* cache only */ } }
+      return r;
+    }
+    hint = nextRowFallback_(sh);
+  }
+  fail_(BUSY_MSG, null, { busy: true });
+}
+
+/**
+ * The row after the last Lead ID — OUTSIDE the lock: one Ctrl+↑ lookup from the bottom of column A (no column
+ * scan). Adds 500 pre-formatted rows when the grid is full. Logged (row number only) and counted in System health.
+ */
+function nextRowFallback_(sh) {
+  const max = sh.getMaxRows();
+  const bottom = sh.getRange(max, 1);
+  const row = String(bottom.getValue()) !== '' ? max + 1 : bottom.getNextDataCell(SpreadsheetApp.Direction.UP).getRow() + 1;
+  if (row > max) {
+    sh.insertRowsAfter(max, 500);
+    applyRowRules_(sh, max + 1, 500);
+  }
+  console.log('next row fallback: row ' + row);
+  countHealth_('rowFallback');
   return row;
 }
 
@@ -180,38 +260,18 @@ function applicationStatus_(leadId) {
   return row ? String(sh.getRange(row, trackerCols_(sh)['Application Status']).getValue()) : '';
 }
 
-/** Appends a row to a detail tab (CONFIG.TABS.*). Strings are made formula-safe. Call inside withLock_. */
-function appendDetailRow_(tab, values) {
+/**
+ * Appends a row to a detail tab (CONFIG.TABS.*) — no lock needed: appendRow is one atomic call, so simultaneous
+ * leads never share a row. Strings are made formula-safe; formulaCols (1-based) hold formulas built by the web app
+ * itself (the Drive folder link), never customer text.
+ */
+function appendDetailRow_(tab, values, formulaCols) {
   const sh = trackerSS_().getSheetByName(tab.name);
   if (!sh) throw new Error('Tab "' + tab.name + '" is missing. Run setupEliteGlobal().');
   sh.appendRow(values.map(function (v, i) {
+    if (formulaCols && formulaCols.indexOf(i + 1) !== -1) return v;
     return tab.textCols.indexOf(i + 1) !== -1 ? String(v) : safeCell_(v);
   }));
-  return sh.getLastRow();
-}
-
-/**
- * First empty row, judged by the Lead ID column. Adds more rows when full. Call inside withLock_.
- * A cached next row is used when it checks out (its cell is empty and the row above holds a Lead ID);
- * otherwise column A is read once.
- */
-function nextEmptyRow_(sh) {
-  const max = sh.getMaxRows();
-  const cache = CacheService.getScriptCache();
-  const c = Number(cache.get('NEXT_ROW_' + sh.getSheetId()) || 0);
-  if (c >= 3 && c <= max) {
-    const two = sh.getRange(c - 1, 1, 2, 1).getValues();
-    if (two[0][0] !== '' && two[1][0] === '') return c;
-  }
-  const ids = sh.getRange(2, 1, max - 1, 1).getValues();
-  let last = 0;
-  for (let i = ids.length - 1; i >= 0; i--) { if (ids[i][0] !== '') { last = i + 1; break; } }
-  const row = last + 2;
-  if (row > max) {
-    sh.insertRowsAfter(max, 500);
-    applyRowRules_(sh, max + 1, 500);
-  }
-  return row;
 }
 
 /** Formats, dropdowns and the Total Travellers formula for a block of Lead Tracker rows. */
@@ -281,29 +341,26 @@ function submitContact_(d) {
   if (again && again !== 'pending') { console.log('submitContact replay'); return JSON.parse(again); } // a retry: same reply
   rateLimit_('phone:' + a.phone.replace(/\D/g, ''));
 
-  let replay = null, claimed = false;
-  const res = sidGuard_(sk, function () { return claimed; }, function () { return withLock_(function () {
-    replay = claimSid_(sk);
-    if (replay) return replay;
-    claimed = !!sk;
-    const leadId = nextLeadId_(CONFIG.FORMS.CONTACT.idPrefix);
-    const now = new Date();
-    appendTrackerRow_({
-      leadId: leadId, date: now, name: a.name, phone: a.phone,
-      category: CONFIG.FORMS.CONTACT.category,
-      adults: a.travellers, children: '', infants: '', // website only collects a total
-      travelDate: a.travelDate, budget: '', // website only collects a total (counted under Adults)
-      status: CONFIG.STATUS.RECEIVED,
+  const state = { claimed: false };
+  const res = sidGuard_(sk, function () { return state.claimed; }, function () {
+    // under the lock: sid claim + Lead ID + the tracker row only
+    const made = createLeadRow_({ sk: sk, state: state, prefix: CONFIG.FORMS.CONTACT.idPrefix }, function () {
+      return {
+        name: a.name, phone: a.phone, category: CONFIG.FORMS.CONTACT.category,
+        adults: a.travellers, children: '', infants: '', // website only collects a total (counted under Adults)
+        travelDate: a.travelDate, budget: '', status: CONFIG.STATUS.RECEIVED,
+      };
     });
+    if (made.replay) return made;
     appendDetailRow_(CONFIG.TABS.CONTACT, [
-      leadId, now, a.name, a.phone, a.enquiryType, parseDate_(a.travelDate), a.travellers, a.details,
+      made.leadId, made.now, a.name, a.phone, a.enquiryType, parseDate_(a.travelDate), a.travellers, a.details,
     ]);
-    console.log('submitContact ok ' + leadId);
-    const out = { ok: true, leadId: leadId };
+    console.log('submitContact ok ' + made.leadId);
+    const out = { ok: true, leadId: made.leadId };
     storeSid_(sk, out);
     return out;
-  }); });
-  if (replay) { console.log('submitContact replay'); return replay; }
+  });
+  if (res.replay) { console.log('submitContact replay'); return res.replay; }
   notifyNewLead_({
     leadId: res.leadId, kind: 'contact', name: a.name, phone: a.phone, email: '', country: '',
     travelDate: a.travelDate, passengers: a.travellers, extra: [['Enquiry', a.enquiryType]],
@@ -350,33 +407,31 @@ function submitCustomRequest_(d) {
 
   const services = a.services.concat(a.servicesOther ? ['Other: ' + a.servicesOther] : []);
 
-  let replay = null, claimed = false;
-  const res = sidGuard_(sk, function () { return claimed; }, function () { return withLock_(function () {
-    replay = claimSid_(sk);
-    if (replay) return replay;
-    claimed = !!sk;
-    const leadId = nextLeadId_(CONFIG.FORMS.CUSTOM.idPrefix);
-    const now = new Date();
-    appendTrackerRow_({
-      leadId: leadId, date: now, name: a.name, phone: a.phone,
-      category: CONFIG.FORMS.CUSTOM.category,
-      adults: a.adults, children: a.children, infants: a.infants,
-      travelDate: a.travelDate, budget: a.budget,
-      email: a.email, country: a.country, departure: a.departureAirport, source: a.heard,
-      status: CONFIG.STATUS.RECEIVED,
+  const state = { claimed: false };
+  const res = sidGuard_(sk, function () { return state.claimed; }, function () {
+    // under the lock: sid claim + Lead ID + the tracker row only
+    const made = createLeadRow_({ sk: sk, state: state, prefix: CONFIG.FORMS.CUSTOM.idPrefix }, function () {
+      return {
+        name: a.name, phone: a.phone, category: CONFIG.FORMS.CUSTOM.category,
+        adults: a.adults, children: a.children, infants: a.infants,
+        travelDate: a.travelDate, budget: a.budget,
+        email: a.email, country: a.country, departure: a.departureAirport, source: a.heard,
+        status: CONFIG.STATUS.RECEIVED,
+      };
     });
+    if (made.replay) return made;
     appendDetailRow_(CONFIG.TABS.CUSTOM, [
-      leadId, now, a.name, a.phone, a.email, a.country, a.adults, a.children, a.infants,
+      made.leadId, made.now, a.name, a.phone, a.email, a.country, a.adults, a.children, a.infants,
       a.departureAirport, parseDate_(a.travelDate), a.flightTicket, a.arrivalCity, a.nightsMadinah,
       a.nightsMakkah, a.hotelCategory, a.haramDistance, a.preferredHotel, services.join(', '),
       a.visaAssist, a.budget, a.experience, a.hotelOrAirline, a.special, a.heard,
     ]);
-    console.log('submitCustomRequest ok ' + leadId);
-    const out = { ok: true, leadId: leadId };
+    console.log('submitCustomRequest ok ' + made.leadId);
+    const out = { ok: true, leadId: made.leadId };
     storeSid_(sk, out);
     return out;
-  }); });
-  if (replay) { console.log('submitCustomRequest replay'); return replay; }
+  });
+  if (res.replay) { console.log('submitCustomRequest replay'); return res.replay; }
   const lead = {
     leadId: res.leadId, kind: 'custom', name: a.name, phone: a.phone, email: a.email, country: a.country,
     travelDate: a.travelDate, passengers: a.adults + a.children + a.infants,

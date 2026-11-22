@@ -81,10 +81,38 @@ module.exports = function (g, ok, t) {
   tr.deleteRow(ctx.findLeadRow_(tr, above)); // staff delete a row above (or the archive does)
   ok('cached Lead ID → row is checked: after a row above is deleted the lead is still found at its new row', ctx.findLeadRow_(tr, target) === rTarget - 1 && tr.get(rTarget - 1, 1) === target);
   ok('an unknown Lead ID → 0 (no stale cache hit)', ctx.findLeadRow_(tr, 'EG-GE-99999') === 0);
-  const nextBefore = ctx.nextEmptyRow_(tr);
-  ok('next empty row is right after the last lead (cache checked)', tr.get(nextBefore - 1, 1) !== '' && tr.get(nextBefore, 1) === '');
+  const nextBefore = tr.getLastRow() + 1;
+  const fbLogs = () => logs.filter((l) => /^next row fallback: row \d+$/.test(l)).length;
+  const fb0 = fbLogs(), nd0 = tr.nextDataCalls || 0;
   const s4 = post(contact('TEST After Delete', '+234 800 000 0307', sid(8)));
-  ok('… and the next lead lands there', ctx.findLeadRow_(tr, s4.leadId) === nextBefore);
+  ok('after a staff delete the stored next row fails its check → found outside the lock (one Ctrl+↑ lookup, logged with the row number only), the lead lands right after the last one',
+    ctx.findLeadRow_(tr, s4.leadId) === nextBefore && fbLogs() === fb0 + 1 && (tr.nextDataCalls || 0) === nd0 + 1, 'row ' + ctx.findLeadRow_(tr, s4.leadId) + ' vs ' + nextBefore);
+  const nd1 = tr.nextDataCalls || 0;
+  const s5 = post(contact('TEST Next Row', '+234 800 000 0308', sid(9)));
+  ok('the next lead uses the stored counter (checked: row above filled, row empty) — no fallback, no lookup',
+    ctx.findLeadRow_(tr, s5.leadId) === nextBefore + 1 && fbLogs() === fb0 + 1 && (tr.nextDataCalls || 0) === nd1 && props['NEXT_ROW_' + tr.getSheetId()] === String(nextBefore + 2));
+  // staff type something in the next row → the check fails → fallback, never an overwrite
+  tr.set(nextBefore + 2, 1, 'staff note');
+  const s6 = post(contact('TEST Not Overwritten', '+234 800 000 0309', sid(10)));
+  ok('a row staff filled in is never overwritten (check fails → fallback → the row after it)', tr.get(nextBefore + 2, 1) === 'staff note' && ctx.findLeadRow_(tr, s6.leadId) === nextBefore + 3);
+  tr.set(nextBefore + 2, 1, '');
+  // the grid is full → 500 rows added outside the lock
+  const maxBefore = tr.getMaxRows();
+  props['NEXT_ROW_' + tr.getSheetId()] = String(maxBefore + 1);
+  const lastRealRow = tr.getLastRow();
+  for (let r = lastRealRow + 1; r <= maxBefore; r++) tr.set(r, 1, 'EG-XX-' + r); // fill to the bottom
+  const s7 = post(contact('TEST Full Grid', '+234 800 000 0310', sid(11)));
+  ok('a full grid: 500 rows added (outside the lock), the lead goes on the first new row', tr.getMaxRows() === maxBefore + 500 && ctx.findLeadRow_(tr, s7.leadId) === maxBefore + 1);
+  for (let r = lastRealRow + 1; r <= maxBefore; r++) tr.set(r, 1, '');
+  tr.deleteRow(maxBefore + 1); // keep the rest of the suite as it was
+  delete props['NEXT_ROW_' + tr.getSheetId()];
+  // what runs under the lock for a contact: claim, Lead ID, the 2-row check + the row write — never the detail tab
+  const realAppend = ctx.appendDetailRow_;
+  let appendLocked = null;
+  ctx.appendDetailRow_ = function () { appendLocked = lockState.held; return realAppend.apply(this, arguments); };
+  const s8 = post(contact('TEST Lock Scope', '+234 800 000 0311', sid(12)));
+  ctx.appendDetailRow_ = realAppend;
+  ok('the detail tab row (Contact Enquiries) is written after the lock is released', s8.ok && appendLocked === false);
 
   // --- Due tab ---------------------------------------------------------------------------------------------------
   resetLimits();
@@ -195,6 +223,20 @@ module.exports = function (g, ok, t) {
   ok('… the next night continues: deleted from live, still one copy, one index row', r2 && r2.archived === 1 && idsInTracker().indexOf(old.resume) === -1 && copies() === 1 &&
     (() => { let n = 0; for (let r = 2; r <= idx.getLastRow(); r++) if (idx.get(r, 1) === old.resume) n++; return n === 1; })() && props.ARCHIVE_PENDING === '0');
   ok('runArchive does nothing on other days when no run is unfinished', ctx.runArchive() === null || new Date().getDate() === 1);
+  // column A positions are read outside the lock: if a row moved before the lock, the batch stops — nothing copied or lost
+  clock.offset = -120 * DAY;
+  old.moved = post(contact('TEST Arch Moved', '+234 800 000 0410', sid(209))).leadId;
+  setCell(old.moved, 'Lead Status', 'Converted');
+  clock.offset = 0;
+  const pos = ctx.archivePositions_();
+  pos.colA.splice(1, 0, ['EG-XX-00000']); // as if a row above was deleted after the positions were read
+  const archQ = ctx.archiveFile_(ctx.quarterOf_(tr.get(ctx.findLeadRow_(tr, old.moved), colOf('Date Received'))));
+  const before2 = archQ.getSheetByName('Lead Tracker').getLastRow();
+  const moved = err(() => ctx.withLock_(() => ctx.archiveBatch_([old.moved], archQ, ctx.archiveContext_(), pos)));
+  ok('archive: a row that moved after the positions were read (outside the lock) → stopped under the lock, nothing copied, lead still live',
+    !moved.ok && /row moved during the archive/.test(moved.msg) && idsInTracker().indexOf(old.moved) !== -1 && archQ.getSheetByName('Lead Tracker').getLastRow() === before2, moved.msg);
+  const fresh = ctx.archiveNow();
+  ok('… the next run (fresh positions) archives it', fresh.archived === 1 && idsInTracker().indexOf(old.moved) === -1);
   // Track page + visa download from the archive
   resetLimits(); clearW();
   const ta = ctx.trackApplication_({ leadId: old.lost, contact: '+234 800 000 0401' });
@@ -208,15 +250,34 @@ module.exports = function (g, ok, t) {
   ok('… code → list → download works from the archive (Drive folders never move)', vv.ok && vv.files.length === 1 && dl.ok && Buffer.from(dl.b64, 'base64').toString('latin1') === ctx.specimenVisaPdf_(1));
   ok('… and nothing is written to the archive row', at.get(fr, colOf('Last Change')) instanceof Date && at.get(fr, colOf('Visa Files')) === 1);
 
+  // --- script-lock timing ------------------------------------------------------------------------------------------
+  resetLimits();
+  post(contact('TEST Lock Warm', '+234 800 000 0414', sid(16))); // the archive above deleted the stored next row: one fallback first
+  const ln = logs.length;
+  const q1 = post(Object.assign(contact('TEST Lock Timing', '+234 800 000 0411', sid(13)), { qaTiming: true }));
+  const lockLog = logs.slice(ln).filter((l) => /^lock /.test(l));
+  ok('every lock hold is logged with the action and times only ("lock submitContact held N ms (waited N ms)")', lockLog.length === 1 && /^lock submitContact held \d+ ms \(waited \d+ ms\)$/.test(lockLog[0]), lockLog.join(' | '));
+  ok('qaTiming without TEST_OTP_BYPASS → no timings in the reply (production never shows them)', q1.ok && q1.qa === undefined);
+  props.TEST_OTP_BYPASS = 'on';
+  const q2 = post(Object.assign(contact('TEST Lock Timing 2', '+234 800 000 0412', sid(14)), { qaTiming: true }));
+  const q3 = post(contact('TEST Lock Timing 3', '+234 800 000 0413', sid(15)));
+  delete props.TEST_OTP_BYPASS;
+  ok('staging (bypass on) + qaTiming → {qa: {n, held, max, wait, ms}} numbers only; without qaTiming nothing extra', q2.ok && q2.qa && q2.qa.n === 1 && typeof q2.qa.held === 'number' &&
+    typeof q2.qa.wait === 'number' && Object.keys(q2.qa).join() === 'n,held,max,wait,ms' && q3.qa === undefined, JSON.stringify(q2.qa));
+  ok('the lock wait is 20 s (LOCK_WAIT_MS)', C.LIMITS_GOOGLE.LOCK_WAIT_MS === 20000);
+  ok('lock holds are counted in today\'s health record (count, total, longest + its action)', (() => { const h = JSON.parse(props[ctx.healthKey_()] || '{}'); return h.lock && h.lock.n > 5 && h.lock.max >= 0 && typeof h.lock.a === 'string'; })());
+
   // --- health ----------------------------------------------------------------------------------------------------
   const yKey = ctx.healthKey_(new Date(Date.now() - DAY));
-  props[yKey] = JSON.stringify({ jobs: { n: 288, ms: 66 * MIN, max: 9000 }, edit: { n: 900, ms: 4 * MIN, max: 800 }, mail: 40, act: 1200, busy: 7, slow: ['uploadPassenger', 8400] });
+  props[yKey] = JSON.stringify({ jobs: { n: 288, ms: 66 * MIN, max: 9000 }, edit: { n: 900, ms: 4 * MIN, max: 800 }, mail: 40, act: 1200, busy: 7, slow: ['uploadPassenger', 8400],
+    lock: { n: 1500, ms: 450000, max: 15000, a: 'uploadPassenger' } });
   props.TRIGGER_LIMIT_MIN = '90'; props.MAIL_LIMIT = '100'; // gmail.com limits
   const rows = ctx.healthRows_();
   const txt = rows.map((r) => r[0] + ': ' + r[1]).join('\n');
   ok('System health: trigger time vs the gmail.com limit with ⚠️ at 70 % (70 of 90 min)', /Trigger time yesterday: ⚠️ 70 of 90 min \(78 %\)/.test(txt), txt.split('\n')[0]);
   ok('… emails vs quota, busy replies, slowest action, tracker cells/rows, Due + queue, last archive run', /Emails sent yesterday: 40 of 100/.test(txt) && /busy replies 7 · slowest uploadPassenger 8\.4 s/.test(txt) &&
     /Lead Tracker size: [\d.]+ M of 10 M cells/.test(txt) && /Due list \/ email queue: \d+ due · \d+ queued/.test(txt) && /Last archive run: .*archived/.test(txt), txt);
+  ok('… script lock: holds, average, longest + action, ⚠️ when the longest hold reaches 70 % of the 20 s wait', /Script lock yesterday: ⚠️ 1500 holds · average 300 ms · longest 15000 ms \(uploadPassenger\)/.test(txt), txt.split('\n').find((l) => /Script lock/.test(l)));
   ok('web-app actions and trigger runs are recorded today (no personal data)', (() => { const h = JSON.parse(props[ctx.healthKey_()] || '{}'); return h.act > 30 && h.busy >= 2 && h.jobs && h.jobs.n > 3 && h.edit && !/@|Person/.test(JSON.stringify(h)); })());
   props.TRIGGER_LIMIT_MIN = '360'; delete props.MAIL_LIMIT;
   ok('TRIGGER_LIMIT_MIN (Workspace) changes the limit: no ⚠️ at 70 of 360 min', /Trigger time yesterday: 70 of 360 min/.test(ctx.healthRows_()[0][1] ? 'Trigger time yesterday: ' + ctx.healthRows_()[0][1] : ''));

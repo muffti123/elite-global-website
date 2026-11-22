@@ -160,7 +160,8 @@ function archiveRun_(manual) {
         const arch = archiveFile_(q);
         for (let i = 0; i < ids.length; i += A.BATCH) {
           if (Date.now() > deadline) { out.unfinished = true; break; }
-          const n = withLock_(function () { return archiveBatch_(ids.slice(i, i + A.BATCH), arch, x); }, 30000);
+          const pos = archivePositions_(); // column A of each tab: read OUTSIDE the lock, re-checked inside
+          const n = withLock_(function () { return archiveBatch_(ids.slice(i, i + A.BATCH), arch, x, pos); }, 30000);
           out.archived += n;
           out.files[q] = (out.files[q] || 0) + n;
         }
@@ -191,7 +192,8 @@ function keepTrackerRows_(sh) {
     sh.insertRowsAfter(max, CONFIG.ARCHIVE.MIN_ROWS - max);
     applyRowRules_(sh, max + 1, CONFIG.ARCHIVE.MIN_ROWS - max);
   }
-  CacheService.getScriptCache().remove('NEXT_ROW_' + sh.getSheetId());
+  // rows were deleted: the stored next row is stale — the next lead finds it outside the lock (nextRowFallback_)
+  PropertiesService.getScriptProperties().deleteProperty('NEXT_ROW_' + sh.getSheetId());
 }
 
 /** Value for the archive: HYPERLINK formulas kept, other formulas as their value, text never turned into a formula. */
@@ -209,16 +211,33 @@ function sameCell_(a, b, formula) {
 }
 
 /**
- * Inside the lock. Copies → verifies → indexes → deletes one batch of Lead IDs. Re-checks each lead on fresh
- * rows (a change since the scan keeps it live). Returns the number archived.
+ * Outside the lock: column A (Lead IDs) of the Lead Tracker and the 4 detail tabs — the slow full-column reads.
+ * Rows only move when rows are deleted (staff, clean-up, the archive itself), so archiveBatch_ re-checks every
+ * row by its Lead ID under the lock and stops (nothing lost, resumed next night) if one moved.
  */
-function archiveBatch_(ids, arch, x) {
+function archivePositions_() {
+  const live = trackerSS_();
+  const sh = trackerSheet_();
+  const pos = { colA: sh.getLastRow() >= 1 ? sh.getRange(1, 1, sh.getLastRow(), 1).getValues() : [], tabs: {} };
+  [CONFIG.TABS.VISA, CONFIG.TABS.PASSENGERS, CONFIG.TABS.CUSTOM, CONFIG.TABS.CONTACT].forEach(function (tab) {
+    const d = live.getSheetByName(tab.name);
+    pos.tabs[tab.name] = d && d.getLastRow() >= 2 ? d.getRange(2, 1, d.getLastRow() - 1, 1).getValues() : [];
+  });
+  return pos;
+}
+
+/**
+ * Inside the lock. Copies → verifies → indexes → deletes one batch of Lead IDs. Re-checks each lead on fresh
+ * rows (a change since the scan keeps it live). pos = archivePositions_() (read outside the lock). Returns the number archived.
+ */
+function archiveBatch_(ids, arch, x, pos) {
   const live = trackerSS_();
   const sh = trackerSheet_();
   const cols = trackerCols_(sh);
   const lastCol = sh.getLastColumn();
   const now = Date.now();
-  const colA = sh.getRange(1, 1, sh.getLastRow(), 1).getValues();
+  pos = pos || archivePositions_();
+  const colA = pos.colA;
   const rowOf = {};
   colA.forEach(function (r, i) { if (r[0] && i > 0) rowOf[String(r[0])] = i + 1; });
   // fresh tracker rows (one block over the batch span)
@@ -231,6 +250,7 @@ function archiveBatch_(ids, arch, x) {
     const r = rowOf[id];
     if (!r) return false;
     const v = blockV[r - r1];
+    if (String(v[0]) !== id) throw new Error('row moved during the archive (' + CONFIG.TRACKER_TAB + ') — stopped, nothing lost');
     return !archiveBlock_(function (h) { return v[cols[h] - 1]; }, x, now);
   });
   if (!go.length) return 0;
@@ -238,8 +258,8 @@ function archiveBatch_(ids, arch, x) {
   go.forEach(function (id) { tabs[0].rows[id] = [rowOf[id]]; });
   [CONFIG.TABS.VISA, CONFIG.TABS.PASSENGERS, CONFIG.TABS.CUSTOM, CONFIG.TABS.CONTACT].forEach(function (tab) {
     const d = live.getSheetByName(tab.name);
-    if (!d || d.getLastRow() < 2) return;
-    const a = d.getRange(2, 1, d.getLastRow() - 1, 1).getValues();
+    const a = pos.tabs[tab.name] || [];
+    if (!d || !a.length) return;
     const t = { sh: d, name: tab.name, width: tab.headers.length, rows: {} };
     const want = {};
     go.forEach(function (id) { want[id] = true; });
@@ -260,6 +280,7 @@ function archiveBatch_(ids, arch, x) {
     const src = all.map(function (e) {
       const v = span ? V[e[1] - lo] : t.sh.getRange(e[1], 1, 1, t.width).getValues()[0];
       const f = span ? F[e[1] - lo] : t.sh.getRange(e[1], 1, 1, t.width).getFormulas()[0];
+      if (String(v[0]) !== e[0]) throw new Error('row moved during the archive (' + t.name + ') — stopped, nothing lost');
       return { id: e[0], v: v, f: f, out: v.map(function (val, j) { return archiveCell_(val, f[j]); }) };
     });
     const at = arch.getSheetByName(t.name);

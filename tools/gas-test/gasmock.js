@@ -66,6 +66,15 @@ module.exports = function (dir) {
     setFormulaR1C1() { return this; },
     getRow() { return this.r; }, getColumn() { return this.c; }, getNumRows() { return this.nr; }, getSheet() { return this.sh; },
     getNumColumns() { return this.nc; },
+    // Ctrl+↑ (UP only): from an empty cell → the nearest filled cell above (row 1 if none); from a filled cell → top of its block
+    getNextDataCell(dir) {
+      if (dir !== 'UP') throw new Error('mock: getNextDataCell UP only');
+      const filled = (x) => this.sh.get(x, this.c) !== '';
+      let r = this.r;
+      if (filled(r)) { while (r > 1 && filled(r - 1)) r--; } else { r--; while (r > 1 && !filled(r)) r--; }
+      this.sh.nextDataCalls = (this.sh.nextDataCalls || 0) + 1;
+      return new Range(this.sh, Math.max(r, 1), this.c, 1, 1);
+    },
     createFilter() { this.sh.filter = { getRange: () => this, remove: () => { this.sh.filter = null; } }; return this.sh.filter; },
     protect() { return protection; },
     createTextFinder(t) {
@@ -137,7 +146,7 @@ module.exports = function (dir) {
       getProperty: (k) => (k in props ? props[k] : null), setProperty: (k, v) => { props[k] = String(v); },
       deleteProperty: (k) => { delete props[k]; }, getProperties: () => Object.assign({}, props), setProperties: (o) => Object.assign(props, o),
     }) },
-    SpreadsheetApp: { flush() {}, openById: (id) => { if (!books[id]) throw new Error('no spreadsheet ' + id); return books[id]; },
+    SpreadsheetApp: { Direction: { UP: 'UP', DOWN: 'DOWN' }, flush() {}, openById: (id) => { if (!books[id]) throw new Error('no spreadsheet ' + id); return books[id]; },
       create: (name) => { const id = 'SS' + Object.keys(books).length; const b = new Spreadsheet(id, name); b.sheets = [new Sheet('Sheet1', 1000, 26)]; books[id] = b; return b; },
       newDataValidation: () => {
         const b = { requireValueInList(l) { b.list = l; return b; }, requireNumberGreaterThanOrEqualTo() { return b; }, requireCheckbox() { b.checkbox = true; return b; },
