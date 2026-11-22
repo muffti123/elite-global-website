@@ -44,6 +44,7 @@
 </div></section>
 
 <section><div class="wrap track-wrap">
+<p class="track-restoring" id="trackRestoring" hidden>Loading your application…</p>
 <div class="panel" id="trackFormPanel">
 <h2>Find your application</h2>
 <form id="trackForm" class="track-form" method="post" novalidate>
@@ -69,7 +70,20 @@
 </dl>
 <div class="next-step"><b>Next step</b><p data-r="nextStep"></p></div>
 <div class="staff-msg" data-r-msgbox hidden><b>Message from our team</b><p data-r="message"></p></div>
+<div class="correct-box" id="correctBox" hidden>
+<p class="correct-lead">You can make the correction yourself on our website. For your security we will first email a 6-digit code to the email address on your application.</p>
+<button type="button" class="btn btn-gold" id="correctBtn">Make the correction&nbsp; →</button>
+<div class="verify-code correct-code" id="correctCode" hidden>
+<p class="correct-sent">We sent a code to <b id="corrMasked"></b>.</p>
+<label class="field verify-input">6-digit code from the email<input id="corrCode" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="123456" aria-describedby="corrStatus"><span class="err-msg">Please enter the 6-digit code from the email.</span></label>
+<button type="button" class="btn btn-gold" id="corrConfirm">Confirm</button>
+<button type="button" class="link-btn" id="corrResend" disabled>Resend code (60 s)</button>
+<p class="inbox-note" id="corrInbox"></p>
+</div>
+<p class="verify-status" id="corrStatus" role="status" aria-live="polite"></p>
+</div>
 <div class="track-actions">
+<button type="button" class="btn btn-outline" id="trackLogout">Log out</button>
 <button type="button" class="btn btn-outline" id="trackAgain">Track another application</button>
 <a class="btn btn-gold" data-show="whatsapp" data-href="whatsapp" target="_blank" rel="noopener">Chat on WhatsApp</a>
 <a class="btn btn-outline" data-show="phone" data-href="tel">Call us</a>

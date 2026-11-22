@@ -32,6 +32,8 @@ const CONFIG = {
     'Message to Customer',
     // v5 (round 2.2): visa review workflow — staff set Review Status, the web app stamps the rest
     'Review Status', 'Review Updated', 'Last Customer Email',
+    // v6 (round 2.3): staff choose what the customer should correct (highlighted on the correction page)
+    'Correction For',
   ],
   // Columns 1–15 keep their fixed positions; columns added later are found by header name.
   NOTES_COL: 14,      // Follow-up Notes: staff only (the web app no longer writes here)
@@ -50,8 +52,11 @@ const CONFIG = {
         '(change it back within 5 minutes to cancel). Correction Needed is only sent once Message to Customer is filled in.' },
     'Review Updated': { width: 150, auto: true, format: 'dd mmm yyyy, hh:mm' },
     'Last Customer Email': { width: 250, auto: true, wrap: true },
+    'Correction For': { width: 170, list: 'CORRECTION_FOR', help: 'Choose what the customer should correct.',
+      note: 'With Review Status Correction Needed: the part of the application highlighted for the customer on the ' +
+        'correction page (Track page → Make the correction). The customer can still change everything else.' },
   },
-  SCHEMA_VERSION: '5',
+  SCHEMA_VERSION: '6',
 
   // Visa review workflow (Review Status column). Lead Status stays the sales pipeline.
   REVIEW_STATUSES: [
@@ -59,6 +64,15 @@ const CONFIG = {
     'Visa Processing', 'Visa Approved', 'Not Approved / Closed',
   ],
   REVIEW_FINAL: ['Visa Approved', 'Not Approved / Closed'],
+  // Correction For (staff) → section highlighted on correct-visa.html (approved list, round 2.3)
+  CORRECTION_FOR: ['Passport photo', 'Passport data page', 'Personal details', 'Travel details', 'Flight ticket',
+    'Hotel booking', 'Other (see message)'],
+
+  // Self-service corrections (Correction.gs): Track → email code to the stored address → correction page
+  CORRECTION: {
+    TOKEN_MIN: 60,         // a correction token is valid for 60 minutes and used once (at submit)
+    PENDING_FOLDER: 'Correction (pending)', // replacements wait here until submit; binned when the token expires
+  },
 
   // Company details used in every email. Must equal public/assets/js/config.js company (check-lists.js).
   COMPANY_INFO: {
@@ -105,6 +119,10 @@ const CONFIG = {
     ID_MAX: 5,          // lookups per Lead ID …
     CONTACT_MAX: 20,    // … and per email/phone value …
     WINDOW_S: 600,      // … per 10 minutes
+    // Session after a successful lookup (refresh / reopen in the same tab): sliding idle limit + hard cap
+    SESSION_IDLE_MIN: 60,
+    SESSION_MAX_H: 8,
+    SESSION_MAX: 30,    // lookups with a session token per Lead ID per 10 minutes (own counter)
     MESSAGE_MAX: 300,   // Message to Customer is cut to this length
     SERVICE: {
       'Visa Only': 'Visa only',
@@ -132,7 +150,7 @@ const CONFIG = {
       'Under Review': ['Under review', 'We have received all your documents and our team is checking them.',
         'No action needed for now. We will email you if anything needs correcting.'],
       'Correction Needed': ['Action needed', 'We need a correction or more information to continue your application.',
-        'Please read the message below, then reply to our email or contact us on WhatsApp.'],
+        'Please read the message below, then use “Make the correction”, or contact us on WhatsApp.'],
       'Correction Received': ['Correction received', 'Thank you — we have received your correction and are checking it.',
         'No action needed for now. We will update you soon.'],
       'Verified': ['Documents verified', 'Your documents have been checked and are ready for submission.',

@@ -350,3 +350,16 @@ form.track-form{display:grid;grid-template-columns:1fr;gap:16px}
 .inbox-note a{color:#8a5a00;font-weight:700;text-decoration:underline}
 .verify-status .inbox-note{margin-top:6px}
 .track-inbox{max-width:720px;margin:14px auto 0;text-align:center}
+/* Track session + correction (round 2.3) */
+.track-restoring{color:var(--muted);font-weight:700;margin:0 0 18px}.track-restoring[hidden]{display:none}
+.correct-box{background:#fff4e6;border:1px solid #f4c98f;border-radius:12px;padding:16px;margin:0 0 14px}
+.correct-box[hidden]{display:none}.correct-lead{margin:0 0 12px;font-size:15px}.correct-sent{grid-column:1/-1;margin:0;font-size:15px}
+.correct-code{margin-top:12px}.correct-code .field{margin:0}.correct-code .inbox-note{grid-column:1/-1;margin:4px 0 0}
+.corr-wrap{max-width:980px}.corr-form .panel{margin-bottom:20px}
+.corr-msg{margin-bottom:12px}.corr-for{background:var(--cream);border:1px solid #f1dfae;border-radius:10px;padding:12px 14px;margin:0 0 12px}
+.corr-for[hidden],.corr-section[hidden],.corr-form[hidden]{display:none}.corr-time{color:var(--muted);font-size:14px;margin:0 0 18px}
+.corr-contact p{margin:6px 0 0;font-size:15px;overflow-wrap:anywhere}.corr-contact a{text-decoration:underline;font-weight:700}
+.corr-highlight{outline:3px solid var(--gold);outline-offset:4px;border-radius:12px;background:#fffdf6}
+.corr-file.corr-new .filebox{border-color:var(--ok)}
+.corr-submit .up-list{margin:0 0 14px}
+@media(max-width:620px){.corr-submit .wizard-nav .btn{width:100%}}

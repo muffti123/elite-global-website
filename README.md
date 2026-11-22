@@ -64,6 +64,9 @@ Anything left as `''` hides itself, so no placeholders go live.
 node tools/check-lists.js                       # options match the web app
 cd tools/qa && npm install && node run.js static # all pages, sends nothing
 node run.js live                                 # ⚠️ staging only: TEST leads + SPECIMEN files
+# ⚠️ staging only, one correction round (public/ served on :3000; TEST_OTP_BYPASS on):
+node correction-live.js http://localhost:3000 <chrome> fixtures create   # then run testRequestCorrection in the editor
+node correction-live.js http://localhost:3000 <chrome> fixtures correct EG-VO-#####
 node shots.js                                    # desktop/tablet/phone screenshots → tools/qa/screenshots/
 node ../gas-test/test.js                         # web app logic against a mock (no Google calls)
 ```
@@ -141,6 +144,33 @@ git remote -v   # 1 fetch URL (personal), 2 push URLs (personal, org)
   matching stage to the customer (PRD §3.6.1). A lead whose **Lead Status is Lost always shows "Closed"**,
   whatever its Review Status.
 
+### Corrections the customer makes themselves (Correction For)
+- To ask for a correction: set **Correction For** (dropdown: Passport photo, Passport data page, Personal details,
+  Travel details, Flight ticket, Hotel booking, Other (see message)), write **Message to Customer**, then set
+  **Review Status = Correction Needed**. The Correction Needed email has a gold **Fix my application** button that
+  opens the Track page (reference number filled in; the customer still enters their email or phone).
+- On the Track page the customer chooses **Make the correction**. We email a 6-digit code to the email address
+  **on the application** (they cannot change it), then the correction page shows their answers, passengers and
+  files (“Uploaded ✓ — Replace”), with the part you chose in Correction For highlighted. Email and phone cannot be
+  changed there — the customer is asked to message you on WhatsApp.
+- When they submit (once per correction round):
+  - **Review Status changes to Correction Received** by itself (Review Updated is stamped), so the normal Correction
+    Received email goes out about 5 minutes later — no extra email.
+  - You get a **staff alert straight away** listing what changed, with links to the tracker row and the Drive folder.
+  - **Follow-up Notes** gets one line at the end, e.g. `Correction submitted 22 Nov 2026 14:05: Passenger 1 photo
+    replaced; Travel date changed.` Your own notes are kept.
+  - The tracker cells, Visa Applications and Visa Passengers rows are updated.
+- **Drive:** replaced files are never deleted. They move to a **Replaced <date time>** folder inside the
+  application folder, named with the passenger number (`01 – photo.jpg`, or `All – hotel-booking.pdf` for a shared file);
+  the new files take their place. Files uploaded for a correction that was never submitted wait in
+  **Correction (pending)** and go to the Drive bin after 60 minutes (restorable for 30 days).
+- Need another correction? Set Correction For / Message to Customer again and change Review Status back to
+  **Correction Needed** (a new round). Correction For is left as it was after a submit, as a record.
+- **Customers stay logged in on the Track page** in the same browser tab (a refresh shows the status again). It ends
+  when they choose **Log out**, close the tab, after 60 minutes without activity, or after 8 hours.
+- **Staging test:** `testRequestCorrection` (Run button) sets Correction Needed on the newest finished TEST visa
+  lead with an @example.com email. Refused outside staging.
+
 ### How status emails are delivered
 - **The customer email goes out about 5 minutes after the last Review Status change** (the system checks every
   5 minutes, so allow 5–10 minutes). **Changed it by mistake? Change it back within 5 minutes and nothing is sent.**
@@ -197,4 +227,5 @@ is in **Launch: domain and email** below.
 
 ### Email confirmation codes (testing on staging only)
 Run **enableTestOtpBypass** to let **TEST** names with **@example.com** emails use a fixed test code (no email
-is sent) — staging only, refused elsewhere. Run **disableTestOtpBypass** after testing. Never on production.
+is sent) — staging only, refused elsewhere. Run **disableTestOtpBypass** after testing. Never on production. The same test code works for the
+correction code of TEST leads with @example.com emails.

@@ -10,16 +10,40 @@
  *  - Only the service type, date received, customer stage, next step, the staff "Message to Customer"
  *    and (visa) the upload line are returned — never name, phone, email, answers, files, links or notes.
  *  - The contact value is never logged; a miss does not log the Lead ID either.
+ *  - A successful lookup returns a session token (see makeSession_): a refresh in the same tab looks the
+ *    application up with it, without the contact. A bad, expired or logged-out token = the same miss reply.
  */
 
 const LEAD_ID_RE = /^EG-(VO|CE|GE)-\d{5}$/;
+const SESSION_ENDED = 'Please look up your application again.';
 
+/**
+ * trackApplication {leadId, contact} → the lookup, or {session} → the same reply without the contact
+ * check (refresh / reopen in the same tab). Both return a fresh session token.
+ */
 function trackApplication_(d) {
   const T = CONFIG.TRACK;
   const notFound = function (why) {
     console.log('trackApplication ' + why);
     return { ok: false, error: T.NOT_FOUND };
   };
+
+  // Session lookup: valid token → no contact check, own per-Lead-ID counter. Every failure = not found.
+  if (d.session) {
+    const s = parseSession_(d.session);
+    if (!s) return notFound('session-invalid');
+    try { rateLimit_('track:s:' + s.leadId, T.SESSION_MAX, T.WINDOW_S); } catch (e) {
+      if (e && e.userFacing) return notFound('limited');
+      throw e;
+    }
+    const lead = trackRow_(s.leadId);
+    if (!lead) return notFound('not-found');
+    const out = trackResult_(lead);
+    out.session = makeSession_(s.leadId, s.max);
+    console.log('trackApplication session');
+    return out;
+  }
+
   const leadId = str_(d.leadId, 30).replace(/\s+/g, '').toUpperCase();
   const contact = str_(d.contact, 254);
   const key = contactKey_(contact);
@@ -35,15 +59,30 @@ function trackApplication_(d) {
     throw e;
   }
 
+  const lead = trackRow_(leadId);
+  if (!lead) return notFound('not-found');
+  if (!contactMatches_(contact, lead.get('Email'), lead.get('Phone Number'))) return notFound('not-found');
+  const out = trackResult_(lead);
+  out.session = makeSession_(leadId, Date.now() + T.SESSION_MAX_H * 3600000);
+  console.log('trackApplication found');
+  return out;
+}
+
+/** The Lead Tracker row of a Lead ID as {leadId, row, get(header)}, or null. */
+function trackRow_(leadId) {
   const sh = trackerSheet_();
   const row = findLeadRow_(sh, leadId);
-  if (!row) return notFound('not-found');
+  if (!row) return null;
   const cols = trackerCols_(sh);
   const last = Math.max.apply(null, CONFIG.HEADERS.map(function (h) { return cols[h]; }));
   const vals = sh.getRange(row, 1, 1, last).getValues()[0];
-  const get = function (h) { return vals[cols[h] - 1]; };
-  if (!contactMatches_(contact, get('Email'), get('Phone Number'))) return notFound('not-found');
+  return { leadId: leadId, row: row, get: function (h) { return vals[cols[h] - 1]; } };
+}
 
+/** What the customer may see (PRD §3.5) + canCorrect. Never name, phone, email, answers, files, links or notes. */
+function trackResult_(lead) {
+  const T = CONFIG.TRACK;
+  const get = lead.get;
   const category = String(get('Lead Category') || '');
   const status = String(get('Lead Status') || '').trim();
   const app = String(get('Application Status') || '').trim();
@@ -57,7 +96,7 @@ function trackApplication_(d) {
 
   const out = {
     ok: true,
-    leadId: leadId,
+    leadId: lead.leadId,
     service: T.SERVICE[category] || 'Enquiry',
     received: receivedDate_(get('Date Received')),
     stage: stage[0],
@@ -72,8 +111,53 @@ function trackApplication_(d) {
     const upload = uploadLine_(app);
     if (upload) out.upload = upload;
   }
-  console.log('trackApplication found');
+  if (correctionRound_(lead)) out.canCorrect = true;
   return out;
+}
+
+// ---------------------------------------------------------------------
+// TRACK SESSION: "<idle expiry>.<max expiry>.<Lead ID>.<HMAC>" (OTP_SECRET). No email or phone inside.
+// Idle expiry slides (60 min after the last lookup) but never past the max (8 h after the first lookup).
+// Log out revokes every token of the session (same max expiry) for the hour its tokens can still live.
+// ---------------------------------------------------------------------
+function makeSession_(leadId, max) {
+  const idle = Math.min(Date.now() + CONFIG.TRACK.SESSION_IDLE_MIN * 60000, max);
+  const body = idle + '.' + max + '.' + leadId;
+  return body + '.' + tokenSig_('track|' + body);
+}
+
+/** {leadId, idle, max} for a valid, unexpired, not logged-out session token; otherwise null. */
+function parseSession_(token) {
+  const parts = String(token || '').split('.');
+  if (parts.length !== 4 || !/^\d{13}$/.test(parts[0]) || !/^\d{13}$/.test(parts[1]) || !LEAD_ID_RE.test(parts[2])) return null;
+  const body = parts[0] + '.' + parts[1] + '.' + parts[2];
+  if (tokenSig_('track|' + body) !== parts[3]) return null;
+  const idle = Number(parts[0]), max = Number(parts[1]), now = Date.now();
+  if (idle < now || max < now || idle > max) return null;
+  if (CacheService.getScriptCache().get(sessionRevokedKey_(parts[2], max))) return null;
+  return { leadId: parts[2], idle: idle, max: max };
+}
+
+function sessionRevokedKey_(leadId, max) { return 'TRK_OUT_' + sha256Hex_(leadId + '|' + max).slice(0, 32); }
+
+/** For the correction actions: the session's Lead ID, or a "look up again" error. */
+function requireSession_(token) {
+  const s = parseSession_(token);
+  if (!s) fail_(SESSION_ENDED, null, { relogin: true });
+  return s;
+}
+
+// ---------------------------------------------------------------------
+// ACTION: endTrackSession {session} — the Log out button. Always ok (nothing to reveal).
+// ---------------------------------------------------------------------
+function endTrackSession_(d) {
+  const s = parseSession_(d.session);
+  if (s) {
+    // Tokens issued before log out expire within SESSION_IDLE_MIN, so the mark only needs to live that long.
+    CacheService.getScriptCache().put(sessionRevokedKey_(s.leadId, s.max), '1', CONFIG.TRACK.SESSION_IDLE_MIN * 60 + 60);
+    console.log('endTrackSession ok');
+  }
+  return { ok: true };
 }
 
 /** Normalised contact: lower-case email, or phone digits (Nigerian numbers as 0XXXXXXXXXX). '' if unusable. */

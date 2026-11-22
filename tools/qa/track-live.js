@@ -7,7 +7,7 @@ const puppeteer = require('puppeteer-core');
 const [base, exe, FX] = process.argv.slice(2);
 const res = []; const ok = (n, c, i = '') => { res.push(`${c ? 'PASS' : 'FAIL'}  ${n}${i ? '  — ' + i : ''}`); console.log(res[res.length - 1]); };
 const GENERIC = 'We couldn\'t find an application with those details. Please check your reference number and the email or phone number you used.';
-const ALLOWED = ['ok', 'leadId', 'service', 'received', 'stage', 'description', 'nextStep', 'message', 'upload'];
+const ALLOWED = ['ok', 'leadId', 'service', 'received', 'stage', 'description', 'nextStep', 'message', 'upload', 'session', 'canCorrect'];
 const b64 = (f) => fs.readFileSync(path.join(FX, f)).toString('base64');
 
 (async () => {

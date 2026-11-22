@@ -1,23 +1,40 @@
 /*
- * Track my application (track.html) → web app trackApplication {leadId, contact}.
+ * Track my application (track.html) → web app trackApplication {leadId, contact} or {session}.
  * The email/phone is only ever sent in the POST body: it is never put in the URL, stored or logged.
  * ?id=EG-VO-00012 prefills the reference number. Everything shown comes back as plain text and is
  * written with textContent.
+ *
+ * Session: a successful lookup returns a session token (no email or phone inside). It is kept in
+ * sessionStorage (this tab only), so a refresh or reopening in the same tab shows the status again.
+ * It ends on Log out, when the tab is closed, after 60 minutes without activity, or after 8 hours.
+ *
+ * Correction Needed (visa): "Make the correction" sends a code to the email on the application
+ * (shown masked), and a correct code opens correct-visa.html with a correction token (sessionStorage).
  */
 (function () {
   'use strict';
   var EG = window.EG, $ = EG.$;
   var form = $('#trackForm'), F = form.elements;
   var formPanel = $('#trackFormPanel'), result = $('#trackResult');
-  var status = $('#trackStatus'), btn = $('#trackBtn');
+  var status = $('#trackStatus'), btn = $('#trackBtn'), restoring = $('#trackRestoring');
   var ID_RE = /^EG-(VO|CE|GE)-\d{5}$/;
   var GENERIC = 'We couldn\'t find an application with those details. Please check your reference number and the email or phone number you used.';
+  var ENDED = 'Please look up your application again.';
+  var KEY = 'eg-track', CORR_KEY = 'eg-corr';
+  var IDLE_MS = 60 * 60000, REFRESH_BEFORE_MS = 30 * 60000;
 
   function normId(v) { return String(v || '').replace(/\s+/g, '').toUpperCase(); }
   function contactOk(v) {
     v = String(v || '').trim();
     return v.indexOf('@') !== -1 ? EG.EMAIL_RE.test(v) : EG.PHONE_RE.test(v);
   }
+
+  // ---- session storage (token + last activity; never the email or phone) ----
+  function load() { try { return JSON.parse(sessionStorage.getItem(KEY) || 'null'); } catch (e) { return null; } }
+  function save(s) { try { sessionStorage.setItem(KEY, JSON.stringify(s)); } catch (e) { /* private mode: no restore */ } }
+  function clear() { try { sessionStorage.removeItem(KEY); sessionStorage.removeItem(CORR_KEY); } catch (e) { /* ignore */ } }
+  var current = null; // {t: token, a: last activity ms, id: Lead ID}
+  function setSession(token, id) { current = { t: token, a: Date.now(), id: id }; save(current); }
 
   // ?id= prefill (reference number only — never an email or phone)
   var q = '';
@@ -52,7 +69,7 @@
     return el;
   }
 
-  function render(r) {
+  function render(r, quiet) {
     set('leadId', r.leadId);
     set('stage', r.stage).setAttribute('data-tone', STAGE_TONE[r.stage] || 'info');
     set('service', r.service);
@@ -69,12 +86,39 @@
     box.querySelector('b').textContent = action ? 'What we need from you' : 'Message from our team';
     // Action needed: the staff message comes first, before the next step
     if (action) nextBox.parentNode.insertBefore(box, nextBox); else nextBox.parentNode.insertBefore(box, nextBox.nextSibling);
+    // "Make the correction": only when the server says this visa application can be corrected now
+    var corr = $('#correctBox');
+    var was = !corr.hidden;
+    corr.hidden = !r.canCorrect;
+    if (!r.canCorrect || !was) resetCorrection();
     formPanel.hidden = true;
+    restoring.hidden = true;
     result.hidden = false;
     status.className = 'status';
     status.textContent = '';
+    if (r.session) setSession(r.session, r.leadId);
+    if (quiet) return;
     $('#trackLive').textContent = 'Application ' + r.leadId + ': ' + r.stage + '.';
     $('#resultTitle').focus();
+  }
+
+  /** Back to the lookup form (Log out, Track another, expired session). */
+  function backToForm(message) {
+    var had = current;
+    if (had && had.t) EG.postAction('endTrackSession', { session: had.t }, { retries: 0, timeout: 15000 }).then(null, function () {});
+    current = null;
+    clear();
+    resetCorrection();
+    result.hidden = true;
+    restoring.hidden = true;
+    formPanel.hidden = false;
+    F.contact.value = '';
+    $('#trackLive').textContent = '';
+    if (message) showStatus('err', EG.escapeHtml(message));
+    else { status.className = 'status'; status.textContent = ''; }
+    if (had && had.id && !F.leadId.value) F.leadId.value = had.id;
+    F.leadId.focus();
+    F.leadId.select();
   }
 
   form.addEventListener('submit', function (e) {
@@ -92,7 +136,7 @@
     F.leadId.value = id;
     EG.postAction('trackApplication', { hp: F.company_website.value, leadId: id, contact: F.contact.value.trim() }, { retries: 0, timeout: 30000 })
       .then(function (res) {
-        if (res && res.ok) { render(res); return; }
+        if (res && res.ok) { F.contact.value = ''; render(res); return; }
         showStatus('err', EG.escapeHtml((res && res.error) || GENERIC) + EG.contactFallback());
       }, function () {
         showStatus('err', 'Sorry, we could not check your application. Please check your connection and try again.' + EG.contactFallback());
@@ -100,12 +144,142 @@
       .then(function () { btn.disabled = false; btn.innerHTML = label; });
   });
 
-  $('#trackAgain').addEventListener('click', function () {
-    result.hidden = true;
-    formPanel.hidden = false;
-    F.contact.value = '';
-    $('#trackLive').textContent = '';
-    F.leadId.focus();
-    F.leadId.select();
+  $('#trackAgain').addEventListener('click', function () { backToForm(''); });
+  $('#trackLogout').addEventListener('click', function () { backToForm(''); showStatus('ok', 'You have logged out.'); });
+
+  // ---- restore after a refresh / reopen in the same tab ------------------------------------------
+  function lookupWithSession(quiet) {
+    if (!current) return Promise.resolve(false);
+    return EG.postAction('trackApplication', { session: current.t }, { retries: 1, timeout: 30000 }).then(function (res) {
+      if (res && res.ok) { render(res, quiet); return true; }
+      backToForm(ENDED);
+      return false;
+    }, function () {
+      if (!quiet) { restoring.hidden = true; if (result.hidden) formPanel.hidden = false; }
+      if (!quiet) showStatus('err', 'Sorry, we could not check your application. Please check your connection and try again.' + EG.contactFallback());
+      return false;
+    });
+  }
+
+  var stored = load();
+  var qid = ID_RE.test(normId(q)) ? normId(q) : '';
+  if (stored && stored.t && EG.apiReady()) {
+    var tokenIdle = Number(String(stored.t).split('.')[0]) || 0;
+    if (Date.now() - (stored.a || 0) > IDLE_MS || tokenIdle < Date.now()) { current = stored; backToForm(ENDED); }
+    else if (qid && stored.id && qid !== stored.id) { clear(); } // a link for another application: look it up
+    else {
+      current = stored;
+      formPanel.hidden = true;
+      restoring.hidden = false;
+      lookupWithSession(false);
+    }
+  }
+
+  // ---- activity: 60 minutes without activity ends the session; activity keeps the token fresh ----
+  var lastSave = 0;
+  function activity() {
+    if (!current || result.hidden) return;
+    var now = Date.now();
+    if (now - current.a > IDLE_MS) { backToForm(ENDED); return; }
+    current.a = now;
+    if (now - lastSave > 15000) { save(current); lastSave = now; }
+    var idleAt = Number(String(current.t).split('.')[0]) || 0;
+    if (idleAt - now < REFRESH_BEFORE_MS && !activity.busy) {
+      activity.busy = true;
+      lookupWithSession(true).then(function () { activity.busy = false; });
+    }
+  }
+  ['pointerdown', 'keydown', 'scroll', 'touchstart'].forEach(function (t) {
+    window.addEventListener(t, activity, { passive: true });
+  });
+  setInterval(function () {
+    if (current && !result.hidden && Date.now() - current.a > IDLE_MS) backToForm(ENDED);
+  }, 30000);
+
+  // ---- "Make the correction": email code to the address on the application -----------------------
+  var cBtn = $('#correctBtn'), cCode = $('#correctCode'), cInput = $('#corrCode'), cConfirm = $('#corrConfirm');
+  var cResend = $('#corrResend'), cStatus = $('#corrStatus'), cMasked = $('#corrMasked'), cNote = $('#corrInbox');
+  var timer = 0;
+
+  function cShow(type, html) { cStatus.className = 'verify-status ' + (type || ''); cStatus.innerHTML = html; }
+  function resetCorrection() {
+    if (!cCode) return; // called before the correction box is set up (restore at load)
+    clearInterval(timer);
+    cCode.hidden = true;
+    cBtn.hidden = false;
+    cBtn.disabled = false;
+    cInput.value = '';
+    EG.setInvalid(cInput, false);
+    cShow('', '');
+  }
+  function countdown(s) {
+    clearInterval(timer);
+    var left = s || 60;
+    cResend.disabled = true;
+    cResend.textContent = 'Resend code (' + left + ' s)';
+    timer = setInterval(function () {
+      left--;
+      if (left <= 0) { clearInterval(timer); cResend.disabled = false; cResend.textContent = 'Resend code'; return; }
+      cResend.textContent = 'Resend code (' + left + ' s)';
+    }, 1000);
+  }
+  function failed(res) {
+    if (res && res.relogin) { backToForm((res && res.error) || ENDED); return true; }
+    return false;
+  }
+  function sendCode(isResend) {
+    if (!current) { backToForm(ENDED); return; }
+    var b = isResend ? cResend : cBtn;
+    b.disabled = true;
+    cShow('', isResend ? 'Sending a new code…' : 'Sending a code to the email address on your application…');
+    EG.postAction('sendCorrectionCode', { hp: '', session: current.t }, { retries: 0, timeout: 30000 }).then(function (res) {
+      if (res && res.ok) {
+        cBtn.hidden = true;
+        cCode.hidden = false;
+        cMasked.textContent = res.masked || 'the email address on your application';
+        cNote.innerHTML = EG.inboxNote('We\'ve emailed you a 6-digit code.');
+        cShow('ok', 'Code sent. Enter it below.');
+        countdown(res.resendIn);
+        cInput.focus();
+        return;
+      }
+      if (failed(res)) return;
+      b.disabled = false;
+      cShow('err', EG.escapeHtml((res && res.error) || 'We could not send the code. Please try again.') + EG.contactFallback());
+    }, function () {
+      b.disabled = false;
+      cShow('err', 'We could not send the code. Please check your connection and try again.' + EG.contactFallback());
+    });
+  }
+  cBtn.addEventListener('click', function () { sendCode(false); });
+  cResend.addEventListener('click', function () { sendCode(true); });
+  cInput.addEventListener('input', function () { cInput.value = cInput.value.replace(/\D/g, '').slice(0, 6); EG.setInvalid(cInput, false); });
+  cInput.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); cConfirm.click(); } });
+  cConfirm.addEventListener('click', function () {
+    if (!/^\d{6}$/.test(cInput.value)) { EG.setInvalid(cInput, true); cShow('err', 'Please enter the 6-digit code from the email.'); cInput.focus(); return; }
+    if (!current) { backToForm(ENDED); return; }
+    cConfirm.disabled = true;
+    cShow('', 'Checking the code…');
+    EG.postAction('verifyCorrectionCode', { hp: '', session: current.t, code: cInput.value }, { retries: 0, timeout: 30000 }).then(function (res) {
+      cConfirm.disabled = false;
+      if (res && res.ok && res.ctoken) {
+        try {
+          sessionStorage.setItem(CORR_KEY, JSON.stringify({ t: res.ctoken, id: current.id, x: Date.now() + (res.minutes || 60) * 60000 }));
+        } catch (e) {
+          cShow('err', 'Your browser is blocking this page from saving your progress. Please allow site data, or contact us on WhatsApp.');
+          return;
+        }
+        cShow('ok', 'Email confirmed ✓ Opening the correction page…');
+        window.location.href = 'correct-visa.html';
+        return;
+      }
+      if (failed(res)) return;
+      EG.setInvalid(cInput, true);
+      cShow('err', EG.escapeHtml((res && res.error) || 'That code is not correct.'));
+      cInput.focus();
+    }, function () {
+      cConfirm.disabled = false;
+      cShow('err', 'We could not check the code. Please check your connection and try again.' + EG.contactFallback());
+    });
   });
 })();

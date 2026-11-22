@@ -24,7 +24,7 @@ module.exports = function (g, ok, t) {
   const alert = staff.find((m) => m.subject.indexOf(vd.leadId) !== -1);
   ok('visa staff alert: name, phone, email, country, travel date, passengers, tracker row + Drive folder links, no attachments',
     /TEST Docs/.test(alert.htmlBody) && /\+234 800 000 0002/.test(alert.htmlBody) && /d@e\.co/.test(alert.htmlBody) && /Nigeria/.test(alert.htmlBody) &&
-    /Passengers/.test(alert.htmlBody) && /#gid=\d+&amp;range=A\d+/.test(alert.htmlBody) && /https:\/\/drive\//.test(alert.htmlBody) && !alert.attachments, alert.subject);
+    /Passengers/.test(alert.htmlBody) && /#gid=\d+&amp;range=A\d+/.test(alert.htmlBody) && /https:\/\/drive\.google\.com\/drive\/folders\//.test(alert.htmlBody) && !alert.attachments, alert.subject);
   const conf = to('v@e.co');
   ok('visa: ONE combined "received + under review" email (not two)', conf.length === 1 && /under review/i.test(conf[0].htmlBody) &&
     /track\.html\?id=EG-VO-/.test(conf[0].htmlBody) && /spam/.test(conf[0].htmlBody), conf.map((m) => m.subject).join(' | '));
@@ -296,7 +296,7 @@ module.exports = function (g, ok, t) {
   const nS = mail.outbox.length;
   ctx.sendEmailSamples();
   const samples = mail.outbox.slice(nS);
-  ok('sendEmailSamples: one of every email type to STAFF_EMAIL', samples.length === 15 && samples.every((m) => m.to === 'staff@example.org' && /^\[SAMPLE \d+\/15\] Elite Global — /.test(m.subject)), samples.length + '');
+  ok('sendEmailSamples: one of every email type to STAFF_EMAIL', samples.length === 16 && samples.every((m) => m.to === 'staff@example.org' && /^\[SAMPLE \d+\/16\] Elite Global — /.test(m.subject)), samples.length + '');
   ok('samples are not written to the Email Log', !logRows().some((r) => r[2] === 'sample'));
 
   // --- deliverability: every email type -----------------------------------------------------------
@@ -304,7 +304,7 @@ module.exports = function (g, ok, t) {
   const subj = (m) => m.subject.replace(/^\[SAMPLE \d+\/\d+\] /, '');
   const visible = (h) => h.replace(/<style[\s\S]*?<\/style>/g, ' ').replace(/<[^>]+>/g, ' ').replace(/&[a-z#0-9]+;/gi, ' ');
   const customer = [0, 4, 5, 6, 7, 8, 9, 10, 11, 12].map((i) => samples[i]);
-  const staffMail = [1, 2, 3, 13, 14].map((i) => samples[i]);
+  const staffMail = [1, 2, 3, 13, 14, 15].map((i) => samples[i]);
   ok('every email has an HTML and a plain-text version (no tags in the text)', samples.every((m) => m.htmlBody && m.body && m.body.length > 200 && !/<\/?(p|a|div|table|tr|td|br|b|img|h1|ul|li|span)\b/i.test(m.body)));
   ok('sender name "Elite Global World Travel & Tours", Reply-To = company email', samples.every((m) => m.name === 'Elite Global World Travel & Tours' && m.replyTo === 'eliteglobaltravelsng@gmail.com'));
   const caps = samples.map((m) => (subj(m) + ' ' + visible(m.htmlBody) + ' ' + m.body).replace(/https?:\/\/\S+/g, ' ').match(/\b[A-Z]{4,}\b/g) || []).flat();

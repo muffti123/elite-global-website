@@ -3,7 +3,7 @@ const puppeteer = require('puppeteer-core');
 const [base, exe] = process.argv.slice(2);
 const res = []; const ok = (n, c, i = '') => res.push(`${c ? 'PASS' : 'FAIL'}  ${n}${i ? '  — ' + i : ''}`);
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-const PAGES = ['index.html', 'customize-umrah.html', 'apply-visa.html', 'track.html'];
+const PAGES = ['index.html', 'customize-umrah.html', 'apply-visa.html', 'track.html', 'correct-visa.html'];
 
 (async () => {
   const b = await puppeteer.launch({ executablePath: exe, headless: true });
@@ -48,6 +48,10 @@ const PAGES = ['index.html', 'customize-umrah.html', 'apply-visa.html', 'track.h
       await p.$eval('#trackBtn', (e) => e.click()); await new Promise((r) => setTimeout(r, 300));
       const n = await p.$$eval('#trackForm .field.invalid', (e) => e.length);
       ok('track.html: empty form flags reference + contact', n === 2, n + ' invalid fields');
+    } else if (page === 'correct-visa.html') {
+      // opened without a correction token: a clear message and a way back, no form
+      const st = await p.evaluate(() => ({ err: !document.querySelector('#corrError').hidden, form: document.querySelector('#corrForm').hidden, text: document.querySelector('#corrError [data-error]').textContent }));
+      ok('correct-visa.html: without a correction token → message + back to Track, no form', st.err && st.form && /Track page/.test(st.text), JSON.stringify(st));
     } else {
       await p.click('#nextBtn'); await new Promise((r) => setTimeout(r, 300));
       const n = await p.$$eval('.step:not([hidden]) .field.invalid', (e) => e.length);

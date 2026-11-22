@@ -57,6 +57,7 @@ module.exports = function (dir) {
   Range.prototype = {
     getValues() { const o = []; for (let i = 0; i < this.nr; i++) { const row = []; for (let j = 0; j < this.nc; j++) row.push(this.sh.get(this.r + i, this.c + j)); o.push(row); } return o; },
     getValue() { return this.sh.get(this.r, this.c); },
+    getFormula() { return this.sh.formulas[this.sh.key(this.r, this.c)] || ''; },
     setValues(v) { if (v.length !== this.nr || v[0].length !== this.nc) throw new Error('setValues size mismatch'); v.forEach((row, i) => row.forEach((x, j) => this.r + i > 1 && this.sh.checkValid(this.c + j, x))); v.forEach((row, i) => row.forEach((x, j) => this.sh.set(this.r + i, this.c + j, x))); return this; },
     setValue(v) { if (this.r > 1) this.sh.checkValid(this.c, v); this.sh.set(this.r, this.c, v); return this; },
     setFormula(f) { this.sh.set(this.r, this.c, f); return this; },
@@ -100,13 +101,21 @@ module.exports = function (dir) {
   const props = {};
   const cache = {};
   const folders = [];
+  const allFiles = [];
   function Folder(name) { this.name = name; this.id = 'F' + folders.length; this.files = []; this.subs = []; folders.push(this); }
+  // Drive file: id, rename, move between folders (moveTo), bin (setTrashed)
+  function DFile(blob, parent) { Object.assign(this, { name: blob.name, bytes: blob.bytes, mime: blob.mime, id: 'D' + allFiles.length, parent }); allFiles.push(this); }
+  DFile.prototype = {
+    getId() { return this.id; }, getName() { return this.name; }, setName(n) { this.name = n; return this; },
+    getUrl() { return 'https://drive.google.com/file/d/' + this.id + '/view'; }, setTrashed(t) { this.trashed = t; }, isTrashed() { return !!this.trashed; },
+    moveTo(folder) { this.parent.files.splice(this.parent.files.indexOf(this), 1); folder.files.push(this); this.parent = folder; return this; },
+  };
   Folder.prototype = {
-    getId() { return this.id; }, getUrl() { return 'https://drive/' + this.id; }, getName() { return this.name; }, setName(n) { this.name = n; },
+    getId() { return this.id; }, getUrl() { return 'https://drive.google.com/drive/folders/' + this.id; }, getName() { return this.name; }, setName(n) { this.name = n; },
     createFolder(n) { const f = new Folder(n); this.subs.push(f); return f; },
     getFolders() { let i = 0; const a = this.subs.filter((f) => !f.trashed); return { hasNext: () => i < a.length, next: () => a[i++] }; },
-    getFoldersByName(n) { return this.getFolders(); },
-    createFile(blob) { const f = { name: blob.name, bytes: blob.bytes, getUrl: () => 'https://file/' + blob.name, setTrashed(t) { this.trashed = t; }, getName: () => blob.name }; this.files.push(f); return f; },
+    getFoldersByName(n) { let i = 0; const a = this.subs.filter((f) => !f.trashed && f.name === n); return { hasNext: () => i < a.length, next: () => a[i++] }; },
+    createFile(blob) { const f = new DFile(blob, this); this.files.push(f); return f; },
     getFiles() { let i = 0; const a = this.files.filter((f) => !f.trashed); return { hasNext: () => i < a.length, next: () => a[i++] }; },
     setTrashed(t) { this.trashed = t; }, isTrashed() { return !!this.trashed; },
   };
@@ -129,7 +138,7 @@ module.exports = function (dir) {
     LockService: { getScriptLock: () => ({ tryLock: () => true, releaseLock() {} }) },
     // one shared script cache (like Apps Script), so rate limits persist between calls
     CacheService: { getScriptCache: () => ({ get: (k) => (k in cache ? cache[k] : null), put: (k, v) => { cache[k] = v; }, remove: (k) => { delete cache[k]; } }) },
-    DriveApp: { getFolderById: (id) => folders.find((f) => f.id === id), createFolder: (n) => new Folder(n), getFileById: () => ({ moveTo() {} }) },
+    DriveApp: { getFolderById: (id) => folders.find((f) => f.id === id), createFolder: (n) => new Folder(n), getFileById: (id) => { const f = allFiles.find((x) => x.id === id); if (f) return f; return { moveTo() {} }; } },
     Utilities: {
       getUuid: () => 'uuid-' + Math.random().toString(36).slice(2),
       base64Decode: (s) => Array.from(Buffer.from(s, 'base64')).map((b) => (b > 127 ? b - 256 : b)),
@@ -137,7 +146,7 @@ module.exports = function (dir) {
       formatDate: (d, tz, pattern) => (/^d MMM yyyy/.test(pattern)
         ? d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'Africa/Lagos' }).replace('Sept', 'Sep') +
           (/HH:mm/.test(pattern) ? ' ' + d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Africa/Lagos' }) : '')
-        : d.toISOString().slice(0, 10)),
+        : /^yyyy-MM-dd$/.test(pattern) ? d.toLocaleDateString('en-CA', { timeZone: tz || 'UTC' }) : d.toISOString().slice(0, 10)),
       computeDigest: (alg, v) => Array.from(require('crypto').createHash('sha256').update(String(v)).digest()).map((b) => (b > 127 ? b - 256 : b)),
       base64EncodeWebSafe: (bytes) => Buffer.from(bytes.map((b) => b & 255)).toString('base64url'),
       DigestAlgorithm: { SHA_256: 'sha256' },
@@ -164,5 +173,5 @@ module.exports = function (dir) {
   const src = files.map((f) => fs.readFileSync(path.join(dir, 'apps-script', f), 'utf8')).join('\n;\n') +
     '\n;this.__exports = {' + 'CONFIG, LISTS, COUNTRIES' + '};';
   vm.runInContext(src, ctx, { filename: 'apps-script.gs' });
-  return { ctx, ss, books, props, folders, logs, Sheet, Folder, cache, mail, fetch, triggers, clock };
+  return { ctx, ss, books, props, folders, allFiles, logs, Sheet, Folder, cache, mail, fetch, triggers, clock };
 };
