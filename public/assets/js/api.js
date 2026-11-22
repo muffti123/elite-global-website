@@ -86,7 +86,8 @@ window.EG = window.EG || {};
    * POST {action, ...payload}. Resolves with the server's JSON (check .ok).
    * Busy replies are retried 4 times (2, 5, 10, 20 s + jitter); if still busy it resolves {ok:false, busy:true, error}.
    * Network failure / timeout: `retries` extra attempts, then it rejects (err.network = true).
-   * opts: {timeout: ms (default 30000), retries: n (default 2), busyRetries: n (default 4)}
+   * opts: {timeout: ms (default 30000), retries: n (default 2), busyRetries: n (default 4),
+   *        networkBusy: false = a network error is never waited out like busy (uploads: their own retry loop + Retry button)}
    */
   window.EG.postAction = function (action, payload, opts) {
     opts = opts || {};
@@ -125,7 +126,8 @@ window.EG = window.EG || {};
         })
         .then(function (json) { if (shown) showBusy(false); shown = false; return json; }, function (err) {
           clearTimeout(timer);
-          if (err.network && SAFE_ACTIONS[action] && n >= retries) err.busy = true; // after the normal retries: wait like busy
+          // after the normal retries: wait like busy (not when the caller has its own retry loop — networkBusy:false)
+          if (err.network && SAFE_ACTIONS[action] && opts.networkBusy !== false && n >= retries) err.busy = true;
           if (err.busy && b < busyRetries) {
             if (!shown) { shown = true; showBusy(true); }
             return wait(jitter(BUSY_WAITS[Math.min(b, BUSY_WAITS.length - 1)])).then(function () { return attempt(n, b + 1); });

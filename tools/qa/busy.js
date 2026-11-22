@@ -87,6 +87,13 @@ const notice = (p) => p.evaluate(() => { const n = document.querySelector('.busy
   const r4 = await p4.evaluate(() => window.EG.postAction('sendEmailCode', { hp: '', email: 'qa@example.com', name: 'TEST' }, { retries: 0 }).then(() => 'resolved', (e) => (e.network ? 'network' : 'other')));
   ok('sendEmailCode after a network error: not repeated (no second code), the page shows its connection message', r4 === 'network' && p4.posts.filter((x) => x.action === 'sendEmailCode').length === 1);
   await p4.close();
+  // uploads have their own retry loop + Retry button: api.js must not also wait out a network error (no stacked retries)
+  const p5 = await open(b, 'apply-visa.html', (body) => (body.action === 'uploadPassenger' ? 'cors' : { ok: true }));
+  const r5 = await p5.evaluate(() => window.EG.postAction('uploadPassenger', { leadId: 'EG-VO-00014', token: 't', index: 1 }, { retries: 0, networkBusy: false }).then(() => 'resolved', (e) => (e.network ? 'network' : 'other')));
+  ok('uploadPassenger with networkBusy:false after a network error: one request, then the page\'s own retry decides', r5 === 'network' && p5.posts.filter((x) => x.action === 'uploadPassenger').length === 1);
+  const src = require('fs').readFileSync(require('path').join(__dirname, '../../public/assets/js/visa.js'), 'utf8') + require('fs').readFileSync(require('path').join(__dirname, '../../public/assets/js/correct.js'), 'utf8');
+  ok('visa.js and correct.js upload calls pass networkBusy:false', (src.match(/networkBusy: false/g) || []).length === 2);
+  await p5.close();
   await b.close();
   process.exit(res.some((x) => x.startsWith('FAIL')) ? 1 : 0);
 })().catch((e) => { console.error(e); process.exit(2); });
