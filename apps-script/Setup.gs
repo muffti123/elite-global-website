@@ -21,6 +21,7 @@
  *   checkRecentEmailJobs() – the last 20 review-email decisions (sent / waiting / held / …), no personal data
  *   enableTestOtpBypass() / disableTestOtpBypass() – STAGING ONLY: fixed email code for TEST names @example.com
  *   testRequestCorrection() – STAGING ONLY: sets Correction Needed on the newest TEST visa lead (@example.com)
+ *   recountVisaFiles()   – recounts Visa Files now (Visa Processing / Visa Approved not yet emailed); logs Lead ID + count
  *   testApproveVisa()    – STAGING ONLY: SPECIMEN visa files + Visa Approved on the newest TEST visa lead (@example.com)
  *   resetSetupFlag()     – ⚠️ forgets every stored ID (only after deleting the Drive folder)
  * =====================================================================
@@ -221,6 +222,7 @@ function addTrackerColumns_(sh) {
     if (spec.wrap) body.setWrap(true).setVerticalAlignment('top');
     // Sheets copies the left neighbour's dropdown into an inserted column: only "list" columns keep one
     body.setDataValidation(null);
+    if (spec.checkbox) body.setDataValidation(checkboxRule_());
     if (spec.list) {
       body.setDataValidation(SpreadsheetApp.newDataValidation().requireValueInList(CONFIG[spec.list], true)
         .setAllowInvalid(false).setHelpText(spec.help || 'Choose a status from the list.').build());
@@ -242,6 +244,7 @@ function repairColumnValidation_(sh) {
   const rows = sh.getMaxRows() - 1;
   Object.keys(CONFIG.EXTRA_COLS).forEach(function (name) {
     if (CONFIG.EXTRA_COLS[name].list) return;
+    if (CONFIG.EXTRA_COLS[name].checkbox) { sh.getRange(2, cols[name], rows, 1).setDataValidation(checkboxRule_()); return; }
     sh.getRange(2, cols[name], rows, 1).setDataValidation(null);
   });
 }

@@ -137,8 +137,8 @@ module.exports = function (dir) {
     SpreadsheetApp: { flush() {}, openById: (id) => { if (!books[id]) throw new Error('no spreadsheet ' + id); return books[id]; },
       create: (name) => { const id = 'SS' + Object.keys(books).length; const b = new Spreadsheet(id, name); b.sheets = [new Sheet('Sheet1', 1000, 26)]; books[id] = b; return b; },
       newDataValidation: () => {
-        const b = { requireValueInList(l) { b.list = l; return b; }, requireNumberGreaterThanOrEqualTo() { return b; },
-          setAllowInvalid() { return b; }, setHelpText(h) { b.help = h; return b; }, build() { return { list: b.list, help: b.help }; } };
+        const b = { requireValueInList(l) { b.list = l; return b; }, requireNumberGreaterThanOrEqualTo() { return b; }, requireCheckbox() { b.checkbox = true; return b; },
+          setAllowInvalid() { return b; }, setHelpText(h) { b.help = h; return b; }, build() { return b.checkbox ? { checkbox: true } : { list: b.list, help: b.help }; } };
         return b;
       },
       // every builder method returns the builder; build() returns a rule object
@@ -152,8 +152,8 @@ module.exports = function (dir) {
       base64Decode: (s) => Array.from(Buffer.from(s, 'base64')).map((b) => (b > 127 ? b - 256 : b)),
       newBlob: (bytes, mime, name) => new Blob(bytes, mime, name),
       base64Encode: (bytes) => Buffer.from(bytes.map((b) => b & 255)).toString('base64'),
-      formatDate: (d, tz, pattern) => (/^d MMM yyyy/.test(pattern)
-        ? d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'Africa/Lagos' }).replace('Sept', 'Sep') +
+      formatDate: (d, tz, pattern) => (/^d MMM/.test(pattern)
+        ? d.toLocaleDateString('en-GB', Object.assign({ day: 'numeric', month: 'short', timeZone: 'Africa/Lagos' }, /yyyy/.test(pattern) ? { year: 'numeric' } : {})).replace('Sept', 'Sep') +
           (/HH:mm/.test(pattern) ? ' ' + d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Africa/Lagos' }) : '')
         : /^yyyy-MM-dd$/.test(pattern) ? d.toLocaleDateString('en-CA', { timeZone: tz || 'UTC' }) : d.toISOString().slice(0, 10)),
       computeDigest: (alg, v) => Array.from(require('crypto').createHash('sha256').update(String(v)).digest()).map((b) => (b > 127 ? b - 256 : b)),

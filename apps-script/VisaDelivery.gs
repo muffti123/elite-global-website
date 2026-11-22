@@ -249,6 +249,36 @@ function setupVisaDelivery_() {
     (unfinished ? ' · ⚠️ not finished in time — run setupEliteGlobal again to continue.' : ''));
 }
 
+/**
+ * Run button: recounts Visa Files now for every visa row at Visa Processing, or Visa Approved whose email has
+ * not gone out yet. Logs Lead ID + count only.
+ */
+function recountVisaFiles() {
+  const sh = trackerSheet_();
+  const cols = trackerCols_(sh);
+  const last = sh.getLastRow();
+  const lines = [];
+  if (last >= 2) {
+    const width = Math.max.apply(null, CONFIG.HEADERS.map(function (h) { return cols[h]; }));
+    const data = sh.getRange(2, 1, last - 1, width).getValues();
+    const deadline = Date.now() + 300000;
+    for (let i = 0; i < data.length; i++) {
+      const v = data[i];
+      const get = function (h) { return v[cols[h] - 1]; };
+      if (String(get('Lead Category')) !== CONFIG.FORMS.VISA.category) continue;
+      const status = String(get('Review Status') || '').trim();
+      const emailed = String(get('Last Customer Email') || '').indexOf('Status: Visa Approved ·') !== -1;
+      if (status !== 'Visa Processing' && !(status === 'Visa Approved' && !emailed)) continue;
+      if (Date.now() > deadline) { lines.push('⚠️ stopped (time limit) — run recountVisaFiles again for the rest'); break; }
+      const id = String(get('Lead ID'));
+      const scan = refreshVisaFiles_({ leadId: id, row: i + 2 }, false, sh, cols);
+      lines.push(id + ': ' + (scan ? scan.files.length + (scan.files.length === 1 ? ' file' : ' files') : 'Drive folder missing'));
+    }
+  }
+  Logger.log('recountVisaFiles — ' + lines.length + ' row(s)' + (lines.length ? ':\n' + lines.join('\n') : ' (none at Visa Processing / Visa Approved waiting for its email)'));
+  return lines;
+}
+
 // ---------------------------------------------------------------------
 // STAGING HELPER (Run button)
 // ---------------------------------------------------------------------

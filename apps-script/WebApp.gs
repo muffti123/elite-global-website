@@ -34,7 +34,7 @@ const ACTIONS = {
 /**
  * Health check: opening the web app URL in a browser shows {"ok":true,...}.
  * schema = SCHEMA_VERSION written by setupEliteGlobal (3 = v3 columns + Visa Applications tab;
- * 4 = Message to Customer column; 5 = Review Status, Review Updated, Last Customer Email; 6 = Correction For; 7 = Visa Files + Approved Visa folders).
+ * 4 = Message to Customer column; 5 = Review Status, Review Updated, Last Customer Email; 6 = Correction For; 7 = Visa Files + Approved Visa folders; 8 = Send Now tick box).
  */
 function doGet() {
   const schema = Number(PropertiesService.getScriptProperties().getProperty('SCHEMA_VERSION') || 0);

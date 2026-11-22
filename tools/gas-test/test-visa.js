@@ -266,6 +266,90 @@ module.exports = function (g, ok, t) {
   clock.offset += 6 * MIN; jobs();
   ok('TEST lead: Visa Approved customer email skipped (test lead), not held', lastDecision(T)[3] === 'skipped');
 
+  // --- Send Now tick box ----------------------------------------------------------------------------------------------
+  clock.offset = 0; resetLimits(); mail.quota = 1000; delete props.ATTACH_VISA;
+  const tick = (ids) => {
+    const rows = ids.map((id) => ctx.findLeadRow_(tr, id));
+    rows.forEach((r) => tr.set(r, colOf('Send Now'), true));
+    const r1 = Math.min(...rows), r2 = Math.max(...rows);
+    ctx.onTrackerEdit({ range: tr.getRange(r1, colOf('Send Now'), r2 - r1 + 1, 1) });
+  };
+  const sn = (id) => note(id, 'Send Now');
+  const G = mkVisa('TEST Visa Golf', 'golf@e.co');
+  approve(G);
+  tick([G]);
+  ok('Send Now, Visa Approved, no file → "Not sent — no visa file in Approved Visa", box unticked, no email', /^Not sent — no visa file in Approved Visa/.test(sn(G)) &&
+    cell(G, 'Send Now') === false && !to('golf@e.co').some((m) => /Visa approved/.test(m.subject)), sn(G));
+  put(G, 'visa.pdf', 'application/pdf', PDF);
+  tick([G]);
+  const eG = to('golf@e.co').filter((m) => /Visa approved/.test(m.subject));
+  ok('file added, ticked again within the 5-minute window → recounted and sent at once', eG.length === 1 && cell(G, 'Visa Files') === 1 && cell(G, 'Send Now') === false &&
+    /^Sent \d{1,2} \w{3} \d\d:\d\d — Visa Approved, Download button only \(ATTACH_VISA off\)$/.test(sn(G)) && /Status: Visa Approved ·/.test(cell(G, 'Last Customer Email')), sn(G));
+  ok('… recorded for checkRecentEmailJobs', lastDecision(G)[3] === 'sent' && /Send Now/.test(lastDecision(G)[4]));
+  tick([G]); jobs(); clock.offset += 6 * MIN; jobs();
+  ok('once per status: a second tick says already emailed; the 5-minute job does not send it again', to('golf@e.co').filter((m) => /Visa approved/.test(m.subject)).length === 1 &&
+    /^Not sent — Visa Approved was already emailed/.test(sn(G)), sn(G));
+  props.ATTACH_VISA = 'on';
+  const H1 = mkVisa('TEST Visa Hotel', 'hotel@e.co');
+  const H2 = mkVisa('TEST Visa India', 'india@e.co');
+  [H1, H2].forEach((id) => { put(id, 'visa.pdf', 'application/pdf', PDF); approve(id); });
+  edit(H2, 'Message to Customer', '');
+  tick([H1, H2]);
+  ok('several rows ticked at once (select + Space): each sent, "1 file attached", with the attachment', [H1, H2].every((id) => /— Visa Approved, 1 file attached$/.test(sn(id)) &&
+    to(id === H1 ? 'hotel@e.co' : 'india@e.co').some((m) => /Visa approved/.test(m.subject) && m.attachments && m.attachments.length === 1)), sn(H1) + ' / ' + sn(H2));
+  delete props.ATTACH_VISA;
+  const J = mkVisa('TEST Visa Juliett', 'juliett@e.co');
+  edit(J, 'Review Status', 'Correction Needed');
+  tick([J]);
+  ok('Correction Needed without a message → "Not sent — Correction Needed needs a Message to Customer"', sn(J) === 'Not sent — Correction Needed needs a Message to Customer' && !to('juliett@e.co').some((m) => /correction/.test(m.subject)));
+  edit(J, 'Message to Customer', 'Please send a clearer photo.');
+  tick([J]);
+  ok('… with a message → sent at once ("Sent … — Correction Needed")', /^Sent .* — Correction Needed$/.test(sn(J)) && to('juliett@e.co').some((m) => /needs a correction/.test(m.subject)), sn(J));
+  edit(J, 'Review Status', 'Verified');
+  jobs();
+  ok('a normal status change still waits 5 minutes (undo window kept)', !to('juliett@e.co').some((m) => /Documents verified/.test(m.subject)));
+  clock.offset += 6 * MIN; jobs();
+  ok('… and is sent by the 5-minute job afterwards', to('juliett@e.co').filter((m) => /Documents verified/.test(m.subject)).length === 1);
+  const Kq = mkVisa('TEST Visa Kilo', 'kilo@e.co');
+  edit(Kq, 'Review Status', 'Verified');
+  mail.quota = 0;
+  tick([Kq]);
+  ok('no quota → "Queued … (daily email quota used up …)"', /^Queued .* — Verified \(daily email quota used up/.test(sn(Kq)) && /^Queued: Status: Verified/.test(cell(Kq, 'Last Customer Email')), sn(Kq));
+  mail.quota = 1000;
+  const L = mkVisa('TEST Visa Lima', 'qa-lima@example.com');
+  put(L, 'visa.pdf', 'application/pdf', PDF); approve(L);
+  tick([L]);
+  ok('TEST @example.com → "Not sent — … TEST lead", no email', /^Not sent — Visa Approved: TEST lead/.test(sn(L)) && !to('qa-lima@example.com').length, sn(L));
+  tick(['EG-CE-00002']);
+  ok('a tick on a non-visa row is ignored: unticked + note', cell('EG-CE-00002', 'Send Now') === false && /^Ignored — Send Now is only for visa applications/.test(sn('EG-CE-00002')));
+  const M = mkVisa('TEST Visa Mike', 'mike@e.co');
+  edit(M, 'Review Status', 'Verified');
+  g.cache.EMAIL_JOBS = '1';
+  tick([M]);
+  delete g.cache.EMAIL_JOBS;
+  ok('while the 5-minute job is running → "tick again in a minute", nothing sent (no double email)', /automatic email check is running/.test(sn(M)) && !to('mike@e.co').some((m) => /Documents verified/.test(m.subject)) && cell(M, 'Send Now') === false);
+  ok('Send Now logs Lead IDs + result only', logs.filter((l) => /^sendNow /.test(l)).every((l) => /^sendNow (EG-(VO|CE)-\d{5}|row) (Sent \d{1,2} \w{3} \d\d:\d\d|Not sent|Queued \d{1,2} \w{3} \d\d:\d\d|Ignored)$/.test(l)) &&
+    logs.filter((l) => /^sendNow /.test(l)).length >= 9, [...new Set(logs.filter((l) => /^sendNow /.test(l)))].slice(0, 3).join(' | '));
+
+  // --- Track page: instant recount (Visa Approved + Visa Files 0) ------------------------------------------------------
+  const N = mkVisa('TEST Visa November', 'november@e.co');
+  approve(N); clock.offset += 6 * MIN; jobs();
+  ok('(Visa Approved, Visa Files 0, email held)', cell(N, 'Visa Files') === 0 && lastDecision(N)[3] === 'held');
+  put(N, 'visa.pdf', 'application/pdf', PDF);
+  resetLimits();
+  const tN = ctx.trackApplication_({ leadId: N, contact: 'november@e.co' });
+  ok('Track lookup recounts that one folder at once: download button + Visa Files 1', tN.canDownload === true && cell(N, 'Visa Files') === 1);
+  // --- recountVisaFiles (Run button) ------------------------------------------------------------------------------------
+  const P = mkVisa('TEST Visa Papa', 'papa@e.co');
+  edit(P, 'Review Status', 'Visa Processing');
+  put(P, 'a.pdf', 'application/pdf', PDF); put(P, 'b.pdf', 'application/pdf', PDF);
+  const rl0 = logs.length;
+  const lines = ctx.recountVisaFiles();
+  const rlog = logs.slice(rl0).join('\n');
+  ok('recountVisaFiles: Visa Processing / Visa Approved-not-yet-emailed rows recounted; logs Lead ID + count only', cell(P, 'Visa Files') === 2 && lines.indexOf(P + ': 2 files') !== -1 &&
+    lines.every((l) => /^EG-VO-\d{5}: (\d+ files?|Drive folder missing)$/.test(l)) && lines.indexOf(G + ': 1 file') === -1 && !/papa|TEST Visa/.test(rlog), lines.join(', '));
+  clock.offset = 0;
+
   // --- logs ----------------------------------------------------------------------------------------------------------
   const all = logs.join('\n');
   ok('logs never contain the email, name, code or token', !/bravo@e\.co|alpha@e\.co|TEST Visa Bravo|TEST Visa Alpha/.test(all) && all.indexOf(v1.dtoken) === -1 && all.indexOf(vcode) === -1 && all.indexOf(sessB) === -1);

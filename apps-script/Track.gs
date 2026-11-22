@@ -116,7 +116,14 @@ function trackResult_(lead) {
   }
   if (correctionRound_(lead)) out.canCorrect = true;
   // "Download your visa": Visa Approved with at least one valid file in Approved Visa (never for Lost)
-  if (visaDownloadReady_(lead)) { out.canDownload = true; out.nextStep = CONFIG.VISA_DELIVERY.NEXT_STEP; }
+  // Visa Approved but Visa Files still 0: recount this lead's Approved Visa folder now (one folder only), so the
+  // button appears as soon as staff have uploaded the file.
+  let ready = visaDownloadReady_(lead);
+  if (!ready && visaApproved_(lead)) {
+    const scan = refreshVisaFiles_(lead, false);
+    ready = !!(scan && scan.files.length);
+  }
+  if (ready) { out.canDownload = true; out.nextStep = CONFIG.VISA_DELIVERY.NEXT_STEP; }
   return out;
 }
 

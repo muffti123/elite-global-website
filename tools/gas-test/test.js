@@ -56,6 +56,8 @@ ok('v6: Correction For appended as column Z with its own dropdown (7 choices), h
   C.CORRECTION_FOR.length === 7 && /what the customer should correct/.test(tr.validation[26].help) && /correction page/.test((tr.notes || {})['1,26']), head.slice(25).join('|'));
 ok('v7: Visa Files appended as column AA (auto, no dropdown) with its note', head[26] === 'Visa Files' && !(tr.validation || {})[27] &&
   /Approved Visa/.test((tr.notes || {})['1,27']), head.slice(26).join('|'));
+ok('v8: Send Now appended as column AB with a tick box (not Visa Files\' rules) and its header note', head[27] === 'Send Now' && tr.validation[28] && tr.validation[28].checkbox === true &&
+  !(tr.validation || {})[27] && /without the 5-minute wait/.test((tr.notes || {})['1,28']) && /queued when the daily quota/.test((tr.notes || {})['1,28']), head.slice(27).join('|'));
 ok('first 15 columns and Lead IDs unchanged', H2.every((h, i) => tr.get(1, i + 1) === h) && [2, 3, 4].map((r) => tr.get(r, 1)).join() === 'EG-VO-00001,EG-CE-00002,EG-GE-00003');
 ok('old notes kept as they were', tr.get(3, 14) === staffNote && /^\[Complete/.test(tr.get(2, 14)));
 const row = (r) => [16, 17, 18, 19, 20, 21].map((c) => tr.get(r, c));
@@ -68,7 +70,7 @@ tr.set(4, 17, 'Typed by staff');
 ctx.upgradeTracker_(ss);
 ok('re-run keeps staff-entered values', tr.get(4, 17) === 'Typed by staff');
 
-ok('schema version 7', C.SCHEMA_VERSION === '7');
+ok('schema version 8', C.SCHEMA_VERSION === '8');
 ok('health check reports the stored schema', (() => { props.SCHEMA_VERSION = '5'; return JSON.parse(ctx.doGet()).schema === 5; })());
 
 // --- Email Log spreadsheet + settings + triggers (setup pieces), twice ---------------------------
