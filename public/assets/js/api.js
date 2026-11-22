@@ -4,7 +4,7 @@
  * The web app always answers JSON: {ok:true, leadId, ...} or {ok:false, error, field?}.
  *
  * Busy (round 2.5): {busy:true} from the web app, Google's own "too many requests" HTML page (not JSON), or
- * HTTP 429/5xx mean nothing was done — they are retried automatically after 2, 5, 10 and 20 s (±30 % jitter)
+ * HTTP 429/5xx mean nothing was done — they are retried automatically after 2, 5, 10, 20, 30 and 30 s (±30 % jitter)
  * while a notice says "We're busy — still sending, please keep this page open". Submits carry a submission
  * key (sid), the same for every retry of the same answers, so a retry never creates a second lead.
  */
@@ -12,7 +12,7 @@ window.EG = window.EG || {};
 (function () {
   'use strict';
   var EXEC_RE = /^https:\/\/script\.google\.com\/macros\/s\/[\w-]+\/exec$/;
-  var BUSY_WAITS = [2000, 5000, 10000, 20000];
+  var BUSY_WAITS = [2000, 5000, 10000, 20000, 30000, 30000]; // ~97 s in all (±30 % jitter)
   var SID_ACTIONS = { submitContact: 1, submitCustomRequest: 1, createVisaApplication: 1, submitCorrection: 1 };
   // Safe to send again after a network error: submits with a submission key, read-only lookups, and uploads /
   // finalize (a repeat replaces what the first one wrote). Google's overload page has no CORS header, so the
@@ -84,7 +84,7 @@ window.EG = window.EG || {};
 
   /**
    * POST {action, ...payload}. Resolves with the server's JSON (check .ok).
-   * Busy replies are retried 4 times (2, 5, 10, 20 s + jitter); if still busy it resolves {ok:false, busy:true, error}.
+   * Busy replies are retried 6 times (2, 5, 10, 20, 30, 30 s + jitter, ~97 s); if still busy it resolves {ok:false, busy:true, error}.
    * Network failure / timeout: `retries` extra attempts, then it rejects (err.network = true).
    * opts: {timeout: ms (default 30000), retries: n (default 2), busyRetries: n (default 4),
    *        networkBusy: false = a network error is never waited out like busy (uploads: their own retry loop + Retry button)}

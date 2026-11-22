@@ -1,5 +1,5 @@
 // Static test: "We're busy" handling on every form page, with the web app MOCKED (nothing is sent to Google).
-// Busy = {busy:true}, Google's HTML error page, or HTTP 503 → automatic retries with backoff + jitter, a notice
+// Busy = {busy:true}, Google's HTML error page, or HTTP 503 → automatic retries (2, 5, 10, 20, 30, 30 s ± 30 %), a notice
 // "We're busy — still sending, please keep this page open", and the same submission key on every retry.
 // Usage: node busy.js <baseUrl> <chrome>
 const puppeteer = require('puppeteer-core');
@@ -26,7 +26,7 @@ async function open(b, path, plan, opts = {}) {
     }
     r.continue();
   });
-  await p.evaluateOnNewDocument(() => { window.EG_TEST = { busyWaits: [300, 400, 500, 600], pollMs: 600000 }; });
+  await p.evaluateOnNewDocument(() => { window.EG_TEST = { busyWaits: [200, 250, 300, 350, 400, 450], pollMs: 600000 }; });
   await p.setViewport({ width: opts.width || 1280, height: 900 });
   await p.goto(base + '/' + path, { waitUntil: 'networkidle0' });
   return p;
@@ -66,8 +66,10 @@ const notice = (p) => p.evaluate(() => { const n = document.querySelector('.busy
   // still busy after every retry → a clear message, not an endless wait
   const p2 = await open(b, 'index.html', (body) => (body.action === 'submitContact' ? BUSY : { ok: true }));
   const r2 = await p2.evaluate(() => window.EG.postAction('submitContact', { hp: '', name: 'TEST', phone: '+234 800 000 0002' }, { retries: 0 }));
-  ok('still busy after 4 retries → {busy:true} with "Please try again in a few minutes" (5 requests in all)', r2.ok === false && r2.busy === true && /few minutes/.test(r2.error) &&
-    p2.posts.filter((x) => x.action === 'submitContact').length === 5 && !(await notice(p2)).shown);
+  ok('still busy after 6 retries → {busy:true} with "Please try again in a few minutes" (7 requests in all)', r2.ok === false && r2.busy === true && /few minutes/.test(r2.error) &&
+    p2.posts.filter((x) => x.action === 'submitContact').length === 7 && !(await notice(p2)).shown);
+  const apiSrc = require('fs').readFileSync(require('path').join(__dirname, '../../public/assets/js/api.js'), 'utf8');
+  ok('the real waits are 2, 5, 10, 20, 30 and 30 s (~97 s in all, ±30 % jitter)', /var BUSY_WAITS = \[2000, 5000, 10000, 20000, 30000, 30000\];/.test(apiSrc) && /0\.7 \+ Math\.random\(\) \* 0\.6/.test(apiSrc));
   await p2.close();
   // the contact form itself: busy first, then the thank-you with the reference
   const p3 = await open(b, 'index.html', (body, n) => (body.action !== 'submitContact' ? { ok: true } : n <= 2 ? BUSY : { ok: true, leadId: 'EG-GE-00015' }), { width: 390 });
@@ -93,6 +95,7 @@ const notice = (p) => p.evaluate(() => { const n = document.querySelector('.busy
   ok('uploadPassenger with networkBusy:false after a network error: one request, then the page\'s own retry decides', r5 === 'network' && p5.posts.filter((x) => x.action === 'uploadPassenger').length === 1);
   const src = require('fs').readFileSync(require('path').join(__dirname, '../../public/assets/js/visa.js'), 'utf8') + require('fs').readFileSync(require('path').join(__dirname, '../../public/assets/js/correct.js'), 'utf8');
   ok('visa.js and correct.js upload calls pass networkBusy:false', (src.match(/networkBusy: false/g) || []).length === 2);
+  ok('… and do not re-run the busy wait themselves (api.js has already waited ~97 s; no stacked retries)', !/busy\/i\.test/.test(src));
   await p5.close();
   await b.close();
   process.exit(res.some((x) => x.startsWith('FAIL')) ? 1 : 0);
