@@ -157,7 +157,9 @@ function setLastCustomerEmail_(leadId, label) {
     const row = findLeadRow_(sh, leadId);
     if (!row) return;
     const stamp = Utilities.formatDate(new Date(), 'Africa/Lagos', 'd MMM yyyy HH:mm');
-    sh.getRange(row, trackerCols_(sh)['Last Customer Email']).setValue(label + ' · ' + stamp);
+    const cols = trackerCols_(sh);
+    sh.getRange(row, cols['Last Customer Email']).setValue(label + ' · ' + stamp);
+    touchLead_(sh, row, cols);
     SpreadsheetApp.flush();
   } catch (e) { console.error('Last Customer Email not updated: ' + e.message); }
 }
@@ -170,6 +172,8 @@ function setReviewStatus_(leadId, status) {
   const cols = trackerCols_(sh);
   sh.getRange(row, cols['Review Status']).setValue(status);
   sh.getRange(row, cols['Review Updated']).setValue(new Date());
+  touchLead_(sh, row, cols);
+  addDue_(leadId, 'status change');
 }
 
 function fmtDate_(v) {
@@ -224,6 +228,8 @@ function renderStaffAlert_(lead) {
 function notifyNewLead_(lead) {
   try {
     if (!settings_().notifyStaff) return logEmail_({ kind: 'staff-alert', leadId: lead.leadId }, 'skipped', 'staff alerts off');
+    // Load tests (tools/qa/load-live.js) would use up gmail.com's 100 emails a day
+    if (/^\s*'?TEST Load /i.test(String(lead.name || ''))) return logEmail_({ kind: 'staff-alert', leadId: lead.leadId }, 'skipped', 'load test');
     const sh = trackerSheet_();
     lead.row = lead.row || findLeadRow_(sh, lead.leadId);
     lead.trackerUrl = trackerSS_().getUrl() + '#gid=' + sh.getSheetId() + '&range=A' + lead.row;
@@ -358,13 +364,19 @@ function processReviewEmails_(deadline) {
   const width = Math.max.apply(null, CONFIG.HEADERS.map(function (h) { return cols[h]; }));
   const data = sh.getRange(2, 1, last - 1, width).getValues();
   const now = Date.now();
-  const decisions = [];
+  const decisions = [], due = [];
+  const dueIds = {};
+  readDue_().forEach(function (x) { dueIds[x.id] = true; });
   data.forEach(function (v, i) {
     const r = reviewEmailRow_(sh, cols, v, i + 2, { deadline: deadline, now: now });
     if (r.decision) decisions.push(r.decision);
     if (out[r.outcome] !== undefined) out[r.outcome]++;
+    if ((r.outcome === 'waiting' || r.outcome === 'held') && !dueIds[String(v[0])]) {
+      due.push({ id: String(v[0]), at: Date.now() + (r.outcome === 'waiting' ? CONFIG.EMAIL.UNDO_MIN * 60000 : 0), reason: r.outcome + ' (hourly scan)' });
+    }
   });
   saveReviewDecisions_(decisions);
+  addDueMany_(due);
   return out;
 }
 
@@ -408,7 +420,7 @@ function reviewEmailRow_(sh, cols, v, row, o) {
   const message = cleanMessage_(get('Message to Customer'));
   if (status === 'Correction Needed' && !message) return res('held', 'Message to Customer is empty', visaFiles);
   if (status === 'Visa Approved' && !visaFiles) return res('held', 'no visa file yet', visaFiles);
-  if (emailDone_(key)) return res('not sent', 'this status was already emailed to this customer', visaFiles); // e.g. changed back
+  if (emailDone_(key, get('Emails Sent'))) return res('not sent', 'this status was already emailed to this customer', visaFiles); // e.g. changed back
   const lead = { leadId: leadId, name: String(get('Customer Name') || ''), email: String(get('Email') || '').trim() };
   const stamp = function () { return Utilities.formatDate(new Date(), 'Africa/Lagos', 'd MMM yyyy HH:mm'); };
   const skip = customerSkip_(lead);
@@ -480,33 +492,53 @@ function checkRecentEmailJobs() {
  * Message to Customer edits do not: a held Correction Needed is sent on the next run once it is filled in.
  */
 function onTrackerEdit(e) {
+  const t0 = Date.now();
   try {
     if (!e || !e.range) return;
     const sh = e.range.getSheet();
-    if (sh.getName() !== CONFIG.TRACKER_TAB) return;
+    if (sh.getName() !== CONFIG.TRACKER_TAB) return; // other tabs: nothing to do (cheap exit)
     const cols = trackerCols_(sh);
     const c1 = e.range.getColumn(), c2 = c1 + e.range.getNumColumns() - 1;
     const inside = function (h) { return cols[h] >= c1 && cols[h] <= c2; };
     const hit = inside('Review Status');
     const r1 = Math.max(e.range.getRow(), 2), r2 = Math.min(e.range.getRow() + e.range.getNumRows() - 1, sh.getLastRow());
     if (r2 < r1) return;
-    // Review Status edits start the undo window first; then ticked Send Now boxes are handled
+    // Last Change (archive age): any staff edit of the row, except the auto columns
+    const autoOnly = c1 === c2 && (c1 === cols['Last Change'] || c1 === cols['Emails Sent']);
+    if (!autoOnly && r2 - r1 <= 1000) {
+      const ids = sh.getRange(r1, 1, r2 - r1 + 1, 1).getValues();
+      const now = new Date();
+      const lc = sh.getRange(r1, cols['Last Change'], r2 - r1 + 1, 1);
+      const cur = lc.getValues();
+      let any = false;
+      ids.forEach(function (r, i) { if (r[0] !== '') { cur[i][0] = now; any = true; } });
+      if (any) lc.setValues(cur);
+    }
+    // Review Status edits start the undo window (and go on the Due list); then ticked Send Now boxes are handled
     if (hit && r2 - r1 <= 1000) stampReviewUpdated_(sh, cols, r1, r2);
     if (inside('Send Now')) sendNowRows_(e, sh, cols, r1, Math.min(r2, r1 + SEND_NOW_MAX - 1));
   } catch (err) { console.error('onTrackerEdit: ' + err.message); }
+  finally { recordRun_('edit', Date.now() - t0); }
 }
 
 /** Review Updated = now for the visa rows r1..r2 (a Review Status edit starts the 5-minute undo window). */
 function stampReviewUpdated_(sh, cols, r1, r2) {
   {
     const cats = sh.getRange(r1, cols['Lead Category'], r2 - r1 + 1, 1).getValues();
+    const ids = sh.getRange(r1, 1, r2 - r1 + 1, 1).getValues();
     const stamps = sh.getRange(r1, cols['Review Updated'], r2 - r1 + 1, 1).getValues();
     const now = new Date();
-    let changed = false;
+    const due = [];
     cats.forEach(function (c, i) {
-      if (String(c[0]) === CONFIG.FORMS.VISA.category) { stamps[i][0] = now; changed = true; }
+      if (String(c[0]) === CONFIG.FORMS.VISA.category && ids[i][0]) {
+        stamps[i][0] = now;
+        due.push({ id: String(ids[i][0]), at: now.getTime() + CONFIG.EMAIL.UNDO_MIN * 60000, reason: 'status change' });
+      }
     });
-    if (changed) sh.getRange(r1, cols['Review Updated'], r2 - r1 + 1, 1).setValues(stamps);
+    if (due.length) {
+      sh.getRange(r1, cols['Review Updated'], r2 - r1 + 1, 1).setValues(stamps);
+      addDueMany_(due);
+    }
   }
 }
 
@@ -584,16 +616,28 @@ function runEmailJobs() {
   const cache = CacheService.getScriptCache();
   if (cache.get('EMAIL_JOBS')) return;
   cache.put('EMAIL_JOBS', '1', 290);
+  const t0 = Date.now();
   try {
     const deadline = Date.now() + CONFIG.EMAIL.JOB_BUDGET_MS;
-    const q = runEmailQueue_(deadline);
-    const s = processReviewEmails_(deadline);
-    try { purgeStaleCorrections_(); } catch (e) { console.error('purgeStaleCorrections: ' + e.message); }
-    console.log('runEmailJobs status sent=' + s.sent + ' queued=' + s.queued + ' held=' + s.held + ' waiting=' + s.waiting +
-      ' · queue sent=' + q.sent + ' waiting=' + q.waiting + ' failed=' + q.failed);
+    const p = PropertiesService.getScriptProperties();
+    // The queue is only opened when something was queued (QUEUE_PENDING), so an idle run stays cheap
+    const q = p.getProperty('QUEUE_PENDING') === '0' ? { sent: 0, waiting: 0, failed: 0, skipped: true } : runEmailQueue_(deadline);
+    // Due tab every run; the full Lead Tracker scan (and the stale-correction clean-up) once an hour
+    const s = processDue_(deadline);
+    const lastFull = Number(p.getProperty('LAST_FULL_SCAN') || 0);
+    if (Date.now() - lastFull >= 3600000 && Date.now() < deadline) {
+      const f = processReviewEmails_(deadline);
+      ['sent', 'queued', 'skipped', 'held', 'waiting'].forEach(function (k) { s[k] += f[k]; });
+      s.full = true;
+      p.setProperty('LAST_FULL_SCAN', String(Date.now()));
+      try { purgeStaleCorrections_(); } catch (e) { console.error('purgeStaleCorrections: ' + e.message); }
+    }
+    console.log('runEmailJobs ' + (s.full ? 'full' : 'due') + ' sent=' + s.sent + ' queued=' + s.queued + ' held=' + s.held + ' waiting=' + s.waiting +
+      ' due=' + s.due + ' · queue sent=' + q.sent + ' waiting=' + q.waiting + ' failed=' + q.failed + ' · ' + (Date.now() - t0) + ' ms');
     return { status: s, queue: q };
   } finally {
     cache.remove('EMAIL_JOBS');
+    recordRun_('jobs', Date.now() - t0);
   }
 }
 
@@ -608,6 +652,10 @@ function ensureTriggers_(ss) {
   if (!have.runEmailJobs) {
     ScriptApp.newTrigger('runEmailJobs').timeBased().everyMinutes(5).create();
     Logger.log('Added trigger: runEmailJobs (every 5 minutes).');
+  }
+  if (!have.runArchive) {
+    ScriptApp.newTrigger('runArchive').timeBased().atHour(2).everyDays(1).inTimezone('Africa/Lagos').create();
+    Logger.log('Added trigger: runArchive (archive on the 1st of each month, ~02:00 Lagos; continues nightly until done).');
   }
   if (!have.sendDailySummary) {
     ScriptApp.newTrigger('sendDailySummary').timeBased().atHour(CONFIG.EMAIL.SUMMARY_HOUR).everyDays(1)
@@ -625,7 +673,8 @@ function collectSummary_() {
   const last = sh.getLastRow();
   const counts = {};
   CONFIG.REVIEW_STATUSES.forEach(function (s) { counts[s] = 0; });
-  const waitingReview = [], waitingNew = [], held = [];
+  const waitingReview = [], waitingNew = [], held = [], stale = [];
+  const staleCut = Date.now() - CONFIG.ARCHIVE.STALE_DAYS * 864e5;
   const cutoff = Date.now() - CONFIG.EMAIL.WAIT_DAYS * 864e5;
   if (last >= 2) {
     const width = Math.max.apply(null, CONFIG.HEADERS.map(function (h) { return cols[h]; }));
@@ -649,6 +698,10 @@ function collectSummary_() {
       }
       const ls = String(get('Lead Status') || '').trim();
       const rec = get('Date Received');
+      if (CONFIG.ARCHIVE.LEAD_FINAL.indexOf(ls) === -1 && CONFIG.ARCHIVE.REVIEW_FINAL.indexOf(status) === -1) {
+        const lc = lastChangeMs_(get);
+        if (lc && lc < staleCut) stale.push(id + ' — ' + (ls || 'New Lead') + (status ? ' / ' + status : '') + ', unchanged since ' + fmtDate_(new Date(lc)));
+      }
       if ((ls === '' || ls === 'New Lead') && !status && rec instanceof Date && rec.getTime() < cutoff) {
         waitingNew.push(id + ' — New Lead since ' + fmtDate_(rec));
       }
@@ -656,7 +709,9 @@ function collectSummary_() {
   }
   let quota = '';
   if (settings_().provider === 'mailapp') { try { quota = String(MailApp.getRemainingDailyQuota()); } catch (e) { quota = 'unknown'; } }
-  return { counts: counts, waitingReview: waitingReview, waitingNew: waitingNew, held: held,
+  let health = [];
+  try { health = healthRows_(); } catch (e) { health = [['System health', 'unavailable: ' + e.message]]; }
+  return { counts: counts, waitingReview: waitingReview, waitingNew: waitingNew, held: held, stale: stale, health: health,
     queue: emailQueueCount_(), queueFailed: emailQueueFailed_(), quota: quota, provider: settings_().provider };
 }
 
@@ -676,6 +731,9 @@ function renderSummary_(s) {
       { title: 'Held emails (Correction Needed without a Message to Customer, Visa Approved without a visa file)', items: cap(s.held) },
       { title: 'Visa reviews waiting more than ' + CONFIG.EMAIL.WAIT_DAYS + ' days', items: cap(s.waitingReview) },
       { title: 'New leads not contacted for more than ' + CONFIG.EMAIL.WAIT_DAYS + ' days', items: cap(s.waitingNew) },
+      { title: 'Please close (unchanged for ' + CONFIG.ARCHIVE.STALE_DAYS + ' days: set Lead Status to Converted or Lost so they can be archived)', items: cap(s.stale || []) },
+      { title: 'System health' + ((s.health || []).some(function (r) { return /⚠️/.test(r[1]); }) ? ' — ⚠️ action needed (see the README)' : ''),
+        items: (s.health || []).map(function (r) { return r[0] + ': ' + r[1]; }) },
     ],
     button: { label: 'Open the Lead Tracker', url: trackerSS_().getUrl() },
     small: ['Sent automatically every morning by the Elite Global lead system.'],
@@ -685,6 +743,7 @@ function renderSummary_(s) {
 
 /** Daily trigger (~08:00 Lagos): staff summary, then prune the Email Log (90 days). */
 function sendDailySummary() {
+  const t0 = Date.now();
   const s = collectSummary_();
   const m = renderSummary_(s);
   const today = Utilities.formatDate(new Date(), 'Africa/Lagos', 'yyyy-MM-dd');
@@ -692,6 +751,8 @@ function sendDailySummary() {
     ? sendEmail_({ to: staffEmail_(), kind: 'summary', key: 'summary|' + today, subject: m.subject, html: m.html, text: m.text })
     : 'skipped';
   const pruned = pruneEmailLog_();
+  pruneHealth_();
+  recordRun_('summary', Date.now() - t0);
   console.log('sendDailySummary ' + r + ' pruned=' + pruned);
   return r;
 }

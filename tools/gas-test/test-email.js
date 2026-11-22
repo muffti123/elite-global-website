@@ -10,7 +10,7 @@ module.exports = function (g, ok, t) {
   const to = (addr) => mail.outbox.filter((m) => m.to === addr);
   const cell = (id, h) => tr.get(ctx.findLeadRow_(tr, id), colOf(h));
   const edit = (id, h, value) => { setCell(id, h, value); ctx.onTrackerEdit({ range: tr.getRange(ctx.findLeadRow_(tr, id), colOf(h)) }); };
-  const jobs = () => { Object.keys(g.cache).filter((k) => k === 'EMAIL_JOBS').forEach((k) => delete g.cache[k]); return ctx.runEmailJobs(); };
+  const jobs = () => { delete g.cache.EMAIL_JOBS; delete props.LAST_FULL_SCAN; return ctx.runEmailJobs(); }; // full scan each time (the Due path: test-scale.js)
   const logRows = () => logSh.getRange(2, 1, Math.max(logSh.getLastRow() - 1, 1), 7).getValues().filter((r) => r[1] || r[2]);
   const clearW = () => Object.keys(g.cache).filter((k) => /_W$/.test(k)).forEach((k) => delete g.cache[k]);
   const resetLimits = () => Object.keys(g.cache).forEach((k) => delete g.cache[k]);

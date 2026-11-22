@@ -29,12 +29,17 @@ const ACTIONS = {
   verifyVisaCode: verifyVisaCode_,
   listVisaFiles: listVisaFiles_,
   downloadVisaFile: downloadVisaFile_,
+  loadTestReport: loadTestReport_,
 };
+
+// Google is busy or briefly unavailable (quota per second, simultaneous executions, a service hiccup):
+// the website retries these automatically, so they get {busy: true} and no error email.
+const BUSY_RE = /too many (simultaneous|times)|service invoked too many times|rate limit|lock timeout|could not obtain lock|timed out|temporarily unavailable|service (spreadsheets|drive|documents) (failed|error)|server error occurred|internal error|backend error|try again later|address unavailable|exceeded maximum execution time/i;
 
 /**
  * Health check: opening the web app URL in a browser shows {"ok":true,...}.
  * schema = SCHEMA_VERSION written by setupEliteGlobal (3 = v3 columns + Visa Applications tab;
- * 4 = Message to Customer column; 5 = Review Status, Review Updated, Last Customer Email; 6 = Correction For; 7 = Visa Files + Approved Visa folders; 8 = Send Now tick box).
+ * 4 = Message to Customer column; 5 = Review Status, Review Updated, Last Customer Email; 6 = Correction For; 7 = Visa Files + Approved Visa folders; 8 = Send Now tick box; 9 = Last Change, Emails Sent, Due + Archive Index tabs).
  */
 function doGet() {
   const schema = Number(PropertiesService.getScriptProperties().getProperty('SCHEMA_VERSION') || 0);
@@ -43,6 +48,8 @@ function doGet() {
 
 function doPost(e) {
   let action = '';
+  const t0 = Date.now();
+  let busy = false;
   try {
     const body = e && e.postData && e.postData.contents;
     if (!body) fail_('Empty request.');
@@ -60,6 +67,11 @@ function doPost(e) {
 
     return json_(ACTIONS[action](d));
   } catch (err) {
+    if (err && (err.busy || (!err.userFacing && BUSY_RE.test(String(err && err.message))))) {
+      busy = true;
+      console.log('doPost ' + action + ' busy');
+      return json_({ ok: false, busy: true, error: err.userFacing ? err.message : BUSY_MSG });
+    }
     if (err && err.userFacing) {
       const out = { ok: false, error: err.message };
       if (err.field) out.field = err.field;
@@ -68,13 +80,36 @@ function doPost(e) {
       if (err.relogin) out.relogin = true;   // Track session ended: look up the application again
       if (err.restart) out.restart = true;   // correction / download token ended: start again from the Track page
       if (err.relist) out.relist = true;     // visa download: the file list changed, show it again
+      if (err.archived) out.archived = true; // the lead is in the archive (read-only)
       return json_(out);
     }
     // Unexpected: log the error class only — never the request (it may hold passport data).
     console.error('doPost ' + action + ' failed: ' + (err && err.message));
     notifyError_(err, action);
     return json_({ ok: false, error: 'Sorry, something went wrong on our side. Please try again in a moment.' });
+  } finally {
+    if (action) recordAction_(action, Date.now() - t0, busy);
   }
+}
+
+/**
+ * STAGING ONLY (TEST_OTP_BYPASS on, SITE_URL staging) — tools/qa/load-live.js: how many Lead Tracker rows a load
+ * test run created ({tag}: rows whose name starts "TEST Load <tag> "), and how many distinct names (a duplicate lead
+ * would repeat a name). Counts only: no names, emails or IDs.
+ */
+function loadTestReport_(d) {
+  if (!testBypassOn_() || !/staging/i.test(settings_().siteUrl)) fail_('Not available.');
+  const tag = String(d.tag || '');
+  if (!/^[A-Z0-9]{4,12}$/.test(tag)) fail_('Invalid request.');
+  const sh = trackerSheet_();
+  const last = sh.getLastRow();
+  const names = last >= 2 ? sh.getRange(2, 3, last - 1, 1).getValues() : [];
+  const prefix = 'TEST Load ' + tag + ' ';
+  const seen = {};
+  let rows = 0;
+  names.forEach(function (r) { const n = String(r[0] || '').replace(/^'/, ''); if (n.indexOf(prefix) === 0) { rows++; seen[n] = true; } });
+  console.log('loadTestReport rows=' + rows);
+  return { ok: true, rows: rows, names: Object.keys(seen).length };
 }
 
 function json_(obj) {
@@ -87,6 +122,7 @@ function honeypotReply_(action) {
   if (action === 'verifyEmailCode') return { ok: false, error: OTP_WRONG, field: 'code' };
   if (action === 'endTrackSession') return { ok: true };
   if (CORRECTION_ACTIONS.indexOf(action) !== -1 || VISA_ACTIONS.indexOf(action) !== -1) return { ok: false, error: SESSION_ENDED, relogin: true };
+  if (action === 'loadTestReport') return { ok: false, error: 'Not available.' };
   const fake = 'EG-' + (action === 'submitContact' ? 'GE' : action === 'submitCustomRequest' ? 'CE' : 'VO') +
     '-' + ('0000' + Math.floor(Math.random() * 99999)).slice(-5);
   return action === 'createVisaApplication'

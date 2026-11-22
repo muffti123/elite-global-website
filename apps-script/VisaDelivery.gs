@@ -96,13 +96,16 @@ function visaFilesNote_(scan) {
  * changed. Creates the folder when missing. Returns the scan, or null when the Drive folder is missing.
  */
 function refreshVisaFiles_(lead, checkBytes, sh, cols) {
-  sh = sh || trackerSheet_();
-  cols = cols || trackerCols_(sh);
+  if (!lead.archived) {
+    sh = sh || trackerSheet_();
+    cols = cols || trackerCols_(sh);
+  }
   let scan;
   try { scan = scanVisaFiles_(approvedVisaFolder_(leadFolder_(lead), true), checkBytes); } catch (e) {
     console.error('Visa Files ' + lead.leadId + ': ' + e.message);
     return null;
   }
+  if (lead.archived) return scan; // archive rows are never written
   const cell = sh.getRange(lead.row, cols['Visa Files']);
   if (cell.getValue() !== scan.files.length) cell.setValue(scan.files.length);
   const note = visaFilesNote_(scan);
@@ -309,6 +312,7 @@ function testApproveVisa() {
     refreshVisaFiles_(lead, false, sh, cols);
     sh.getRange(lead.row, cols['Review Status']).setValue('Visa Approved');
     sh.getRange(lead.row, cols['Review Updated']).setValue(new Date());
+    addDue_(lead.leadId, 'status change (test)');
     Logger.log('Visa Approved set on ' + lead.leadId + ' (2 SPECIMEN files). Open the Track page with this reference.');
     return lead.leadId;
   }

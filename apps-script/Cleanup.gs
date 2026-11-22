@@ -78,7 +78,12 @@ function cleanupTestData() {
   // 5. Retired Google Forms + their response sheets (only if they still exist)
   removed.legacy = cleanupLegacyForms_(isTest);
 
-  // 6. Email Log + Email Queue rows of TEST leads (separate spreadsheet)
+  // 6. Due rows, Archive Index rows and archived rows of TEST leads (round 2.5) — first, so archived TEST
+  //    leads are known before the Email Log is cleaned
+  removed.archived = cleanupArchive_(testIds, isTest);
+  removed.due = cleanupDue_(testIds);
+
+  // 7. Email Log + Email Queue rows of TEST leads (separate spreadsheet)
   removed.emails = cleanupEmailLog_(testIds);
 
   // Restart Lead IDs at 00001 if the tracker is now empty
@@ -87,7 +92,8 @@ function cleanupTestData() {
   Logger.log('Removed TEST data — tracker rows: ' + removed.tracker + ', visa applications: ' + removed.visa + ', visa passengers: ' + removed.passengers +
     ', custom requests: ' + removed.custom + ', contact enquiries: ' + removed.contact +
     ', visa folders moved to bin: ' + removed.folders + ', upload states: ' + removed.uploads + ', correction states: ' + removed.corrections +
-    ', retired-form records: ' + removed.legacy + ', email log/queue rows: ' + removed.emails + '.');
+    ', retired-form records: ' + removed.legacy + ', email log/queue rows: ' + removed.emails +
+    ', due rows: ' + (removed.due || 0) + ', archived rows: ' + (removed.archived || 0) + '.');
 }
 
 function cleanupLegacyForms_(isTest) {
@@ -135,4 +141,48 @@ function notifyError_(err, action) {
     const m = renderErrorEmail_(action, err);
     sendEmail_({ to: staffEmail_(), kind: 'error', subject: m.subject, html: m.html, text: m.text });
   } catch (ignore) { /* mail quota reached — the error is still in the Executions log */ }
+}
+
+/** Due rows of TEST leads (under the lock). */
+function cleanupDue_(testIds) {
+  let n = 0;
+  try {
+    withLock_(function () {
+      const sh = dueSheet_();
+      for (let r = sh.getLastRow(); r >= 2; r--) {
+        if (testIds[String(sh.getRange(r, 1).getValue())]) { sh.deleteRow(r); n++; }
+      }
+    }, 30000);
+  } catch (e) { Logger.log('Due clean-up skipped: ' + e.message); }
+  return n;
+}
+
+/** Archive Index rows and archive-file rows of TEST leads (by Lead ID, or a TEST name in an archived tracker row). */
+function cleanupArchive_(testIds, isTest) {
+  let n = 0;
+  let idx;
+  try { idx = archiveIndexSheet_(); } catch (e) { return 0; }
+  const files = {};
+  if (idx.getLastRow() >= 2) {
+    const rows = idx.getRange(2, 1, idx.getLastRow() - 1, 4).getValues();
+    rows.forEach(function (r) { if (r[3]) files[String(r[3])] = true; });
+  }
+  Object.keys(files).forEach(function (id) {
+    let ss;
+    try { ss = SpreadsheetApp.openById(id); } catch (e) { return; }
+    const tr = ss.getSheetByName(CONFIG.TRACKER_TAB);
+    if (tr && tr.getLastRow() >= 2) {
+      const v = tr.getRange(2, 1, tr.getLastRow() - 1, 3).getValues();
+      v.forEach(function (r) { if (r[0] && isTest(r[2])) testIds[String(r[0])] = true; });
+    }
+    ss.getSheets().forEach(function (sh) {
+      for (let r = sh.getLastRow(); r >= 2; r--) {
+        if (testIds[String(sh.getRange(r, 1).getValue())]) { sh.deleteRow(r); n++; }
+      }
+    });
+  });
+  for (let r = idx.getLastRow(); r >= 2; r--) {
+    if (testIds[String(idx.getRange(r, 1).getValue())]) { idx.deleteRow(r); n++; }
+  }
+  return n;
 }

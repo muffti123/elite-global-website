@@ -46,9 +46,21 @@ function createVisaApplication_(d) {
 
   const docs = docsDeclared_(d.docs, list.length);
   requireEmailToken_(d.emailToken, a.email);
+  // Submission key: a retried create returns the first reply (same Lead ID + upload token), never a second lead
+  const sk = sidKey_(d.sid);
+  const again = sk && CacheService.getScriptCache().get(sk);
+  if (again && again !== 'pending') { console.log('createVisaApplication replay'); return JSON.parse(again); }
   rateLimit_('email:' + a.email);
 
-  const leadId = withLock_(function () { return nextLeadId_(CONFIG.FORMS.VISA.idPrefix); });
+  let replay = null, claimed = false;
+  return sidGuard_(sk, function () { return claimed; }, function () {
+  const leadId = withLock_(function () {
+    replay = claimSid_(sk);
+    if (replay) return '';
+    claimed = !!sk;
+    return nextLeadId_(CONFIG.FORMS.VISA.idPrefix);
+  });
+  if (replay) { console.log('createVisaApplication replay'); return replay; }
 
   // Drive work happens outside the lock
   const folder = visaRootFolder_().createFolder(leadId + ' – ' + folderSafe_(a.name));
@@ -78,7 +90,10 @@ function createVisaApplication_(d) {
   });
 
   console.log('createVisaApplication ok ' + leadId + ' passengers=' + list.length);
-  return { ok: true, leadId: leadId, token: token, total: list.length };
+  const out = { ok: true, leadId: leadId, token: token, total: list.length };
+  storeSid_(sk, out); // server side only (CacheService); the upload token is never logged
+  return out;
+  });
 }
 
 // ---------------------------------------------------------------------

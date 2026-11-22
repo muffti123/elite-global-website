@@ -12,7 +12,7 @@ module.exports = function (g, ok, t) {
   const cell = (id, h) => tr.get(ctx.findLeadRow_(tr, id), colOf(h));
   const note = (id, h) => (tr.notes || {})[ctx.findLeadRow_(tr, id) + ',' + colOf(h)] || '';
   const edit = (id, h, value) => { setCell(id, h, value); ctx.onTrackerEdit({ range: tr.getRange(ctx.findLeadRow_(tr, id), colOf(h)) }); };
-  const jobs = () => { delete g.cache.EMAIL_JOBS; return ctx.runEmailJobs(); };
+  const jobs = () => { delete g.cache.EMAIL_JOBS; delete props.LAST_FULL_SCAN; return ctx.runEmailJobs(); }; // full scan each time (the Due path: test-scale.js)
   const err = (fn) => { try { const r = fn(); return { ok: true, r }; } catch (e) { return { ok: false, msg: e.message, e }; } };
   const to = (addr) => mail.outbox.filter((m) => m.to === addr);
   const codeIn = (m) => (/code: (\d{6})/.exec(m.subject) || [])[1];

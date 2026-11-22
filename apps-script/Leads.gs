@@ -5,10 +5,15 @@
 // ---------------------------------------------------------------------
 // LOCK + LEAD ID
 // ---------------------------------------------------------------------
-/** Runs fn while holding the script lock (max 30 s wait). */
-function withLock_(fn) {
+const BUSY_MSG = 'We\'re very busy right now. Please try again in a moment.';
+
+/**
+ * Runs fn while holding the script lock (waits up to waitMs, default 10 s). Keep fn short: Lead ID numbers,
+ * state and row writes only — Drive work, emails and anything slow belong outside. Busy → {busy: true} reply.
+ */
+function withLock_(fn, waitMs) {
   const lock = LockService.getScriptLock();
-  if (!lock.tryLock(30000)) fail_('We are very busy right now. Please try again in a moment.');
+  if (!lock.tryLock(waitMs || CONFIG.LIMITS_GOOGLE.LOCK_WAIT_MS)) fail_(BUSY_MSG, null, { busy: true });
   try {
     const out = fn();
     SpreadsheetApp.flush(); // write now: errors surface here (not after the reply) and before the lock is released
@@ -39,11 +44,47 @@ function trackerSheet_() {
   return trackerSS_().getSheetByName(CONFIG.TRACKER_TAB);
 }
 
-/** Row number of a Lead ID in column A of the sheet, or 0. */
+/**
+ * Row number of a Lead ID in column A of the sheet, or 0. A cached Lead ID → row (CacheService, 6 h) is
+ * checked against column A first — staff may sort or delete rows, and the archive deletes them — so a stale
+ * entry is never used; a miss falls back to TextFinder and refreshes the cache.
+ */
 function findLeadRow_(sh, leadId) {
+  if (!leadId) return 0;
+  const cache = CacheService.getScriptCache();
+  const key = 'ROW_' + sh.getSheetId() + '_' + leadId;
+  const cached = Number(cache.get(key) || 0);
+  if (cached >= 2 && cached <= sh.getMaxRows() && String(sh.getRange(cached, 1).getValue()) === leadId) return cached;
   const hit = sh.getRange(2, 1, Math.max(sh.getMaxRows() - 1, 1), 1)
     .createTextFinder(leadId).matchEntireCell(true).findNext();
-  return hit ? hit.getRow() : 0;
+  const row = hit ? hit.getRow() : 0;
+  if (row) cache.put(key, String(row), 21600);
+  return row;
+}
+
+// ---------------------------------------------------------------------
+// SUBMISSION KEYS (sid): a retried submit gets the first reply back — never a second lead
+// ---------------------------------------------------------------------
+function sidKey_(sid) {
+  const s = String(sid || '');
+  return /^[\w-]{16,64}$/.test(s) ? 'SID_' + sha256Hex_('sid|' + s).slice(0, 40) : '';
+}
+/** Inside the lock: the stored reply of an earlier request with this sid, or null after claiming it. */
+function claimSid_(key) {
+  if (!key) return null;
+  const cache = CacheService.getScriptCache();
+  const v = cache.get(key);
+  if (v === 'pending') fail_('We\'re still processing your request. Please keep this page open.', null, { busy: true });
+  if (v) { try { return JSON.parse(v); } catch (e) { /* replace */ } }
+  cache.put(key, 'pending', 120); // a request that dies frees the key after 2 minutes
+  return null;
+}
+function storeSid_(key, reply) { if (key) CacheService.getScriptCache().put(key, JSON.stringify(reply), CONFIG.LIMITS_GOOGLE.SID_TTL_S); }
+function releaseSid_(key) { if (key) { try { CacheService.getScriptCache().remove(key); } catch (e) { /* expires */ } } }
+
+/** Last Change = now on a tracker row (web app writes; staff edits are stamped by onTrackerEdit). */
+function touchLead_(sh, row, cols) {
+  try { sh.getRange(row, (cols || trackerCols_(sh))['Last Change']).setValue(new Date()); } catch (e) { /* column added by setup */ }
 }
 
 /**
@@ -96,12 +137,19 @@ function appendTrackerRow_(r) {
     'Review Updated': '',
     'Last Customer Email': '',
     'Correction For': '',      // visa: staff, with Correction Needed
+    'Visa Files': '',
+    'Send Now': false,
+    'Last Change': r.date,
+    'Emails Sent': '',
   };
   // Write the contiguous block of web-app columns; staff columns outside it are untouched.
   const last = Math.max.apply(null, CONFIG.HEADERS.map(function (h) { return cols[h]; }));
   const current = sh.getRange(row, 1, 1, last).getValues()[0];
   CONFIG.HEADERS.forEach(function (h) { current[cols[h] - 1] = v[h]; });
   sh.getRange(row, 1, 1, last).setValues([current]);
+  const cache = CacheService.getScriptCache();
+  cache.put('ROW_' + sh.getSheetId() + '_' + r.leadId, String(row), 21600);
+  cache.put('NEXT_ROW_' + sh.getSheetId(), String(row + 1), 21600);
   return row;
 }
 
@@ -110,7 +158,9 @@ function setApplicationStatus_(leadId, status) {
   const sh = trackerSheet_();
   const row = findLeadRow_(sh, leadId);
   if (!row) return;
-  sh.getRange(row, trackerCols_(sh)['Application Status']).setValue(status);
+  const cols = trackerCols_(sh);
+  sh.getRange(row, cols['Application Status']).setValue(status);
+  touchLead_(sh, row, cols);
 }
 
 /** Current Application Status of a lead ('' when not found). */
@@ -130,9 +180,19 @@ function appendDetailRow_(tab, values) {
   return sh.getLastRow();
 }
 
-/** First empty row, judged by the Lead ID column. Adds more rows when full. */
+/**
+ * First empty row, judged by the Lead ID column. Adds more rows when full. Call inside withLock_.
+ * A cached next row is used when it checks out (its cell is empty and the row above holds a Lead ID);
+ * otherwise column A is read once.
+ */
 function nextEmptyRow_(sh) {
   const max = sh.getMaxRows();
+  const cache = CacheService.getScriptCache();
+  const c = Number(cache.get('NEXT_ROW_' + sh.getSheetId()) || 0);
+  if (c >= 3 && c <= max) {
+    const two = sh.getRange(c - 1, 1, 2, 1).getValues();
+    if (two[0][0] !== '' && two[1][0] === '') return c;
+  }
   const ids = sh.getRange(2, 1, max - 1, 1).getValues();
   let last = 0;
   for (let i = ids.length - 1; i >= 0; i--) { if (ids[i][0] !== '') { last = i + 1; break; } }
@@ -206,9 +266,16 @@ function submitContact_(d) {
     travellers: vInt_(d.travellers, false, 'travellers', 'the number of travellers', 1, 999),
     details: vLong_(d.details),
   };
+  const sk = sidKey_(d.sid);
+  const again = sk && CacheService.getScriptCache().get(sk);
+  if (again && again !== 'pending') { console.log('submitContact replay'); return JSON.parse(again); } // a retry: same reply
   rateLimit_('phone:' + a.phone.replace(/\D/g, ''));
 
-  const res = withLock_(function () {
+  let replay = null, claimed = false;
+  const res = sidGuard_(sk, function () { return claimed; }, function () { return withLock_(function () {
+    replay = claimSid_(sk);
+    if (replay) return replay;
+    claimed = !!sk;
     const leadId = nextLeadId_(CONFIG.FORMS.CONTACT.idPrefix);
     const now = new Date();
     appendTrackerRow_({
@@ -222,8 +289,11 @@ function submitContact_(d) {
       leadId, now, a.name, a.phone, a.enquiryType, parseDate_(a.travelDate), a.travellers, a.details,
     ]);
     console.log('submitContact ok ' + leadId);
-    return { ok: true, leadId: leadId };
-  });
+    const out = { ok: true, leadId: leadId };
+    storeSid_(sk, out);
+    return out;
+  }); });
+  if (replay) { console.log('submitContact replay'); return replay; }
   notifyNewLead_({
     leadId: res.leadId, kind: 'contact', name: a.name, phone: a.phone, email: '', country: '',
     travelDate: a.travelDate, passengers: a.travellers, extra: [['Enquiry', a.enquiryType]],
@@ -263,11 +333,18 @@ function submitCustomRequest_(d) {
   a.departureAirport = vAirport_(d.departureAirport, d.departureAirportOther, a.country);
   if (a.adults + a.children + a.infants < 1) fail_('Please enter at least one traveller.', 'adults');
   requireEmailToken_(d.emailToken, a.email);
+  const sk = sidKey_(d.sid);
+  const again = sk && CacheService.getScriptCache().get(sk);
+  if (again && again !== 'pending') { console.log('submitCustomRequest replay'); return JSON.parse(again); }
   rateLimit_('email:' + a.email);
 
   const services = a.services.concat(a.servicesOther ? ['Other: ' + a.servicesOther] : []);
 
-  const res = withLock_(function () {
+  let replay = null, claimed = false;
+  const res = sidGuard_(sk, function () { return claimed; }, function () { return withLock_(function () {
+    replay = claimSid_(sk);
+    if (replay) return replay;
+    claimed = !!sk;
     const leadId = nextLeadId_(CONFIG.FORMS.CUSTOM.idPrefix);
     const now = new Date();
     appendTrackerRow_({
@@ -285,8 +362,11 @@ function submitCustomRequest_(d) {
       a.visaAssist, a.budget, a.experience, a.hotelOrAirline, a.special, a.heard,
     ]);
     console.log('submitCustomRequest ok ' + leadId);
-    return { ok: true, leadId: leadId };
-  });
+    const out = { ok: true, leadId: leadId };
+    storeSid_(sk, out);
+    return out;
+  }); });
+  if (replay) { console.log('submitCustomRequest replay'); return replay; }
   const lead = {
     leadId: res.leadId, kind: 'custom', name: a.name, phone: a.phone, email: a.email, country: a.country,
     travelDate: a.travelDate, passengers: a.adults + a.children + a.infants,
@@ -294,5 +374,11 @@ function submitCustomRequest_(d) {
   };
   notifyNewLead_(lead);
   res.emailed = sendConfirmation_(lead);
+  storeSid_(sk, res);
   return res;
+}
+
+/** Runs fn; when it fails after this request claimed its submission key, the key is freed for the retry. */
+function sidGuard_(key, claimedFn, fn) {
+  try { return fn(); } catch (e) { if (key && claimedFn()) releaseSid_(key); throw e; }
 }

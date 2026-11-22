@@ -70,7 +70,7 @@ tr.set(4, 17, 'Typed by staff');
 ctx.upgradeTracker_(ss);
 ok('re-run keeps staff-entered values', tr.get(4, 17) === 'Typed by staff');
 
-ok('schema version 8', C.SCHEMA_VERSION === '8');
+ok('schema version 9', C.SCHEMA_VERSION === '9');
 ok('health check reports the stored schema', (() => { props.SCHEMA_VERSION = '5'; return JSON.parse(ctx.doGet()).schema === 5; })());
 
 // --- Email Log spreadsheet + settings + triggers (setup pieces), twice ---------------------------
@@ -84,7 +84,7 @@ ok('STAFF_EMAIL defaults to the script owner; OTP_SECRET created', props.STAFF_E
 props.STAFF_EMAIL = 'staff@example.org'; ctx.ensureEmailSettings_();
 ok('STAFF_EMAIL is only set when empty', props.STAFF_EMAIL === 'staff@example.org');
 ctx.ensureTriggers_(ss); ctx.ensureTriggers_(ss);
-ok('3 triggers created once (onTrackerEdit, runEmailJobs, sendDailySummary)', g.triggers.map((t) => t.handler).sort().join('|') === 'onTrackerEdit|runEmailJobs|sendDailySummary', g.triggers.map((t) => t.handler).join('|'));
+ok('4 triggers created once (onTrackerEdit, runArchive, runEmailJobs, sendDailySummary)', g.triggers.map((t) => t.handler).sort().join('|') === 'onTrackerEdit|runArchive|runEmailJobs|sendDailySummary', g.triggers.map((t) => t.handler).join('|'));
 ok('System Info shows the Email Log link', ctx.collectInfo_().some((r) => /Email Log/.test(r[0]) && r[1] === 'https://sheet/' + props.EMAIL_LOG_ID));
 const tok = (e) => ctx.makeEmailToken_(e);
 
@@ -229,6 +229,7 @@ ok('logs: only found / not-found / limited — never the contact or a missed ID'
 require('./test-email')(g, ok, { v, vd, v2, cu, c1, tok, future, track, setCell, colOf, tr, elog });
 require('./test-correction')(g, ok, { tok, future, setCell, colOf, tr, b64 });
 require('./test-visa')(g, ok, { tok, future, setCell, colOf, tr, b64 });
+require('./test-scale')(g, ok, { tok, future, setCell, colOf, tr, b64 });
 
 // --- cleanup -----------------------------------------------------------------------------------
 ctx.cleanupTestData();
@@ -236,6 +237,11 @@ const leftIds = []; for (let r = 2; r <= tr.getLastRow(); r++) if (tr.get(r, 1))
 ok('cleanupTestData removes TEST rows from Lead Tracker + Visa Applications', leftIds.join() === 'EG-CE-00002,EG-GE-00003' && va.getLastRow() === 1, leftIds.join() + ' / visa rows ' + (va.getLastRow() - 1));
 const elIds = elog.getSheetByName('Email Log').getRange(2, 4, Math.max(elog.getSheetByName('Email Log').getLastRow() - 1, 1), 1).getValues().map((r) => r[0]).filter(String);
 ok('cleanupTestData removes the TEST leads\' Email Log rows', elIds.length === 0, elIds.join(','));
+const dueLeft = ctx.readDue_().map((x) => x.id);
+const idxSh = ss.getSheetByName('Archive Index');
+const archRows = Object.values(JSON.parse(props.ARCHIVE_FILES || '{}')).map((id) => g.books[id].getSheetByName('Lead Tracker').getLastRow() - 1);
+ok('cleanupTestData: TEST leads\' Due rows, Archive Index rows and archived rows removed (others kept)', dueLeft.every((id) => leftIds.indexOf(id) !== -1 || id === 'EG-VO-00099') &&
+  dueLeft.indexOf('EG-VO-00099') !== -1 && idxSh.getLastRow() === 1 && archRows.length > 0 && archRows.every((n) => n === 0), JSON.stringify({ dueLeft, idx: idxSh.getLastRow(), archRows }));
 console.log(fails ? fails + ' failure(s)' : 'all passed');
 console.log(logs.filter((l) => /Added|Filled|Removed/.test(l)).join('\n'));
 process.exit(fails ? 1 : 0);
