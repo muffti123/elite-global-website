@@ -38,7 +38,9 @@ No Google Forms in the customer journey; the old ones are closed and kept in Dri
   (email codes + token), `Correction.gs` (Correction Needed → code to the stored email → correction token → staged
   uploads → submit; old files to "Replaced <date>", never deleted), `VisaDelivery.gs` (Approved Visa folder, Visa Files,
   download step-up + base64 download, ATTACH_VISA attachments, recountVisaFiles, testApproveVisa; the Send Now tick
-  box is handled in `Notify.gs` onTrackerEdit — the script is standalone, so no tracker menus/dialogs), `Specimen.gs` (generated SPECIMEN visa PDFs), `Airports.gs` (generated), `appsscript.json`. `.clasp.json` is per environment
+  box is handled in `Notify.gs` onTrackerEdit — the script is standalone, so no tracker menus/dialogs), `Specimen.gs` (generated SPECIMEN visa PDFs), `Archive.gs` (monthly archive into quarterly files,
+  Archive Index, read-only lookups), `Due.gs` (hidden Due tab for status emails), `Health.gs` (System health),
+  `Benchmark.gs` (staging timing), `Airports.gs` (generated), `appsscript.json`. `.clasp.json` is per environment
   and git-ignored.
 - `tools/gas-test/` — the Apps Script logic against an in-memory mock (`node tools/gas-test/test.js`, no deps).
 - `tools/check-lists.js` — list + airport data sync check, and company details in emails (`CONFIG.COMPANY_INFO`) == `config.js` (no deps).
@@ -73,6 +75,10 @@ No Google Forms in the customer journey; the old ones are closed and kept in Dri
    are never logged; a bad session gets the same not-found reply. Corrections never delete a file.
    The approved visa is only ever sent as bytes through the web app (or attached): never change Drive sharing, never
    send a Drive link or file ID; download tokens live in page memory only.
+   Scale (PRD §3.9, §5.5): keep work under `withLock_` to IDs, key claims, state and row writes — Drive, emails and
+   file moves outside; submits carry a submission key (`sid`) so retries never duplicate; anything that grows with
+   traffic lives in sheets (Due tab, Emails Sent), never in Script Properties (9 KB per value) or only in CacheService;
+   archive = copy → verify → index → delete, never the other way round.
    `TEST_OTP_BYPASS` is for staging only (`enableTestOtpBypass` / `disableTestOtpBypass`) — never on production.
    Functions staff run from the editor take no arguments (the Run button cannot pass any); settings are
    Script Properties, checked with `checkEmailSettings`.

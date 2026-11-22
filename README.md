@@ -70,6 +70,8 @@ node correction-live.js http://localhost:3000 <chrome> fixtures correct EG-VO-##
 # ⚠️ staging only, one visa-delivery round (same set-up):
 node visa-live.js http://localhost:3000 <chrome> fixtures create          # then run testApproveVisa in the editor
 node visa-live.js http://localhost:3000 <chrome> fixtures download EG-VO-#####
+# ⚠️ staging only, load test (TEST_OTP_BYPASS on): N customers at once (default 25, max 50), then cleanupTestData
+node load-live.js fixtures 25
 node shots.js                                    # desktop/tablet/phone screenshots → tools/qa/screenshots/
 node ../gas-test/test.js                         # web app logic against a mock (no Google calls)
 ```
@@ -216,6 +218,32 @@ git remote -v   # 1 fetch URL (personal), 2 push URLs (personal, org)
 - **Staging test:** `testApproveVisa` (Run button) puts two SPECIMEN visa PDFs (a small one and one of ~4.5 MB,
   marked "SPECIMEN — NOT A VISA") in Approved Visa of the newest finished TEST visa lead with an @example.com email
   and sets Visa Approved. Refused outside staging.
+
+### Archive and System health (keeping the tracker fast)
+- **What archiving does:** once a month (the 1st, around 02:00 Lagos; it continues on the following nights until
+  done), finished leads move out of the live tracker **90 days after their last change** into a separate spreadsheet
+  per quarter: **Elite Global – Archive 2026-Q4** etc., in the **Archive** folder next to the tracker. Finished means
+  Lead Status **Converted** or **Lost**, or Review Status **Visa Approved** or **Not Approved / Closed**. All of the
+  lead's rows move together (Lead Tracker, Visa Applications, Visa Passengers, Custom Requests, Contact Enquiries),
+  with the same columns. Drive folders are not moved. A lead is never archived while an email is still to go out, an
+  upload or correction is in progress, or Send Now is ticked. Every change you make to a row resets its 90 days
+  (column **Last Change**).
+- **Finding an archived lead:** the tracker tab **Archive Index** lists every archived Lead ID with a link to its
+  archive file (use Ctrl+F there). Customers can still look it up on the Track page and download an approved visa.
+- **"Please close" in the daily summary:** leads that are still open (e.g. New Lead, Contacted) and haven't changed for
+  a year. Set their Lead Status to Converted or Lost so they can be archived.
+- **Archive now:** run **`archiveNow`** in the Apps Script editor (safe to run again; if it says "not finished in
+  time", run it again or leave it for the night).
+- **System health** is a section at the end of the daily summary. **What to do at a ⚠️ (70 % of a limit):**
+  - *Trigger time* close to the daily limit (90 min on gmail.com, 6 h on Workspace): check for a very large Due list or
+    a tracker that is too big (run `archiveNow`); on gmail.com, moving to Workspace raises the limit to 6 hours.
+  - *Emails sent* close to the quota: switch to Brevo (below), or a bigger Brevo plan.
+  - *Lead Tracker size* over 7 M of 10 M cells: run `archiveNow`, and close old leads from the "please close" list.
+  - *Email Log size* over 7 M cells: tell the developer (the log keeps 90 days).
+  - *Busy replies* in the hundreds: many customers at the same moment. The website retries for them, but tell the
+    developer if it happens every day.
+- Hidden tabs **Due** (status emails waiting to be sent) and the hidden column **Emails Sent** are used by the system —
+  please don't edit them.
 
 ### How status emails are delivered
 - **The customer email goes out about 5 minutes after the last Review Status change** (the system checks every
