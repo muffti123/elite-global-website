@@ -21,6 +21,10 @@ window.EG = window.EG || {};
   var SAFE_ACTIONS = { submitContact: 1, submitCustomRequest: 1, createVisaApplication: 1, submitCorrection: 1, trackApplication: 1,
     endTrackSession: 1, loadCorrection: 1, listVisaFiles: 1, downloadVisaFile: 1, uploadPassenger: 1, uploadDocument: 1,
     finalizeVisaApplication: 1, uploadCorrectionFile: 1 };
+  // Email-code actions are NEVER sent twice automatically — not after a network error, not after busy / a Google error
+  // page / HTTP 5xx (the code may already have gone out: a repeat would send a second email or use up the code).
+  // The visitor sees the message and can press the button again; whatever the caller passes, no retries.
+  var NO_REPEAT = { sendEmailCode: 1, verifyEmailCode: 1, sendCorrectionCode: 1, verifyCorrectionCode: 1, sendVisaCode: 1, verifyVisaCode: 1 };
   var BUSY_TEXT = 'We\'re busy — still sending, please keep this page open.';
 
   function url() { return String((window.SITE_CONFIG || {}).webAppUrl || '').trim(); }
@@ -98,6 +102,7 @@ window.EG = window.EG || {};
     if (SID_ACTIONS[action] && !data.sid) data.sid = sidFor(action, payload || {});
     // With a submission key a lost reply is safe to send again (the server answers the first reply)
     if (data.sid) retries = Math.max(retries, 2);
+    if (NO_REPEAT[action]) { retries = 0; busyRetries = 0; } // one request, always
     var body = JSON.stringify(data);
     var shown = false;
 

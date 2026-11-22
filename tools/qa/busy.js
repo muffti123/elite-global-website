@@ -89,6 +89,24 @@ const notice = (p) => p.evaluate(() => { const n = document.querySelector('.busy
   const r4 = await p4.evaluate(() => window.EG.postAction('sendEmailCode', { hp: '', email: 'qa@example.com', name: 'TEST' }, { retries: 0 }).then(() => 'resolved', (e) => (e.network ? 'network' : 'other')));
   ok('sendEmailCode after a network error: not repeated (no second code), the page shows its connection message', r4 === 'network' && p4.posts.filter((x) => x.action === 'sendEmailCode').length === 1);
   await p4.close();
+  // every email-code action: exactly ONE request after busy JSON, Google's HTML page, HTTP 503 or a network error — even
+  // when the caller asks for retries (a repeat could send a second code email or use up the code)
+  const CODE_ACTIONS = ['sendEmailCode', 'verifyEmailCode', 'sendCorrectionCode', 'verifyCorrectionCode', 'sendVisaCode', 'verifyVisaCode'];
+  const pc = await open(b, 'track.html', (body) => (CODE_ACTIONS.indexOf(body.action) === -1 ? { ok: true } : body.mode === 'busy' ? BUSY : body.mode));
+  const counts = [];
+  for (const a of CODE_ACTIONS) {
+    for (const mode of ['busy', 'html', '503', 'cors']) {
+      const before = pc.posts.length;
+      await pc.evaluate((act, m) => window.EG.postAction(act, { hp: '', mode: m }, { retries: 3, busyRetries: 4 }).then(() => 1, () => 1), a, mode);
+      counts.push(a + '/' + mode + '=' + pc.posts.slice(before).filter((x) => x.action === a).length);
+    }
+  }
+  ok('email-code actions (send/verify × email/correction/visa) are never repeated: 1 request after busy, HTML page, 503 or a network error, even with retries asked for',
+    counts.every((c) => /=1$/.test(c)) && !(await notice(pc)).shown, counts.filter((c) => !/=1$/.test(c)).join(', '));
+  await pc.close();
+  const callers = ['verify.js', 'track.js'].map((f) => require('fs').readFileSync(require('path').join(__dirname, '../../public/assets/js', f), 'utf8')).join('\n');
+  const codeCalls = callers.match(/postAction\('(send|verify)(Email|Correction|Visa)Code'[^\n]*/g) || [];
+  ok('every website call of a code action passes retries: 0 (' + codeCalls.length + ' calls)', codeCalls.length === 6 && codeCalls.every((l) => /retries: 0\b/.test(l)), codeCalls.filter((l) => !/retries: 0\b/.test(l)).join(' | '));
   // uploads have their own retry loop + Retry button: api.js must not also wait out a network error (no stacked retries)
   const p5 = await open(b, 'apply-visa.html', (body) => (body.action === 'uploadPassenger' ? 'cors' : { ok: true }));
   const r5 = await p5.evaluate(() => window.EG.postAction('uploadPassenger', { leadId: 'EG-VO-00014', token: 't', index: 1 }, { retries: 0, networkBusy: false }).then(() => 'resolved', (e) => (e.network ? 'network' : 'other')));
