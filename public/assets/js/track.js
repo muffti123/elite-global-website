@@ -201,7 +201,7 @@
     if (Date.now() - current.a > IDLE_MS) { backToForm(ENDED); return; }
     lastPoll = Date.now();
     var token = current.t;
-    EG.postAction('trackApplication', { session: token, poll: true }, { retries: 0, timeout: 30000 }).then(function (res) {
+    EG.postAction('trackApplication', { session: token, poll: true }, { retries: 0, busyRetries: 0, timeout: 30000 } /* the next poll is the retry */).then(function (res) {
       if (!current) return; // logged out meanwhile
       if (res && res.ok) {
         pollFails = 0;

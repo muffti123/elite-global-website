@@ -220,7 +220,7 @@
     submitBtn.innerHTML = '<span class="sending" aria-hidden="true"></span>Sending…';
     status.className = 'status';
 
-    // No automatic retry: a lost reply would otherwise create a duplicate lead.
+    // Safe to retry: api.js adds a submission key, so a retry gets the first reply, never a second lead.
     EG.postAction('submitCustomRequest', payload(), { retries: 0, timeout: 45000 })
       .then(function (res) {
         if (res && res.ok) { showSuccess(res.leadId, res.emailed); return; }
