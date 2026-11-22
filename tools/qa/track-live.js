@@ -7,7 +7,7 @@ const puppeteer = require('puppeteer-core');
 const [base, exe, FX] = process.argv.slice(2);
 const res = []; const ok = (n, c, i = '') => { res.push(`${c ? 'PASS' : 'FAIL'}  ${n}${i ? '  — ' + i : ''}`); console.log(res[res.length - 1]); };
 const GENERIC = 'We couldn\'t find an application with those details. Please check your reference number and the email or phone number you used.';
-const ALLOWED = ['ok', 'leadId', 'service', 'received', 'stage', 'description', 'nextStep', 'message', 'upload', 'session', 'canCorrect'];
+const ALLOWED = ['ok', 'leadId', 'service', 'received', 'stage', 'description', 'nextStep', 'message', 'upload', 'session', 'canCorrect', 'canDownload'];
 const b64 = (f) => fs.readFileSync(path.join(FX, f)).toString('base64');
 
 (async () => {
@@ -78,7 +78,7 @@ const b64 = (f) => fs.readFileSync(path.join(FX, f)).toString('base64');
   await p.click('#trackBtn');
   await p.waitForFunction(() => !document.querySelector('#trackResult').hidden || /status err/.test(document.querySelector('#trackStatus').className), { timeout: 60000 });
   const ui = await p.evaluate(() => ({ stage: document.querySelector('[data-r="stage"]').textContent, id: document.querySelector('[data-r="leadId"]').textContent, url: location.href }));
-  ok('track.html against staging: result shown, URL has no contact', ui.id === ce.leadId && ui.stage === 'Received' && !/0800|0006|contact/.test(ui.url), JSON.stringify(ui));
+  ok('track.html against staging: result shown, URL has no contact', ui.id === ce.leadId && ui.stage === 'Received' && !/0800|0006|contact/.test(ui.url.replace(/[?&]id=EG-[A-Z]{2}-\d{5}/, '')), JSON.stringify(ui));
   ok('no page errors', errors.length === 0, errors.join(' | '));
   console.log('TEST leads created: ' + [ge.leadId, ce.leadId, vo.leadId].join(', ') + ' — run cleanupTestData() in staging.');
   await b.close();

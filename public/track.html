@@ -62,6 +62,8 @@
 <p class="eyebrow track-eyebrow">Your application</p>
 <h2 id="resultTitle" tabindex="-1"><span data-r="leadId"></span></h2>
 <p class="stage-badge" data-r="stage"></p>
+<p class="track-checked"><span class="track-updated" id="trackUpdated" hidden>Updated just now</span><span id="trackCheckedAt"></span></p>
+<p class="track-offline" id="trackOffline" hidden>We couldn't refresh — check your connection. We'll try again in a moment.</p>
 <p class="track-desc" data-r="description"></p>
 <dl class="track-dl">
 <dt>Service</dt><dd data-r="service"></dd>
@@ -81,6 +83,19 @@
 <p class="inbox-note" id="corrInbox"></p>
 </div>
 <p class="verify-status" id="corrStatus" role="status" aria-live="polite"></p>
+</div>
+<div class="correct-box visa-box" id="visaBox" hidden>
+<p class="correct-lead">Your approved visa is ready to download. For your security we will first email a 6-digit code to the email address on your application.</p>
+<button type="button" class="btn btn-gold" id="visaBtn">Download your visa&nbsp; →</button>
+<div class="verify-code correct-code" id="visaCode" hidden>
+<p class="correct-sent">We sent a code to <b id="visaMasked"></b>.</p>
+<label class="field verify-input">6-digit code from the email<input id="visaCodeIn" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="123456" aria-describedby="visaStatus"><span class="err-msg">Please enter the 6-digit code from the email.</span></label>
+<button type="button" class="btn btn-gold" id="visaConfirm">Confirm</button>
+<button type="button" class="link-btn" id="visaResend" disabled>Resend code (60 s)</button>
+<p class="inbox-note" id="visaInbox"></p>
+</div>
+<ul class="visa-files" id="visaFiles" aria-label="Your visa files" hidden></ul>
+<p class="verify-status" id="visaStatus" role="status" aria-live="polite"></p>
 </div>
 <div class="track-actions">
 <button type="button" class="btn btn-outline" id="trackLogout">Log out</button>

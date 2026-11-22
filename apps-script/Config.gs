@@ -34,6 +34,10 @@ const CONFIG = {
     'Review Status', 'Review Updated', 'Last Customer Email',
     // v6 (round 2.3): staff choose what the customer should correct (highlighted on the correction page)
     'Correction For',
+    // v7 (round 2.4): number of valid files in the lead's "Approved Visa" folder (web app)
+    'Visa Files',
+    // v8 (round 2.4): staff tick it to recount + send the current status email at once (onTrackerEdit)
+    'Send Now',
   ],
   // Columns 1–15 keep their fixed positions; columns added later are found by header name.
   NOTES_COL: 14,      // Follow-up Notes: staff only (the web app no longer writes here)
@@ -55,8 +59,17 @@ const CONFIG = {
     'Correction For': { width: 170, list: 'CORRECTION_FOR', help: 'Choose what the customer should correct.',
       note: 'With Review Status Correction Needed: the part of the application highlighted for the customer on the ' +
         'correction page (Track page → Make the correction). The customer can still change everything else.' },
+    'Visa Files': { width: 95, auto: true, format: '0', align: 'center',
+      note: 'Valid visa files (PDF, JPG or PNG, max 5 MB each) in the lead\'s "Approved Visa" Drive folder. Updated ' +
+        'automatically. With Review Status Visa Approved the customer email waits until this is 1 or more.' },
+    'Send Now': { width: 95, checkbox: true, align: 'center',
+      note: 'Visa applications: tick to recount Visa Files and send the current Review Status email at once, without the ' +
+        '5-minute wait. Every other rule still applies: each status is emailed once, Correction Needed needs a Message ' +
+        'to Customer, Visa Approved needs a visa file in Approved Visa, TEST leads are not emailed, and the email is ' +
+        'queued when the daily quota is used up. The box unticks itself and its note shows the result. Several rows: ' +
+        'select their Send Now cells and press Space.' },
   },
-  SCHEMA_VERSION: '6',
+  SCHEMA_VERSION: '8',
 
   // Visa review workflow (Review Status column). Lead Status stays the sales pipeline.
   REVIEW_STATUSES: [
@@ -72,6 +85,18 @@ const CONFIG = {
   CORRECTION: {
     TOKEN_MIN: 60,         // a correction token is valid for 60 minutes and used once (at submit)
     PENDING_FOLDER: 'Correction (pending)', // replacements wait here until submit; binned when the token expires
+  },
+
+  // Visa delivery (VisaDelivery.gs): staff put the approved visa in "Approved Visa"; the customer downloads it
+  // from the Track page after an email code (and, with Script Property ATTACH_VISA=on, gets it attached).
+  VISA_DELIVERY: {
+    FOLDER: 'Approved Visa',
+    FILE_MAX: 5 * 1024 * 1024,     // per file (count, download, attachments); bigger files are ignored
+    ATTACH_MAX: 15 * 1024 * 1024,  // all files together, for the email attachment
+    TOKEN_MIN: 30,                 // download token: 30 minutes, several downloads
+    DOWNLOADS_PER_HOUR: 20,        // per Lead ID
+    TYPES: { 'application/pdf': 'PDF', 'image/jpeg': 'JPG', 'image/png': 'PNG' },
+    NEXT_STEP: 'Download your visa with the button below. Our team will also contact you about the next steps.',
   },
 
   // Company details used in every email. Must equal public/assets/js/config.js company (check-lists.js).

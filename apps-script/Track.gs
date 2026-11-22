@@ -39,6 +39,9 @@ function trackApplication_(d) {
     const lead = trackRow_(s.leadId);
     if (!lead) return notFound('not-found');
     const out = trackResult_(lead);
+    // Poll (the page's 2-minute live update): no new token, so polling is not activity — the session
+    // still ends after 60 minutes without activity.
+    if (d.poll) { console.log('trackApplication poll'); return out; }
     out.session = makeSession_(s.leadId, s.max);
     console.log('trackApplication session');
     return out;
@@ -112,6 +115,15 @@ function trackResult_(lead) {
     if (upload) out.upload = upload;
   }
   if (correctionRound_(lead)) out.canCorrect = true;
+  // "Download your visa": Visa Approved with at least one valid file in Approved Visa (never for Lost)
+  // Visa Approved but Visa Files still 0: recount this lead's Approved Visa folder now (one folder only), so the
+  // button appears as soon as staff have uploaded the file.
+  let ready = visaDownloadReady_(lead);
+  if (!ready && visaApproved_(lead)) {
+    const scan = refreshVisaFiles_(lead, false);
+    ready = !!(scan && scan.files.length);
+  }
+  if (ready) { out.canDownload = true; out.nextStep = CONFIG.VISA_DELIVERY.NEXT_STEP; }
   return out;
 }
 

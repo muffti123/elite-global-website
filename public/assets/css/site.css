@@ -363,3 +363,16 @@ form.track-form{display:grid;grid-template-columns:1fr;gap:16px}
 .corr-file.corr-new .filebox{border-color:var(--ok)}
 .corr-submit .up-list{margin:0 0 14px}
 @media(max-width:620px){.corr-submit .wizard-nav .btn{width:100%}}
+/* Visa download + live updates on the Track page (round 2.4) */
+.visa-box{background:#f0f8f3;border-color:#bfe3cb}
+.visa-files{list-style:none;margin:12px 0 0;padding:0;display:grid;gap:10px}.visa-files[hidden]{display:none}
+.visa-files li{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px;padding:10px 12px;background:#fff;border:1px solid #d7e7dd;border-radius:10px}
+.visa-file-label{font-weight:700;color:var(--navy);overflow-wrap:anywhere;min-width:0}
+.visa-files .visa-dl{padding:10px 18px;font-size:15px}
+@media(max-width:420px){.visa-files .visa-dl{width:100%}}
+.track-checked{margin:-4px 0 12px;font-size:13px;color:var(--muted)}.track-checked:empty{display:none}
+.track-updated{display:inline-block;margin-right:8px;padding:2px 10px;border-radius:999px;background:#fff4d6;color:#8a5a00;font-weight:800}.track-updated[hidden]{display:none}
+.track-offline{margin:0 0 12px;font-size:13px;color:var(--err)}.track-offline[hidden]{display:none}
+.track-result.track-flash .stage-badge,.track-result.track-flash .next-step{animation:trackFlash 2.2s ease-out}
+@keyframes trackFlash{0%{box-shadow:0 0 0 4px #f5ae0080}100%{box-shadow:0 0 0 0 #f5ae0000}}
+@media(prefers-reduced-motion:reduce){.track-result.track-flash .stage-badge,.track-result.track-flash .next-step{animation:none}}

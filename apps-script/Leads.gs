@@ -170,12 +170,17 @@ function applyRowRules_(sh, startRow, numRows) {
   Object.keys(CONFIG.EXTRA_COLS).forEach(function (name) {
     const spec = CONFIG.EXTRA_COLS[name];
     const c = head.indexOf(name) + 1;
-    if (!spec.list || !c) return;
+    if (!c) return;
+    if (spec.checkbox) { sh.getRange(startRow, c, numRows, 1).setDataValidation(checkboxRule_()); return; }
+    if (!spec.list) return;
     sh.getRange(startRow, c, numRows, 1).setDataValidation(
       SpreadsheetApp.newDataValidation().requireValueInList(CONFIG[spec.list], true)
         .setAllowInvalid(false).setHelpText(spec.help || 'Choose a status from the list.').build());
   });
 }
+
+/** Tick box (TRUE/FALSE) for the v8 action columns. */
+function checkboxRule_() { return SpreadsheetApp.newDataValidation().requireCheckbox().build(); }
 
 function toInt_(v) {
   if (v === undefined || v === null || String(v).trim() === '') return '';

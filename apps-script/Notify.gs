@@ -289,6 +289,8 @@ function sendConfirmation_(lead) {
 const REVIEW_EMAIL_NEXT = {
   'Correction Needed': 'Use the button below: look up your application with your email or phone number, then choose ' +
     '“Make the correction”. You can also reply to this email or message us on WhatsApp.',
+  'Visa Approved': 'Use the button below: look up your application with your email or phone number, then choose ' +
+    '“Download your visa”. Our team will also contact you about the next steps.',
 };
 const REVIEW_INTRO = {
   'Under Review': 'Your Umrah visa application is now being reviewed by our team.',
@@ -300,18 +302,28 @@ const REVIEW_INTRO = {
   'Not Approved / Closed': 'There is an update on your visa application: it has been closed.',
 };
 
-function renderStatusEmail_(lead, status, message) {
+/**
+ * visa (Visa Approved only): {attach: true, count} → "attached" line; {tooLarge: true} → the too-large line.
+ * Visa Approved always has the gold "Download your visa" button (Track page link, no token).
+ */
+function renderStatusEmail_(lead, status, message, visa) {
   const st = CONFIG.TRACK.REVIEW[status];
   const action = status === 'Correction Needed';
+  const approved = status === 'Visa Approved';
+  const paragraphs = ['Dear ' + lead.name + ',', REVIEW_INTRO[status]];
+  if (approved && visa && visa.attach) {
+    paragraphs.push('Your visa is attached to this email' + (visa.count > 1 ? ' (' + visa.count + ' files)' : '') +
+      '. You can also download it at any time from the Track page.');
+  } else if (approved && visa && visa.tooLarge) paragraphs.push(VISA_TOO_LARGE_NOTE);
   return renderEmail_({
     subject: 'Elite Global — ' + (action ? 'Your visa application needs a correction' : 'Visa application update: ' + st[0]) + ' (' + lead.leadId + ')',
     preheader: st[1],
     heading: action ? 'We need a correction' : st[0],
-    paragraphs: ['Dear ' + lead.name + ',', REVIEW_INTRO[status]],
+    paragraphs: paragraphs,
     box: message ? { title: action ? 'What we need from you' : 'Message from our team', text: message } : null,
     rows: [['Reference number', lead.leadId], ['Status', st[0]], ['Next step', REVIEW_EMAIL_NEXT[status] || st[2]]],
     // Correction Needed: the customer fixes it on the website (Track page → Make the correction). No token in the link.
-    button: { label: action ? 'Fix my application' : 'Track your application', url: trackUrl_(lead.leadId) },
+    button: { label: action ? 'Fix my application' : approved ? 'Download your visa' : 'Track your application', url: trackUrl_(lead.leadId) },
     small: contactSmall_(),
   });
 }
@@ -345,67 +357,82 @@ function processReviewEmails_(deadline) {
   if (last < 2) return out;
   const width = Math.max.apply(null, CONFIG.HEADERS.map(function (h) { return cols[h]; }));
   const data = sh.getRange(2, 1, last - 1, width).getValues();
-  const undo = CONFIG.EMAIL.UNDO_MIN * 60000;
   const now = Date.now();
   const decisions = [];
-  const decide = function (id, status, decision, reason) { decisions.push([id, status, decision, reason]); };
   data.forEach(function (v, i) {
-    const get = function (h) { return v[cols[h] - 1]; };
-    const leadId = String(get('Lead ID') || '');
-    const status = String(get('Review Status') || '').trim();
-    if (!leadId || String(get('Lead Category')) !== CONFIG.FORMS.VISA.category || !CONFIG.TRACK.REVIEW[status]) return;
-    const lastEmail = String(get('Last Customer Email') || '');
-    // The customer's latest email is already about this status (sent, queued or skipped): nothing new to say.
-    // A status is never emailed twice in a row; a new correction round needs another status in between.
-    if (lastEmail.indexOf('Status: ' + status + ' ·') !== -1) return;
-    const row = i + 2;
-    const updated = get('Review Updated');
-    if (!(updated instanceof Date) || isNaN(updated)) { // the edit trigger missed it: start the window now
-      sh.getRange(row, cols['Review Updated']).setValue(new Date());
-      decide(leadId, status, 'waiting', 'status change not seen by the edit trigger — the 5-minute wait starts now');
-      out.waiting++;
-      return;
-    }
-    const key = reviewKey_(leadId, status, updated);
-    if (now - updated.getTime() < undo) {
-      decide(leadId, status, 'waiting', 'changed less than ' + CONFIG.EMAIL.UNDO_MIN + ' minutes ago (undo window)');
-      out.waiting++;
-      return;
-    }
-    if (Date.now() > deadline) { out.waiting++; return; }
-    const message = cleanMessage_(get('Message to Customer'));
-    if (status === 'Correction Needed' && !message) {
-      decide(leadId, status, 'held', 'Message to Customer is empty');
-      out.held++;
-      return;
-    }
-    if (emailDone_(key)) { // emailed before (e.g. changed back to an earlier status)
-      decide(leadId, status, 'not sent', 'this status was already emailed to this customer');
-      return;
-    }
-    const lead = { leadId: leadId, name: String(get('Customer Name') || ''), email: String(get('Email') || '').trim() };
-    const skip = customerSkip_(lead);
-    if (skip) {
-      decide(leadId, status, 'skipped', skip);
-      logEmail_({ kind: 'status', key: key, leadId: leadId }, 'skipped', skip);
-      sh.getRange(row, cols['Last Customer Email']).setValue('Not sent (' + skip + ') · Status: ' + status + ' · ' +
-        Utilities.formatDate(new Date(), 'Africa/Lagos', 'd MMM yyyy HH:mm'));
-      out.skipped++;
-      return;
-    }
-    const m = renderStatusEmail_(lead, status, message);
-    const r = sendEmail_({ to: lead.email, kind: 'status', key: key, leadId: leadId, subject: m.subject, html: m.html,
-      text: m.text, after: { lastEmail: 'Status: ' + status } });
-    decide(leadId, status, r === 'ok' ? 'sent' : r, r === 'queued' ? 'waiting for email quota' : r === 'ok' ? 'emailed to the customer' : 'see the Email Log');
-    if (r === 'ok') out.sent++;
-    else if (r === 'queued') {
-      out.queued++;
-      sh.getRange(row, cols['Last Customer Email']).setValue('Queued: Status: ' + status + ' · ' +
-        Utilities.formatDate(new Date(), 'Africa/Lagos', 'd MMM yyyy HH:mm'));
-    }
+    const r = reviewEmailRow_(sh, cols, v, i + 2, { deadline: deadline, now: now });
+    if (r.decision) decisions.push(r.decision);
+    if (out[r.outcome] !== undefined) out[r.outcome]++;
   });
   saveReviewDecisions_(decisions);
   return out;
+}
+
+/**
+ * One tracker row of processReviewEmails_ (o.sendNow: the "Send Status Email Now" checkbox — no 5-minute wait,
+ * every other rule kept). Returns {outcome: sent|queued|skipped|held|waiting|not sent|failed|none, reason,
+ * decision: [Lead ID, status, decision, reason] | null, files}.
+ */
+function reviewEmailRow_(sh, cols, v, row, o) {
+  const get = function (h) { return v[cols[h] - 1]; };
+  const leadId = String(get('Lead ID') || '');
+  const status = String(get('Review Status') || '').trim();
+  const res = function (outcome, reason, files) {
+    return { outcome: outcome, reason: reason, files: files, decision: reason ? [leadId, status, outcome, reason] : null };
+  };
+  if (!leadId || String(get('Lead Category')) !== CONFIG.FORMS.VISA.category) return res('none', o.sendNow ? 'only for visa applications' : '');
+  if (!CONFIG.TRACK.REVIEW[status]) return res('none', o.sendNow ? 'no Review Status set' : '');
+  const lastEmail = String(get('Last Customer Email') || '');
+  const emailed = lastEmail.indexOf('Status: ' + status + ' ·') !== -1;
+  // Visa Files is refreshed only while it matters: Visa Processing, or Visa Approved before its email
+  // (held or waiting) — and always for Send now. Afterwards it is recounted when the customer opens the download.
+  let scan = null;
+  if ((status === 'Visa Processing' || (status === 'Visa Approved' && (!emailed || o.sendNow))) && Date.now() < o.deadline) {
+    scan = refreshVisaFiles_({ leadId: leadId, row: row }, false, sh, cols);
+  }
+  const visaFiles = scan ? scan.files.length : Number(get('Visa Files')) || 0;
+  // The customer's latest email is already about this status (sent, queued or skipped): nothing new to say.
+  // A status is never emailed twice in a row; a new correction round needs another status in between.
+  if (emailed) return res(o.sendNow ? 'not sent' : 'none', o.sendNow ? 'this status was already emailed to this customer' : '', visaFiles);
+  let updated = get('Review Updated');
+  if (!(updated instanceof Date) || isNaN(updated)) { // the edit trigger missed it: start the window now
+    updated = new Date();
+    sh.getRange(row, cols['Review Updated']).setValue(updated);
+    if (!o.sendNow) return res('waiting', 'status change not seen by the edit trigger — the 5-minute wait starts now', visaFiles);
+  }
+  const key = reviewKey_(leadId, status, updated);
+  if (!o.sendNow && o.now - updated.getTime() < CONFIG.EMAIL.UNDO_MIN * 60000) {
+    return res('waiting', 'changed less than ' + CONFIG.EMAIL.UNDO_MIN + ' minutes ago (undo window)', visaFiles);
+  }
+  if (Date.now() > o.deadline) return res('waiting', '', visaFiles);
+  const message = cleanMessage_(get('Message to Customer'));
+  if (status === 'Correction Needed' && !message) return res('held', 'Message to Customer is empty', visaFiles);
+  if (status === 'Visa Approved' && !visaFiles) return res('held', 'no visa file yet', visaFiles);
+  if (emailDone_(key)) return res('not sent', 'this status was already emailed to this customer', visaFiles); // e.g. changed back
+  const lead = { leadId: leadId, name: String(get('Customer Name') || ''), email: String(get('Email') || '').trim() };
+  const stamp = function () { return Utilities.formatDate(new Date(), 'Africa/Lagos', 'd MMM yyyy HH:mm'); };
+  const skip = customerSkip_(lead);
+  if (skip) {
+    logEmail_({ kind: 'status', key: key, leadId: leadId }, 'skipped', skip);
+    sh.getRange(row, cols['Last Customer Email']).setValue('Not sent (' + skip + ') · Status: ' + status + ' · ' + stamp());
+    return res('skipped', skip, visaFiles);
+  }
+  const after = { lastEmail: 'Status: ' + status };
+  let visa = null;
+  if (status === 'Visa Approved') { // ATTACH_VISA: the files are attached at delivery (up to 15 MB together)
+    const on = settings_().attachVisa;
+    const total = scan ? scan.files.reduce(function (a, x) { return a + x.size; }, 0) : 0;
+    const tooLarge = on && total > CONFIG.VISA_DELIVERY.ATTACH_MAX;
+    visa = { attach: on && !tooLarge, tooLarge: tooLarge, count: visaFiles };
+    after.visa = { id: leadId, attach: visa.attach, why: !on ? 'ATTACH_VISA off' : tooLarge ? 'too large' : '' };
+  }
+  const m = renderStatusEmail_(lead, status, message, visa);
+  const r = sendEmail_({ to: lead.email, kind: 'status', key: key, leadId: leadId, subject: m.subject, html: m.html,
+    text: m.text, after: after });
+  if (r === 'queued') sh.getRange(row, cols['Last Customer Email']).setValue('Queued: Status: ' + status + ' · ' + stamp());
+  if (r === 'ok') { const x = res('sent', 'emailed to the customer' + (o.sendNow ? ' (Send Now)' : ''), visaFiles); x.visa = visa; return x; }
+  if (r === 'queued') return res('queued', 'waiting for email quota', visaFiles);
+  return res(r === 'duplicate' ? 'not sent' : 'failed', 'see the Email Log', visaFiles);
 }
 
 // ---------------------------------------------------------------------
@@ -459,9 +486,19 @@ function onTrackerEdit(e) {
     if (sh.getName() !== CONFIG.TRACKER_TAB) return;
     const cols = trackerCols_(sh);
     const c1 = e.range.getColumn(), c2 = c1 + e.range.getNumColumns() - 1;
-    const hit = cols['Review Status'] >= c1 && cols['Review Status'] <= c2;
+    const inside = function (h) { return cols[h] >= c1 && cols[h] <= c2; };
+    const hit = inside('Review Status');
     const r1 = Math.max(e.range.getRow(), 2), r2 = Math.min(e.range.getRow() + e.range.getNumRows() - 1, sh.getLastRow());
-    if (!hit || r2 < r1 || r2 - r1 > 1000) return;
+    if (r2 < r1) return;
+    // Review Status edits start the undo window first; then ticked Send Now boxes are handled
+    if (hit && r2 - r1 <= 1000) stampReviewUpdated_(sh, cols, r1, r2);
+    if (inside('Send Now')) sendNowRows_(e, sh, cols, r1, Math.min(r2, r1 + SEND_NOW_MAX - 1));
+  } catch (err) { console.error('onTrackerEdit: ' + err.message); }
+}
+
+/** Review Updated = now for the visa rows r1..r2 (a Review Status edit starts the 5-minute undo window). */
+function stampReviewUpdated_(sh, cols, r1, r2) {
+  {
     const cats = sh.getRange(r1, cols['Lead Category'], r2 - r1 + 1, 1).getValues();
     const stamps = sh.getRange(r1, cols['Review Updated'], r2 - r1 + 1, 1).getValues();
     const now = new Date();
@@ -470,7 +507,76 @@ function onTrackerEdit(e) {
       if (String(c[0]) === CONFIG.FORMS.VISA.category) { stamps[i][0] = now; changed = true; }
     });
     if (changed) sh.getRange(r1, cols['Review Updated'], r2 - r1 + 1, 1).setValues(stamps);
-  } catch (err) { console.error('onTrackerEdit: ' + err.message); }
+  }
+}
+
+// ---------------------------------------------------------------------
+// SEND NOW (tick box): recount Visa Files, then the current status email at once (no undo wait)
+// ---------------------------------------------------------------------
+const SEND_NOW_MAX = 50; // rows per tick action
+
+/**
+ * Ticked Send Now cells in rows r1..r2: each visa row is recounted, then its current Review Status email is sent
+ * by reviewEmailRow_ (sendNow: every rule except the 5-minute wait). The box is unticked and its note shows the
+ * result; a toast is shown where Google allows it. Non-visa rows: unticked + note. Logs Lead IDs only.
+ */
+function sendNowRows_(e, sh, cols, r1, r2) {
+  const width = Math.max.apply(null, CONFIG.HEADERS.map(function (h) { return cols[h]; }));
+  const data = sh.getRange(r1, 1, r2 - r1 + 1, width).getValues();
+  const ticked = [];
+  data.forEach(function (v, i) { if (v[cols['Send Now'] - 1] === true) ticked.push(i); });
+  if (!ticked.length) return;
+  // Never at the same time as runEmailJobs (same lead could be emailed twice): wait for it, up to ~40 s
+  const cache = CacheService.getScriptCache();
+  for (let w = 0; w < 20 && cache.get('EMAIL_JOBS'); w++) Utilities.sleep(2000);
+  const busy = !!cache.get('EMAIL_JOBS');
+  if (!busy) cache.put('EMAIL_JOBS', '1', 120);
+  const stamp = Utilities.formatDate(new Date(), 'Africa/Lagos', 'd MMM HH:mm');
+  const toasts = [], decisions = [];
+  try {
+    ticked.forEach(function (i) {
+      const row = r1 + i, v = data[i];
+      const leadId = String(v[cols['Lead ID'] - 1] || '');
+      const status = String(v[cols['Review Status'] - 1] || '').trim();
+      let text;
+      if (busy) text = 'Not sent — the automatic email check is running. Please tick again in a minute.';
+      else if (!leadId || String(v[cols['Lead Category'] - 1]) !== CONFIG.FORMS.VISA.category) text = 'Ignored — Send Now is only for visa applications.';
+      else {
+        // Recount first (reviewEmailRow_ recounts Visa Processing / Visa Approved itself, on the same fresh scan)
+        if (status !== 'Visa Processing' && status !== 'Visa Approved') refreshVisaFiles_({ leadId: leadId, row: row }, false, sh, cols);
+        const r = reviewEmailRow_(sh, cols, v, row, { deadline: Date.now() + 60000, now: Date.now(), sendNow: true });
+        if (r.decision) decisions.push(r.decision);
+        text = sendNowText_(r, status, stamp);
+      }
+      const cell = sh.getRange(row, cols['Send Now']);
+      cell.setValue(false);
+      cell.setNote(text);
+      toasts.push((leadId || 'Row ' + row) + ': ' + text);
+      console.log('sendNow ' + (leadId || 'row') + ' ' + (text.split(' — ')[0]));
+    });
+  } finally {
+    if (!busy) cache.remove('EMAIL_JOBS');
+  }
+  saveReviewDecisions_(decisions);
+  try { (e && e.source ? e.source : sh.getParent()).toast(toasts.slice(0, 5).join('\n') + (toasts.length > 5 ? '\n… ' + (toasts.length - 5) + ' more (see the notes)' : ''), 'Elite Global — Send Now', 10); } catch (x) { /* toast is best-effort */ }
+}
+
+/** Cell-note wording for a Send Now result. */
+function sendNowText_(r, status, stamp) {
+  const files = r.files === 1 ? '1 file' : r.files + ' files';
+  const visa = status === 'Visa Approved';
+  if (r.outcome === 'sent') {
+    let extra = '';
+    if (visa) extra = r.visa && r.visa.attach ? ', ' + files + ' attached' : r.visa && r.visa.tooLarge ? ', not attached (over 15 MB — Download button)' : ', Download button only (ATTACH_VISA off)';
+    return 'Sent ' + stamp + ' — ' + status + extra;
+  }
+  if (r.outcome === 'queued') return 'Queued ' + stamp + ' — ' + status + ' (daily email quota used up; it goes out automatically)';
+  if (r.outcome === 'skipped') return 'Not sent — ' + status + ': ' + (r.reason === 'test lead' ? 'TEST lead (@example.com), customer emails are skipped' : r.reason);
+  if (r.reason === 'no visa file yet') return 'Not sent — no visa file in Approved Visa (PDF, JPG or PNG, max 5 MB)';
+  if (r.reason === 'Message to Customer is empty') return 'Not sent — Correction Needed needs a Message to Customer';
+  if (r.reason === 'no Review Status set') return 'Not sent — no Review Status set';
+  if (r.reason === 'this status was already emailed to this customer') return 'Not sent — ' + status + ' was already emailed to this customer';
+  return 'Not sent — ' + (r.reason || r.outcome) + (visa ? ' (' + files + ')' : '');
 }
 
 /** Every 5 minutes: status emails, then the queue. Runs never overlap. */
@@ -536,6 +642,10 @@ function collectSummary_() {
           waitingReview.push(id + ' — ' + status + ' since ' + fmtDate_(up));
         }
         if (status === 'Correction Needed' && !cleanMessage_(get('Message to Customer'))) held.push(id + ' — Correction Needed, Message to Customer is empty');
+        if (status === 'Visa Approved' && !(Number(get('Visa Files')) > 0) &&
+          String(get('Last Customer Email') || '').indexOf('Status: Visa Approved ·') === -1) {
+          held.push(id + ' — Visa Approved, no visa file yet in "Approved Visa"');
+        }
       }
       const ls = String(get('Lead Status') || '').trim();
       const rec = get('Date Received');
@@ -563,7 +673,7 @@ function renderSummary_(s) {
     paragraphs: ['Visa applications by Review Status:'],
     rows: rows,
     lists: [
-      { title: 'Held emails (Correction Needed without a Message to Customer)', items: cap(s.held) },
+      { title: 'Held emails (Correction Needed without a Message to Customer, Visa Approved without a visa file)', items: cap(s.held) },
       { title: 'Visa reviews waiting more than ' + CONFIG.EMAIL.WAIT_DAYS + ' days', items: cap(s.waitingReview) },
       { title: 'New leads not contacted for more than ' + CONFIG.EMAIL.WAIT_DAYS + ' days', items: cap(s.waitingNew) },
     ],
@@ -620,10 +730,15 @@ function sendEmailSamples() {
     ['confirmation (visa = received + under review)', renderConfirmation_(lead)],
     ['confirmation (customise)', renderConfirmation_(custom)],
   ];
+  const attach = {}; // sample index → SPECIMEN attachment
   CONFIG.REVIEW_STATUSES.forEach(function (st) {
     const msg = st === 'Correction Needed' ? 'Please upload a clearer passport photo with a plain white background.\nThe current photo is too dark.' :
-      st === 'Visa Approved' ? 'Your e-visa will be sent to you on WhatsApp today.' : '';
-    samples.push(['status: ' + st, renderStatusEmail_(lead, st, msg)]);
+      st === 'Visa Approved' ? 'Please check the names and passport numbers on your visa and tell us at once if anything is wrong.' : '';
+    if (st !== 'Visa Approved') { samples.push(['status: ' + st, renderStatusEmail_(lead, st, msg)]); return; }
+    samples.push(['status: Visa Approved (ATTACH_VISA off: Download button only)', renderStatusEmail_(lead, st, msg, { attach: false })]);
+    attach[samples.length] = [Utilities.newBlob(specimenVisaPdf_(1), 'application/pdf', visaFileName_(lead.leadId, 1, 1, 'PDF'))];
+    samples.push(['status: Visa Approved (ATTACH_VISA on: SPECIMEN visa attached)', renderStatusEmail_(lead, st, msg, { attach: true, count: 1 })]);
+    samples.push(['status: Visa Approved (ATTACH_VISA on, over 15 MB: not attached)', renderStatusEmail_(lead, st, msg, { tooLarge: true })]);
   });
   samples.push(['daily summary', renderSummary_(collectSummary_())]);
   samples.push(['staff alert (correction submitted)', renderCorrectionAlert_({ leadId: lead.leadId, name: lead.name, row: 2, correctionFor: 'Passport photo',
@@ -631,7 +746,8 @@ function sendEmailSamples() {
   samples.push(['error notice', renderErrorEmail_('sampleAction', new Error('Sample error — nothing is wrong'))]);
   samples.forEach(function (s, i) {
     const m = s[1];
-    const r = deliver_({ to: to, kind: 'sample', subject: '[SAMPLE ' + (i + 1) + '/' + samples.length + '] ' + m.subject, html: m.html, text: m.text });
+    const r = deliver_({ to: to, kind: 'sample', subject: '[SAMPLE ' + (i + 1) + '/' + samples.length + '] ' + m.subject, html: m.html, text: m.text,
+      attachments: attach[i] || null });
     Logger.log((r.result === 'ok' ? '✅ ' : '⚠️ ') + 'Sample ' + (i + 1) + ' — ' + s[0] + ': ' + r.result + (r.detail ? ' (' + r.detail + ')' : ''));
   });
 }
