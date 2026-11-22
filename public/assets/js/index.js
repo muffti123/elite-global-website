@@ -128,7 +128,7 @@
     var label = submitBtn.innerHTML;
     submitBtn.textContent = 'Sending…';
 
-    // No automatic retry: a lost reply would otherwise create a duplicate lead.
+    // Safe to retry: api.js adds a submission key, so a retry gets the first reply, never a second lead.
     EG.postAction('submitContact', {
       hp: F.company_website.value,
       name: F.name.value.trim(),

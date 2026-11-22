@@ -292,16 +292,15 @@
     });
   }
 
-  /** One file: up to 3 automatic retries on connection problems or "busy" replies. */
+  /** One file: up to 3 automatic retries on connection problems (busy replies: api.js has already waited ~97 s). */
   function uploadOne(s) {
     var attempt = 0;
     setLi(s, 'wait', 'Preparing…');
     return prepare(s).then(function (file) {
       function go() {
         setLi(s, 'wait', attempt ? 'Retrying (' + attempt + ')…' : 'Uploading…');
-        return EG.postAction('uploadCorrectionFile', { hp: '', ctoken: ctoken, slot: s.slot, kind: s.kind, file: file }, { retries: 0, timeout: 120000 }).then(function (res) {
+        return EG.postAction('uploadCorrectionFile', { hp: '', ctoken: ctoken, slot: s.slot, kind: s.kind, file: file }, { retries: 0, timeout: 120000, networkBusy: false }).then(function (res) {
           if (res && res.ok) return res;
-          if (res && /busy/i.test(res.error || '') && attempt < 3) { attempt++; return wait(2000 * attempt).then(go); }
           var e = new Error((res && res.error) || 'Upload failed.'); e.userFacing = true; e.restart = !!(res && res.restart);
           throw e;
         }, function (err) {

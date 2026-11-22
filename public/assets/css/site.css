@@ -376,3 +376,6 @@ form.track-form{display:grid;grid-template-columns:1fr;gap:16px}
 .track-result.track-flash .stage-badge,.track-result.track-flash .next-step{animation:trackFlash 2.2s ease-out}
 @keyframes trackFlash{0%{box-shadow:0 0 0 4px #f5ae0080}100%{box-shadow:0 0 0 0 #f5ae0000}}
 @media(prefers-reduced-motion:reduce){.track-result.track-flash .stage-badge,.track-result.track-flash .next-step{animation:none}}
+/* Busy notice while the website retries (api.js, round 2.5) */
+.busy-notice{position:fixed;left:50%;bottom:18px;transform:translateX(-50%);z-index:1000;max-width:min(560px,calc(100vw - 32px));padding:12px 18px;border-radius:12px;background:var(--navy);color:#fff;font-weight:700;font-size:15px;line-height:1.45;box-shadow:0 10px 30px #0b1b4040;border-left:4px solid var(--gold);text-align:left}
+.busy-notice[hidden]{display:none}

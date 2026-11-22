@@ -185,6 +185,8 @@ function emailLogUrl_() {
 /** One log row (and one console line). Never an address, name or code. */
 function logEmail_(m, result, detail) {
   console.log('email ' + m.kind + ' ' + result + (m.leadId ? ' ' + m.leadId : ''));
+  if (m.key && EMAIL_DONE[result]) markEmailSent_(m.key);
+  if (result === 'ok') countHealth_('mail', String(m.to || '').split(',').length || 1);
   try {
     emailLogSheet_().appendRow([new Date(), m.key || '', m.kind, m.leadId || '', result,
       settings_().provider, String(detail || '').slice(0, 300)]);
@@ -192,9 +194,47 @@ function logEmail_(m, result, detail) {
   return result;
 }
 
-/** True when a key was already sent, queued or deliberately skipped. */
-function emailDone_(key) {
+/**
+ * True when a key was already sent, queued or deliberately skipped. Lead keys ("EG-VO-00012|status:Verified")
+ * are checked in the lead's "Emails Sent" cell (sentCell, when the caller already read the row) — never by
+ * searching the Email Log. Other keys (daily summary) and leads no longer in the tracker use the Email Log.
+ */
+function emailDone_(key, sentCell) {
   if (!key) return false;
+  const m = /^(EG-(?:VO|CE|GE)-\d{5})\|(.+)$/.exec(key);
+  if (m) {
+    let cell = sentCell;
+    if (cell === undefined) {
+      try {
+        const sh = trackerSheet_();
+        const row = findLeadRow_(sh, m[1]);
+        if (row) cell = sh.getRange(row, trackerCols_(sh)['Emails Sent']).getValue();
+      } catch (e) { cell = undefined; }
+    }
+    if (cell !== undefined) return emailSentHas_(cell, m[2]);
+  }
+  return emailLogDone_(key);
+}
+
+/** " ; "-separated keys of one lead (without the Lead ID). */
+function emailSentHas_(cell, part) { return String(cell || '').split(' ; ').indexOf(part) !== -1; }
+
+/** Adds a lead key to its "Emails Sent" cell (once). Never throws. */
+function markEmailSent_(key) {
+  const m = /^(EG-(?:VO|CE|GE)-\d{5})\|(.+)$/.exec(String(key || ''));
+  if (!m) return;
+  try {
+    const sh = trackerSheet_();
+    const row = findLeadRow_(sh, m[1]);
+    if (!row) return;
+    const cell = sh.getRange(row, trackerCols_(sh)['Emails Sent']);
+    const cur = String(cell.getValue() || '');
+    if (!emailSentHas_(cur, m[2])) cell.setValue(cur ? cur + ' ; ' + m[2] : m[2]);
+  } catch (e) { /* the Email Log still has it */ }
+}
+
+/** Key found in the Email Log with a done result (TextFinder on the key column). */
+function emailLogDone_(key) {
   const sh = emailLogSheet_();
   const last = sh.getLastRow();
   if (last < 2) return false;
@@ -301,6 +341,7 @@ function afterSend_(m) {
 // QUEUE
 // ---------------------------------------------------------------------
 function enqueueEmail_(m, why) {
+  PropertiesService.getScriptProperties().setProperty('QUEUE_PENDING', '1');
   emailQueueSheet_().appendRow([new Date(), m.key || '', m.kind, m.leadId || '', m.to, m.subject,
     m.html, m.text, 0, String(why || ''), m.after ? JSON.stringify(m.after) : '']);
 }
@@ -314,7 +355,7 @@ function runEmailQueue_(deadline) {
   const sh = emailQueueSheet_();
   const last = sh.getLastRow();
   const out = { sent: 0, waiting: 0, failed: 0 };
-  if (last < 2) return out;
+  if (last < 2) { PropertiesService.getScriptProperties().setProperty('QUEUE_PENDING', '0'); return out; }
   const rows = sh.getRange(2, 1, last - 1, EMAIL_QUEUE_HEADERS.length).getValues();
   const done = [];
   let stop = false;
@@ -338,6 +379,7 @@ function runEmailQueue_(deadline) {
     if (res.result === 'queue') stop = true; // quota / provider still unavailable: try again next run
   });
   done.reverse().forEach(function (row) { sh.deleteRow(row); });
+  PropertiesService.getScriptProperties().setProperty('QUEUE_PENDING', out.waiting ? '1' : '0');
   return out;
 }
 

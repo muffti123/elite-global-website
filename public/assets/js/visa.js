@@ -601,14 +601,13 @@
 
   function wait(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
 
-  /** POSTs one upload; retries up to 3 times on network errors or "busy" replies. */
+  /** POSTs one upload; retries up to 3 times on network errors (busy replies: api.js has already waited ~97 s). */
   function postRetry(item, action, payload, label) {
     var attempt = 0;
     function go() {
       setLi(item, 'wait', (attempt ? 'Retrying (' + attempt + ')… ' : '') + label);
-      return EG.postAction(action, payload, { retries: 0, timeout: 120000 }).then(function (res) {
+      return EG.postAction(action, payload, { retries: 0, timeout: 120000, networkBusy: false }).then(function (res) {
         if (res && res.ok) return res;
-        if (res && /busy/i.test(res.error || '') && attempt < 3) { attempt++; return wait(2000 * attempt).then(go); }
         var err = new Error((res && res.error) || 'Upload failed.'); err.userFacing = true; err.expired = /expired/i.test(err.message);
         throw err;
       }, function (err) {

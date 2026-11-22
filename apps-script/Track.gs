@@ -75,7 +75,7 @@ function trackApplication_(d) {
 function trackRow_(leadId) {
   const sh = trackerSheet_();
   const row = findLeadRow_(sh, leadId);
-  if (!row) return null;
+  if (!row) return archivedLead_(leadId); // archived leads stay findable (read-only)
   const cols = trackerCols_(sh);
   const last = Math.max.apply(null, CONFIG.HEADERS.map(function (h) { return cols[h]; }));
   const vals = sh.getRange(row, 1, 1, last).getValues()[0];

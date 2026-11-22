@@ -22,6 +22,8 @@
  *   enableTestOtpBypass() / disableTestOtpBypass() – STAGING ONLY: fixed email code for TEST names @example.com
  *   testRequestCorrection() – STAGING ONLY: sets Correction Needed on the newest TEST visa lead (@example.com)
  *   recountVisaFiles()   – recounts Visa Files now (Visa Processing / Visa Approved not yet emailed); logs Lead ID + count
+ *   archiveNow()         – moves finished leads (90 days after their last change) to the quarterly archive files
+ *   benchmarkScale()     – STAGING ONLY: times the tracker reads with 1,000 and 20,000 synthetic TEST rows (temporary file)
  *   testApproveVisa()    – STAGING ONLY: SPECIMEN visa files + Visa Approved on the newest TEST visa lead (@example.com)
  *   resetSetupFlag()     – ⚠️ forgets every stored ID (only after deleting the Drive folder)
  * =====================================================================
@@ -62,6 +64,7 @@ function setupEliteGlobal() {
   upgradeTracker_(ss);
   if (p.getProperty('LEAD_SEQ') === null) p.setProperty('LEAD_SEQ', '0');
   setupVisaDelivery_(); // "Approved Visa" in every visa lead folder + Visa Files recount (schema 7)
+  setupScale_(ss);      // schema 9: Due + Archive Index tabs, unused grid columns trimmed, Emails Sent filled once
 
   // 4. Retire the Google Forms system
   removeLegacyTriggers_();
@@ -229,6 +232,7 @@ function addTrackerColumns_(sh) {
       if (name === 'Review Status') addReviewColours_(sh, body);
     }
     if (spec.note) cell.setNote(spec.note);
+    if (spec.hidden) { try { sh.hideColumns(last); } catch (e) { /* staff can hide it */ } }
     head[last - 1] = name;
     Logger.log('Added "' + name + '" column to the Lead Tracker.');
   });
@@ -506,4 +510,61 @@ function resetSetupFlag() {
   PropertiesService.getScriptProperties().deleteAllProperties();
   ScriptApp.getProjectTriggers().forEach(function (t) { ScriptApp.deleteTrigger(t); });
   Logger.log('Setup flag, stored IDs and triggers cleared. You can run setupEliteGlobal() again.');
+}
+
+// ---------------------------------------------------------------------
+// SCALE (schema 9)
+// ---------------------------------------------------------------------
+/**
+ * Hidden Due tab, Archive Index tab, unused grid columns trimmed (Google counts every cell of a tab's grid
+ * towards the 10 million limit — empty ones too), and Emails Sent filled once from the Email Log.
+ */
+function setupScale_(ss) {
+  dueSheet_();
+  archiveIndexSheet_();
+  [CONFIG.TABS.VISA, CONFIG.TABS.PASSENGERS, CONFIG.TABS.CUSTOM, CONFIG.TABS.CONTACT].forEach(function (tab) {
+    const sh = ss.getSheetByName(tab.name);
+    if (!sh) return;
+    const keep = Math.max(tab.headers.length, sh.getLastColumn());
+    if (sh.getMaxColumns() > keep) {
+      sh.deleteColumns(keep + 1, sh.getMaxColumns() - keep);
+      Logger.log('Trimmed "' + tab.name + '" to ' + keep + ' columns.');
+    }
+  });
+  backfillEmailsSent_();
+}
+
+/** Once: the done keys of each lead from the Email Log → its Emails Sent cell (so the log is never searched). */
+function backfillEmailsSent_() {
+  const p = PropertiesService.getScriptProperties();
+  if (p.getProperty('EMAILS_SENT_FILLED') === 'yes') return;
+  const log = emailLogSheet_();
+  const per = {};
+  if (log.getLastRow() >= 2) {
+    log.getRange(2, 1, log.getLastRow() - 1, 5).getValues().forEach(function (r) {
+      const m = /^(EG-(?:VO|CE|GE)-\d{5})\|(.+)$/.exec(String(r[1] || ''));
+      if (!m || !EMAIL_DONE[String(r[4])]) return;
+      const list = per[m[1]] = per[m[1]] || [];
+      if (list.indexOf(m[2]) === -1) list.push(m[2]);
+    });
+  }
+  const sh = trackerSheet_();
+  const cols = trackerCols_(sh);
+  const last = sh.getLastRow();
+  let n = 0;
+  if (last >= 2) {
+    const ids = sh.getRange(2, 1, last - 1, 1).getValues();
+    const cells = sh.getRange(2, cols['Emails Sent'], last - 1, 1).getValues();
+    ids.forEach(function (r, i) {
+      const keys = per[String(r[0])];
+      if (!keys) return;
+      const cur = String(cells[i][0] || '').split(' ; ').filter(String);
+      keys.forEach(function (k) { if (cur.indexOf(k) === -1) cur.push(k); });
+      cells[i][0] = cur.join(' ; ');
+      n++;
+    });
+    sh.getRange(2, cols['Emails Sent'], last - 1, 1).setValues(cells);
+  }
+  p.setProperty('EMAILS_SENT_FILLED', 'yes');
+  Logger.log('Emails Sent filled from the Email Log for ' + n + ' lead(s).');
 }

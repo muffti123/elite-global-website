@@ -41,10 +41,10 @@ module.exports = function (dir) {
     },
     deleteColumns(a, n) { this.cols -= n; },
     deleteRow(r) {
-      const next = {};
-      for (const k in this.cells) { const [rr, cc] = k.split(',').map(Number); if (rr < r) next[k] = this.cells[k]; else if (rr > r) next[(rr - 1) + ',' + cc] = this.cells[k]; }
-      this.cells = next; this.rows--;
+      const shift = (obj) => { const next = {}; for (const k in obj) { const [rr, cc] = k.split(',').map(Number); if (rr < r) next[k] = obj[k]; else if (rr > r) next[(rr - 1) + ',' + cc] = obj[k]; } return next; };
+      this.cells = shift(this.cells); this.formulas = shift(this.formulas); if (this.notes) this.notes = shift(this.notes); this.rows--;
     },
+    hideSheet() { this.hidden = true; return this; }, hideColumns(c) { this.hiddenCols = (this.hiddenCols || []).concat([c]); return this; },
     appendRow(vals) { const r = this.getLastRow() + 1; vals.forEach((v, i) => this.set(r, i + 1, v)); },
     getRange(r, c, nr, nc) { return new Range(this, r, c, nr || 1, nc || 1); },
     setFrozenRows() {}, setFrozenColumns() {}, setColumnWidth() {}, setRowHeight() {},
@@ -58,12 +58,23 @@ module.exports = function (dir) {
     getValues() { const o = []; for (let i = 0; i < this.nr; i++) { const row = []; for (let j = 0; j < this.nc; j++) row.push(this.sh.get(this.r + i, this.c + j)); o.push(row); } return o; },
     getValue() { return this.sh.get(this.r, this.c); },
     getFormula() { return this.sh.formulas[this.sh.key(this.r, this.c)] || ''; },
+    getFormulas() { const o = []; for (let i = 0; i < this.nr; i++) { const row = []; for (let j = 0; j < this.nc; j++) row.push(this.sh.formulas[this.sh.key(this.r + i, this.c + j)] || ''); o.push(row); } return o; },
+    clearContent() { for (let i = 0; i < this.nr; i++) for (let j = 0; j < this.nc; j++) this.sh.set(this.r + i, this.c + j, ''); return this; },
     setValues(v) { if (v.length !== this.nr || v[0].length !== this.nc) throw new Error('setValues size mismatch'); v.forEach((row, i) => row.forEach((x, j) => this.r + i > 1 && this.sh.checkValid(this.c + j, x))); v.forEach((row, i) => row.forEach((x, j) => this.sh.set(this.r + i, this.c + j, x))); return this; },
     setValue(v) { if (this.r > 1) this.sh.checkValid(this.c, v); this.sh.set(this.r, this.c, v); return this; },
     setFormula(f) { this.sh.set(this.r, this.c, f); return this; },
     setFormulaR1C1() { return this; },
     getRow() { return this.r; }, getColumn() { return this.c; }, getNumRows() { return this.nr; }, getSheet() { return this.sh; },
     getNumColumns() { return this.nc; },
+    // Ctrl+↑ (UP only): from an empty cell → the nearest filled cell above (row 1 if none); from a filled cell → top of its block
+    getNextDataCell(dir) {
+      if (dir !== 'UP') throw new Error('mock: getNextDataCell UP only');
+      const filled = (x) => this.sh.get(x, this.c) !== '';
+      let r = this.r;
+      if (filled(r)) { while (r > 1 && filled(r - 1)) r--; } else { r--; while (r > 1 && !filled(r)) r--; }
+      this.sh.nextDataCalls = (this.sh.nextDataCalls || 0) + 1;
+      return new Range(this.sh, Math.max(r, 1), this.c, 1, 1);
+    },
     createFilter() { this.sh.filter = { getRange: () => this, remove: () => { this.sh.filter = null; } }; return this.sh.filter; },
     protect() { return protection; },
     createTextFinder(t) {
@@ -100,6 +111,7 @@ module.exports = function (dir) {
     return b;
   };
   const props = {};
+  const lockState = { held: false, busy: false }; // busy: tryLock fails (lock timeout)
   const cache = {};
   const folders = [];
   const allFiles = [];
@@ -134,7 +146,7 @@ module.exports = function (dir) {
       getProperty: (k) => (k in props ? props[k] : null), setProperty: (k, v) => { props[k] = String(v); },
       deleteProperty: (k) => { delete props[k]; }, getProperties: () => Object.assign({}, props), setProperties: (o) => Object.assign(props, o),
     }) },
-    SpreadsheetApp: { flush() {}, openById: (id) => { if (!books[id]) throw new Error('no spreadsheet ' + id); return books[id]; },
+    SpreadsheetApp: { Direction: { UP: 'UP', DOWN: 'DOWN' }, flush() {}, openById: (id) => { if (!books[id]) throw new Error('no spreadsheet ' + id); return books[id]; },
       create: (name) => { const id = 'SS' + Object.keys(books).length; const b = new Spreadsheet(id, name); b.sheets = [new Sheet('Sheet1', 1000, 26)]; books[id] = b; return b; },
       newDataValidation: () => {
         const b = { requireValueInList(l) { b.list = l; return b; }, requireNumberGreaterThanOrEqualTo() { return b; }, requireCheckbox() { b.checkbox = true; return b; },
@@ -143,7 +155,7 @@ module.exports = function (dir) {
       },
       // every builder method returns the builder; build() returns a rule object
       newConditionalFormatRule: () => { const b = new Proxy({}, { get: (o, k) => (k === 'build' ? () => ({}) : () => b) }); return b; } },
-    LockService: { getScriptLock: () => ({ tryLock: () => true, releaseLock() {} }) },
+    LockService: { getScriptLock: () => ({ tryLock: () => !lockState.busy && (lockState.held = true), releaseLock() { lockState.held = false; }, hasLock: () => lockState.held }) },
     // one shared script cache (like Apps Script), so rate limits persist between calls
     CacheService: { getScriptCache: () => ({ get: (k) => (k in cache ? cache[k] : null), put: (k, v) => { cache[k] = v; }, remove: (k) => { delete cache[k]; } }) },
     DriveApp: { getFolderById: (id) => folders.find((f) => f.id === id), createFolder: (n) => new Folder(n), getFileById: (id) => { const f = allFiles.find((x) => x.id === id); if (f) return f; return { moveTo() {} }; } },
@@ -182,5 +194,5 @@ module.exports = function (dir) {
   const src = files.map((f) => fs.readFileSync(path.join(dir, 'apps-script', f), 'utf8')).join('\n;\n') +
     '\n;this.__exports = {' + 'CONFIG, LISTS, COUNTRIES' + '};';
   vm.runInContext(src, ctx, { filename: 'apps-script.gs' });
-  return { ctx, ss, books, props, folders, allFiles, logs, Sheet, Folder, cache, mail, fetch, triggers, clock };
+  return { ctx, ss, books, props, folders, allFiles, logs, Sheet, Folder, cache, mail, fetch, triggers, clock, lockState };
 };

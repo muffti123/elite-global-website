@@ -122,7 +122,7 @@ window.EG = window.EG || {};
       var addr = state.sentTo || current();
       checkBtn.disabled = true;
       say('', 'Checking the code…');
-      EG.postAction('verifyEmailCode', { hp: o.hp ? o.hp.value : '', email: addr, code: code }, { retries: 1, timeout: 30000 })
+      EG.postAction('verifyEmailCode', { hp: o.hp ? o.hp.value : '', email: addr, code: code }, { retries: 0, timeout: 30000 })
         .then(function (res) {
           if (res && res.ok && res.token) {
             state.token = res.token; state.email = addr;

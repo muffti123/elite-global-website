@@ -3,8 +3,8 @@
 **Project:** Umrah Lead Generation System — website forms + Apps Script web app + Google Sheets/Drive
 **Client:** Elite Global World Travel & Tours Ltd. (RC: 7787410)
 **Developer:** Abdulmumin (independent full-stack developer)
-**Document version:** 3.6 — supersedes v2.x (Google Forms) and the original *Project Handover Note*
-**Last updated:** 22 November 2026 (v3.6: Send Now tick box, instant recount — §3.8; v3.5: approved visa delivery + Track live updates — §3.8; v3.4: Track session + self-service corrections — §3.7; v3.3: review workflow, emails, email verification — §3.6; v3.2: Track my application — §3.5; v3.1: round 1 client feedback — §0.1)
+**Document version:** 3.7 — supersedes v2.x (Google Forms) and the original *Project Handover Note*
+**Last updated:** 22 November 2026 (v3.7: scale safety — archive, bursts, daily limits, System health — §3.9, §5.5; v3.6: Send Now tick box, instant recount — §3.8; v3.5: approved visa delivery + Track live updates — §3.8; v3.4: Track session + self-service corrections — §3.7; v3.3: review workflow, emails, email verification — §3.6; v3.2: Track my application — §3.5; v3.1: round 1 client feedback — §0.1)
 
 ---
 
@@ -384,6 +384,85 @@ connection"*. Polling stops when the session ends or on Log out.
 ~4.5 MB, "SPECIMEN - NOT A VISA", no personal data) in Approved Visa of the newest finished TEST visa lead with an
 @example.com email and sets Visa Approved; refused unless SITE_URL is staging; logs the Lead ID only.
 
+### 3.9 Scale safety: archive, bursts, daily limits (v3.7)
+Target: ~500 applications/day with bursts of ~50 in a few minutes, for years, on Apps Script + Sheets + Drive.
+Production is Google Workspace; the code stays inside the stricter gmail.com limits too (§5.5).
+
+**Growth (500 leads/day: 300 visa × 2.5 passengers, 125 customise, 75 contact).** Google counts every cell of every
+tab's grid (empty ones too) towards 10 million per spreadsheet.
+
+| Tab (columns) | Rows / year | Cells / year |
+|---|---|---|
+| Lead Tracker (30) | 182,500 | 5.5 M |
+| Visa Applications (20) | 109,500 | 2.2 M |
+| Visa Passengers (10) | 273,750 | 2.7 M |
+| Custom Requests (25) | 45,625 | 1.1 M |
+| Contact Enquiries (8) | 27,375 | 0.2 M |
+| **Tracker spreadsheet, no archive** | | **≈ 11.7 M → the limit after ~10 months** (all-visa mix: ~9 months); slow for staff from ~50–100k rows (month 4–6) |
+| Email Log (7), 90 days kept | ~270k rows at ~3,000 emails/day | ≈ 1.9 M, steady |
+| Archive Index (4) | 182,500 | 0.73 M / year (70 % of the limit together with the live tabs after ~6 years) |
+
+**Archive** (`Archive.gs`). Trigger `runArchive` daily ~02:00 Lagos: works on the 1st of each month and continues
+nightly until done (`ARCHIVE_PENDING`); `archiveNow` runs it at once. Finished leads (Lead Status Converted / Lost,
+or Review Status Visa Approved / Not Approved / Closed) move **90 days after their Last Change** (new auto column, schema
+9: stamped by staff edits and web-app writes; empty → the newest of Review Updated / Date Received) to
+`Elite Global – Archive <YYYY>-Q<n>` (quarter of Date Received; folder `Archive/`; same tabs and columns).
+Never moved: an email still to go out, a Due row, an Email Queue row, an upload or correction in progress, a ticked Send
+Now. Per batch (≤ 200 leads, contiguous rows, under the lock): copy every row of the lead (tracker + detail tabs;
+HYPERLINK formulas kept, other formulas as values, formula-looking text kept as text) → read back and compare → Archive
+Index row (Lead ID, date, link, spreadsheet ID; tab in the tracker) → delete from the live tabs bottom-up, each block
+re-checked by Lead ID. Any stop is safe: a lead already in the archive is compared and rewritten in place, never copied
+twice. The tracker keeps ≥ 2,000 pre-formatted rows. Unfinished leads unchanged for 365 days are listed in the daily
+summary as **"please close"** (never archived automatically). The Track page finds archived leads through the Archive
+Index (read-only: no correction, no writes; the visa download still works — Drive folders never move).
+
+**Bursts.** The script lock is held only for Lead ID numbers, submission-key claims, state and row writes (Drive work,
+emails and file moves outside it — `submitCorrection` now moves files between two short locks and records each move, so
+an interrupted submit resumes without moving anything twice). **Creating a lead** holds the lock only for the sid
+claim, the Lead ID and one tracker row (a 2-row read that checks the stored next row — the row above holds a Lead ID, the
+row itself is empty — and one row write, plus one property write); the header is read and the detail-tab row is
+appended (`appendRow`, one atomic call) outside it. Visa create keeps two tiny locks (claim + Lead ID; then the row once
+the Drive folder exists, so a Drive failure never leaves a row without a folder). If the stored next row does not check
+out (staff sorted or deleted rows, the archive or clean-up ran) the lock is released, the row after the last Lead ID is
+found **outside the lock** with one Ctrl+↑ lookup (`getNextDataCell`, logged "next row fallback", counted in System
+health) and the lock is taken again — column A is never scanned under the lock. Upload and finalize keep their tracker
+cell writes under the lock: they write into an existing row, whose position can shift when the archive or clean-up
+deletes rows (both under the lock). Every hold is timed (log line "lock <action> held N ms", System health "Script
+lock"; staging load tests read the numbers with `qaTiming`). The lock wait is 20 s; then the reply is
+`{ok:false, busy:true}`. Google errors that mean "busy" (lock timeout, service invoked too many times, temporary
+Sheets/Drive errors) also answer busy — JSON, no error email — and are counted for System health. The website
+(`api.js`) retries busy replies, non-JSON replies (Google's overload page), HTTP 429/5xx and — for actions safe to
+repeat — network errors after 2, 5, 10, 20, 30 and 30 s (±30 % jitter, ~97 s in all; uploads keep their own retry loop
+for network errors and never re-run the busy wait), showing *"We're busy — still sending, please keep this
+page open"*. **No duplicates:** contact, customise, visa create and correction submit carry a submission key `sid`
+(random; the same for every retry and for a re-click with the same answers, 6 h). The server claims it inside the same
+lock as the Lead ID and stores the reply (CacheService, 6 h): a retry gets the first reply (same Lead ID, same upload
+token), a retry while the first is still running gets busy. Email-code actions are never repeated automatically.
+Lead IDs stay unique (one counter, under the lock); a number taken by a request that then failed is a gap.
+**Lookups:** a cached Lead ID → row (CacheService) is checked against column A before use (staff sort/delete rows, the
+archive deletes them) and falls back to TextFinder; the next tracker row comes from a checked stored counter (see above).
+Reads of many rows always take one contiguous block (benchmark at 20,000 rows: one block 2.5 s, 8 single columns 7.7 s,
+column A alone 2.5 s, TextFinder 0.07 s); the archive reads column A of each tab outside its lock and re-checks every
+row by Lead ID under it (a row that moved stops the batch — nothing lost, resumed next night).
+
+**Daily trigger time.** `runEmailJobs` (every 5 min) reads only the hidden **Due** tab (Lead ID, Due At, Reason; written
+under the lock by Review Status edits, finalize, correction submits, the test helpers and the hourly scan; rows removed
+when handled; waiting / held rows stay). A run with nothing due reads that tab and a queue flag and stops. The full
+Lead Tracker scan runs **once an hour** as the safety net (an edit the trigger missed). The once-only email check reads
+the lead's hidden **Emails Sent** cell instead of searching the Email Log. The 5-minute Visa Files recount covers only
+Visa Approved rows whose email is still held. Measured on staging with `benchmarkScale` (1,000 and 20,000 synthetic
+rows).
+
+**System health** (daily summary): trigger time yesterday vs the limit (90 min gmail.com, 6 h Workspace, or
+`TRIGGER_LIMIT_MIN`), emails sent vs quota (`MAIL_LIMIT` overrides), website requests, busy replies and the slowest
+action, tracker and Email Log cells vs 10 M, tracker rows, Due rows, queue size, the last archive run — ⚠️ at 70 % of a
+limit. Records: Script Property `HEALTH_<date>` (< 1 KB, 8 days), best-effort counts without a lock.
+
+**Load test** (`tools/qa/load-live.js`, staging only, TEST_OTP_BYPASS on): N simultaneous customers (default 25, max 50) —
+contact, customise and visa with a SPECIMEN upload — with the website's retry rules; reports success rate, busy
+retries, p50/p95 and duplicates (must be 0; counted by the staging-only action `loadTestReport`, counts only). "TEST
+Load" names send no staff alert (gmail.com's 100 emails a day).
+
 ### 3.4 Contact box on `index.html`
 | Field | Type | Required |
 |---|---|---|
@@ -425,6 +504,8 @@ Success: the form resets and shows "Your reference number is EG-GE-…".
 | 22 | Message to Customer | **Staff** | Optional short message shown to the customer on track.html (plain text, first 300 characters). Header note: "Visible to the customer on the Track page — keep it short and professional" (v3.2). Also included in status emails; required before a Correction Needed email is sent |
 | 23 | Review Status | **Staff** | Visa: dropdown Under Review, Correction Needed, Correction Received, Verified, Visa Processing, Visa Approved, Not Approved / Closed. Set to Under Review at finalize; every change is emailed to the customer after 5 unchanged minutes (§3.6) (v3.3) |
 | 24 | Review Updated | Auto | Time of the last Review Status / Message to Customer edit (starts the 5-minute undo window) |
+| 29 | Last Change | Auto | v9 (§3.9): last staff edit or web-app write; archive age |
+| 30 | Emails Sent | Auto (hidden) | v9: this lead's once-only email keys (" ; "-separated); the Email Log is never searched |
 | 28 | Send Now | Staff | v8 tick box (§3.8): recount + send the current status email at once; unticks itself, result in its note |
 | 27 | Visa Files | Auto | v7 (§3.8): valid files in Approved Visa (PDF/JPG/PNG ≤ 5 MB); note lists ignored files |
 | 26 | Correction For | Staff | v6 dropdown (§3.7): what the customer should correct; highlighted on the correction page; kept after a submit |
@@ -480,7 +561,7 @@ File extensions follow the file's **real** type (magic bytes), never the custome
 ### 5.1 Transport
 `POST <web app /exec URL>` with a `text/plain;charset=utf-8` JSON body (a "simple" request: no CORS
 preflight). Apps Script answers with a 302 to `script.googleusercontent.com`, which serves the JSON with
-`Access-Control-Allow-Origin: *`. `GET` returns a health check `{"ok":true,"service":…,"version":1,"schema":8}` (schema = tracker version written by `setupEliteGlobal`: 3 = v3 columns + Visa Applications tab, 4 = Message to Customer, 5 = Review Status, Review Updated, Last Customer Email, 6 = Correction For, 7 = Visa Files + Approved Visa folders, 8 = Send Now).
+`Access-Control-Allow-Origin: *`. `GET` returns a health check `{"ok":true,"service":…,"version":1,"schema":9}` (schema = tracker version written by `setupEliteGlobal`: 3 = v3 columns + Visa Applications tab, 4 = Message to Customer, 5 = Review Status, Review Updated, Last Customer Email, 6 = Correction For, 7 = Visa Files + Approved Visa folders, 8 = Send Now, 9 = Last Change, Emails Sent, Due + Archive Index tabs).
 
 Every request: `{"action": "<name>", "hp": "<honeypot>", …}` → `{"ok":true,"leadId":…}` or
 `{"ok":false,"error":"<friendly>","field"?:"<name>","missing"?:[…],"reverify"?:true,"relogin"?:true,"restart"?:true,"relist"?:true}` (`relist`: the visa file list changed; `reverify`: the email must be confirmed again; `relogin`: the Track session ended; `restart`: the correction or download token ended — start again from the Track page).
@@ -532,18 +613,24 @@ up, and the customer is told the application expired.
 - Logs contain action, Lead ID, sizes and error class only — **never** names, answers or file contents.
   Unexpected errors email the owner (at most one per 10 minutes) without request data.
 
-### 5.5 Apps Script limits that matter (consumer @gmail.com)
-| Limit | Value | Design response |
+### 5.5 Google limits the code depends on (and how it stays inside them)
+Staging is a gmail.com account; production is Google Workspace. The code is built for the stricter gmail.com limits.
+
+| Limit | gmail.com / Workspace | How the code stays inside it |
 |---|---|---|
-| Execution time | 6 min per call | One passenger per request (≈ 5–10 s server time) |
-| Request size | Not documented; ~50 MB practical | Largest request ≈ 7 MB (5 MB PDF base64 + photo) |
-| Concurrent executions | ~30 per user (all customers run as the owner) | Uploads sequential per customer; "busy" is retried |
-| PropertiesService | 9 KB/value, 500 KB/store, 50k ops/day | ~200 B per open application, purged after 24 h |
-| CacheService | ≤ 6 h, may evict | Rate counters only |
-| MailApp | 100 recipients/day (Workspace: 1,500) | Codes keep a reserve of 20; other emails queue when the quota is used up. **Production at ~500 applications/day needs Brevo** (§3.6.5) |
-| Triggers | 90 min total trigger run time/day (consumer) | `runEmailJobs` every 5 min reads the tracker in one batch (~1–3 s) |
-| **Drive storage** | **15 GB free, shared with Gmail/Photos** | ~1 MB per passenger (image passports) → roughly 1,000 twelve-passenger applications; PDFs use more. **Open item for production** (§12) |
-| Deploying | Code goes live only when the **same** deployment gets a new version | `/exec` URL stays the same; new scopes need re-authorising in the editor |
+| Execution time | 6 min per call | One passenger per upload request (≈ 5–10 s); jobs stop on a time budget (email jobs 4 min, archive 4.5 min) and continue next run |
+| **Simultaneous executions** | **~30 per user** — every customer runs as the owner | Short locks; Google's overload page / network errors / busy are retried by the website with backoff + jitter; submission keys make retries safe; load-tested with up to 50 at once |
+| Script lock | one at a time, per script | Held only for IDs, key claims, state and row writes (create: claim + ID + one row; no column scan ever); web requests wait ≤ 20 s, then busy (the website retries for ~97 s); every hold is timed (System health ⚠️ at 70 % of the wait); the nightly archive holds it per batch of 200 (column A read outside) |
+| **Script Properties** | **9 KB per value, 500 KB in total**; 50k (Workspace 500k) reads/writes per day | Only small values: counters, flags, per-application upload/correction state (~200 B, purged), health records (< 1 KB × 8 days), archive file IDs, last 20 email decisions. Anything that grows with traffic (the Due list, email keys) lives in sheets, never in properties |
+| **CacheService** | **100 KB per value, max 6 h**, may be evicted | Rate counters, codes, row-number hints (always re-checked against the sheet), submission-key replies (< 1 KB, 6 h). Nothing that must survive is kept only in the cache |
+| **Trigger runtime** | **90 min / day** (Workspace 6 h) | Email jobs read only the Due tab every 5 min (full scan hourly); onTrackerEdit exits at once on other tabs; archive works only on the 1st and while unfinished; measured daily in System health with ⚠️ at 70 % |
+| Cells per spreadsheet | 10 million (all grids, empty cells too) | Monthly archive of finished leads; unused grid columns trimmed by setup; health warns at 70 % (§3.9) |
+| MailApp | 100 recipients / day (Workspace 1,500) | Codes keep a reserve of 20; other emails queue; "TEST Load" sends no staff alerts. **Production at ~500 applications/day needs Brevo** (§3.6.5) |
+| UrlFetchApp | 20k calls / day (Workspace 100k) | Only Brevo sends (one call per email) |
+| Spreadsheets created | 250 / day | One archive file per quarter; the benchmark makes one temporary file |
+| Request size | ~50 MB practical | Largest request ≈ 7 MB (5 MB PDF base64 + photo); visa downloads ≤ 5 MB per file (~6.7 MB base64) |
+| **Drive storage** | **15 GB free, shared with Gmail/Photos** (Workspace: per plan) | ~1 MB per passenger (image passports). **Open item for production** (§12) |
+| Deploying | Code goes live only when the **same** deployment gets a new version | `/exec` stays the same; new scopes need re-authorising in the editor |
 
 ---
 
@@ -679,6 +766,7 @@ Run `node tools/check-lists.js` and `node tools/qa/run.js static` before every s
 - [ ] `setupEliteGlobal` adds Visa Files + Approved Visa folders; health check `"schema":7`
 - [ ] Visa delivery on staging (`testApproveVisa`, `tools/qa/visa-live.js`): Download your visa, code, 2 files (one ~4.5 MB) match byte for byte, Log out ends the token; held email without a file; ATTACH_VISA on/off with a real email
 - [ ] Send Now: tick on a Visa Approved row with a file → email within a minute, note "Sent …"; without a file → "Not sent — no visa file …"
+- [ ] Scale (§3.9): `benchmarkScale` numbers recorded; `load-live.js` 25 and 50 → 100 % success, 0 duplicates; `archiveNow` on staging moves only finished old TEST leads; System health in the daily summary
 - [ ] Track live updates: a staff change shows within 2 minutes without a refresh; hidden tab pauses
 - [ ] `cleanupTestData()` run: TEST rows gone from 4 tabs, TEST visa folders in the Drive bin
 - [ ] Sharing on the tracker and the Visa Applications folder checked (named staff only)

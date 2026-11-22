@@ -25,6 +25,7 @@ const CORR_LABEL = { passport: 'passport', photo: 'photo', ticket: 'flight ticke
 
 /** Round (Review Updated ms) when the lead can be corrected now: visa, not Lost, Review Status Correction Needed. Else 0. */
 function correctionRound_(lead) {
+  if (lead.archived) return 0; // archived leads are read-only
   if (String(lead.get('Lead Category') || '') !== CONFIG.FORMS.VISA.category) return 0;
   if (String(lead.get('Lead Status') || '').trim() === 'Lost') return 0;
   if (String(lead.get('Review Status') || '').trim() !== 'Correction Needed') return 0;
@@ -127,7 +128,7 @@ function passengerRows_(leadId) {
 
 /** The lead's Drive folder (from the Drive Folder link, or by name under Visa Applications). */
 function leadFolder_(lead) {
-  const sh = trackerSheet_();
+  const sh = lead.sheet || trackerSheet_(); // an archived lead: its row in the archive file
   const f = String(sh.getRange(lead.row, CONFIG.FOLDER_COL).getFormula() || '');
   const m = /\/folders\/([\w-]+)/.exec(f);
   if (m) { try { return DriveApp.getFolderById(m[1]); } catch (e) { /* fall through */ } }
@@ -240,17 +241,32 @@ function uploadCorrectionFile_(d) {
     if (file.type.ext !== 'pdf' && file.bytes.length > L.DOC_IMG_MAX) fail_('The image is too large. Please choose it again so it can be resized.', 'file');
   }
   const key = slot + ':' + kind;
-  withLock_(function () {
-    const st = getCorrection_(c.leadId);
-    if (!st || st.j !== c.st.j) fail_(CORR_ENDED, null, { restart: true });
-    let pending = null;
-    if (st.f) { try { pending = DriveApp.getFolderById(st.f); } catch (e) { pending = null; } }
-    if (!pending) { pending = leadFolder_(c.lead).createFolder(CONFIG.CORRECTION.PENDING_FOLDER); st.f = pending.getId(); }
-    if (st.s[key]) { try { DriveApp.getFileById(st.s[key].id).setTrashed(true); } catch (e) { /* gone */ } } // a retry replaces it
-    const f = pending.createFile(Utilities.newBlob(file.bytes, file.type.mime, ('0' + slot).slice(-2) + '-' + CORR_KINDS[kind] + '.' + file.type.ext));
-    st.s[key] = { id: f.getId(), ext: file.type.ext, kb: kb };
-    saveCorrection_(c.leadId, st);
-  });
+  // The "Correction (pending)" folder: created under the lock only the first time (one Drive call)
+  let pending = null;
+  if (c.st.f) { try { pending = DriveApp.getFolderById(c.st.f); } catch (e) { pending = null; } }
+  if (!pending) {
+    pending = DriveApp.getFolderById(withLock_(function () {
+      const st = getCorrection_(c.leadId);
+      if (!st || st.j !== c.st.j) fail_(CORR_ENDED, null, { restart: true });
+      let ok = false;
+      if (st.f) { try { DriveApp.getFolderById(st.f); ok = true; } catch (e) { ok = false; } }
+      if (!ok) { st.f = leadFolder_(c.lead).createFolder(CONFIG.CORRECTION.PENDING_FOLDER).getId(); saveCorrection_(c.leadId, st); }
+      return st.f;
+    }));
+  }
+  // The file itself outside the lock; then the state under it (a retry replaces the earlier file)
+  const f = pending.createFile(Utilities.newBlob(file.bytes, file.type.mime, ('0' + slot).slice(-2) + '-' + CORR_KINDS[kind] + '.' + file.type.ext));
+  let old = '';
+  try {
+    withLock_(function () {
+      const st = getCorrection_(c.leadId);
+      if (!st || st.j !== c.st.j) fail_(CORR_ENDED, null, { restart: true });
+      old = st.s[key] ? st.s[key].id : '';
+      st.s[key] = { id: f.getId(), ext: file.type.ext, kb: kb };
+      saveCorrection_(c.leadId, st);
+    });
+  } catch (e) { try { f.setTrashed(true); } catch (x) { /* gone */ } throw e; }
+  if (old) { try { DriveApp.getFileById(old).setTrashed(true); } catch (e) { /* gone */ } }
   console.log('uploadCorrectionFile ok ' + c.leadId + ' ' + key + ' ' + file.type.ext + '/' + file.bytes.length + 'B');
   return { ok: true, slot: slot, kind: kind, photoKb: kb || undefined };
 }
@@ -260,9 +276,17 @@ function uploadCorrectionFile_(d) {
 // ---------------------------------------------------------------------
 function submitCorrection_(d) {
   const CATS = LISTS.PASSENGER_CATEGORIES;
-  const result = withLock_(function () {
-    const c = requireCorrection_(d.ctoken); // inside the lock: the token is used once
+  // A retry (same submission key) after a lost reply: the first submit already went through. Any other
+  // reuse of the token is refused as before.
+  const doneKey = corrDoneKey_(d.ctoken, d.sid);
+  const done = doneKey && CacheService.getScriptCache().get(doneKey);
+  if (done) { console.log('submitCorrection replay'); return JSON.parse(done); }
+
+  // 1. Under the lock (short): check the token, validate, claim the submit. No Drive work here.
+  const plan = withLock_(function () {
+    const c = requireCorrection_(d.ctoken); // the token is used once
     const st = c.st, leadId = c.leadId, lead = c.lead;
+    if (st.sub && Date.now() - st.sub < 600000) fail_('Your correction is being submitted. Please keep this page open.', null, { busy: true });
     const va = visaAppRow_(leadId);
     const old = va.v;
     const a = d.answers || {};
@@ -308,15 +332,26 @@ function submitCorrection_(d) {
     });
 
     if (!changes.length && !Object.keys(st.s).length) fail_('Nothing has been changed yet. Replace a file or change an answer, then submit.');
+    st.sub = Date.now();          // claimed: a second submit waits (busy) instead of running twice
+    st.done = st.done || {};      // files already moved by an earlier, interrupted submit
+    saveCorrection_(leadId, st);
+    return { leadId: leadId, st: st, lead: lead, name: name, country: country, travelDate: travelDate, departure: departure,
+      flightTicket: flightTicket, priorKsa: priorKsa, westernVisa: westernVisa, extraInfo: extraInfo, pax: pax, counts: counts,
+      changes: changes, correctionFor: String(lead.get('Correction For') || '') };
+  });
 
-    // Files: old ones to "Replaced <date>" (renamed "NN – file"), the new ones in place
-    const app = leadFolder_(lead);
-    const stamp = Utilities.formatDate(new Date(), 'Africa/Lagos', 'd MMM yyyy HH:mm');
+  // 2. Outside the lock: Drive. Old files to "Replaced <date>" (renamed "NN – file"), the new ones in place.
+  //    Each moved file is recorded in the state, so an interrupted submit resumes without moving anything twice.
+  const st = plan.st, leadId = plan.leadId, pax = plan.pax, changes = plan.changes;
+  const stamp = Utilities.formatDate(new Date(), 'Africa/Lagos', 'd MMM yyyy HH:mm');
+  let app;
+  try {
+    app = leadFolder_(plan.lead);
     let replaced = null;
-    const links = {}; // "<slot>:<kind>" → [url, file name]
     Object.keys(st.s).sort().forEach(function (key) {
       const slot = Number(key.split(':')[0]), kind = key.split(':')[1], item = st.s[key];
       const base = CORR_KINDS[kind];
+      if (st.done[key]) { changes.push(st.done[key][2]); return; }
       const target = slot === 0 ? app : passengerFolder_(app, ('0' + slot).slice(-2), pax[slot - 1].name);
       let had = false;
       const it = target.getFiles();
@@ -331,19 +366,30 @@ function submitCorrection_(d) {
       const nf = DriveApp.getFileById(item.id);
       nf.setName(base + '.' + item.ext);
       nf.moveTo(target);
-      links[key] = [nf.getUrl(), base + '.' + item.ext];
-      changes.push((slot === 0 ? 'Shared ' + CORR_LABEL[kind] + ' (all passengers)' : 'Passenger ' + slot + ' ' + CORR_LABEL[kind]) +
-        (had ? ' replaced' : ' added'));
+      const what = (slot === 0 ? 'Shared ' + CORR_LABEL[kind] + ' (all passengers)' : 'Passenger ' + slot + ' ' + CORR_LABEL[kind]) + (had ? ' replaced' : ' added');
+      st.done[key] = [nf.getUrl(), base + '.' + item.ext, what];
+      saveCorrection_(leadId, st);
+      changes.push(what);
     });
     if (st.f) { try { DriveApp.getFolderById(st.f).setTrashed(true); } catch (e) { /* gone */ } } // empty now
-
     // Folder names follow the names
     pax.forEach(function (p) { passengerFolder_(app, ('0' + p.index).slice(-2), p.name); });
-    app.setName(leadId + ' – ' + folderSafe_(name));
+    app.setName(leadId + ' – ' + folderSafe_(plan.name));
+  } catch (e) {
+    st.sub = 0; // let the retry resume at once (moved files are recorded)
+    try { saveCorrection_(leadId, st); } catch (x) { /* expires */ }
+    throw e;
+  }
 
-    // Visa Passengers
+  // 3. Under the lock (short): the sheets, then Review Status → Correction Received
+  const result = withLock_(function () {
+    const cur = getCorrection_(leadId);
+    if (!cur || cur.j !== st.j) fail_(CORR_ENDED, null, { restart: true });
+    const links = {};
+    Object.keys(st.done).forEach(function (k) { links[k] = [st.done[k][0], st.done[k][1]]; });
     const now = new Date();
     const linkF = function (k) { return '=HYPERLINK("' + links[k][0] + '","' + links[k][1] + '")'; };
+    // Visa Passengers
     const H = CONFIG.TABS.PASSENGERS.headers;
     pax.forEach(function (p) {
       const v = new Array(H.length);
@@ -358,33 +404,42 @@ function submitCorrection_(d) {
       if (Object.keys(links).some(function (x) { return x.indexOf(k) === 0; })) v[7] = now;
       upsertPassengerRow_(leadId, p.index, v);
     });
-
     // Visa Applications
+    const va = visaAppRow_(leadId);
     const tab = CONFIG.TABS.VISA;
     const set = function (col, val) { va.sh.getRange(va.row, col).setValue(val); };
-    set(3, safeCell_(name)); set(6, safeCell_(country)); set(7, parseDate_(travelDate)); set(8, safeCell_(departure));
-    set(9, flightTicket); set(10, priorKsa); set(11, westernVisa); set(13, counts[0]); set(14, counts[1]); set(15, counts[2]);
-    set(18, safeCell_(extraInfo));
+    set(3, safeCell_(plan.name)); set(6, safeCell_(plan.country)); set(7, parseDate_(plan.travelDate)); set(8, safeCell_(plan.departure));
+    set(9, plan.flightTicket); set(10, plan.priorKsa); set(11, plan.westernVisa); set(13, plan.counts[0]); set(14, plan.counts[1]); set(15, plan.counts[2]);
+    set(18, safeCell_(plan.extraInfo));
     if (links['0:ticket']) va.sh.getRange(va.row, tab.sharedCols.t).setFormula(linkF('0:ticket'));
     if (links['0:hotel']) va.sh.getRange(va.row, tab.sharedCols.h).setFormula(linkF('0:hotel'));
-
     // Lead Tracker: details, a Notes line (staff text kept), Review Status → Correction Received
     const sh = trackerSheet_();
     const cols = trackerCols_(sh);
-    const put = function (h, val) { sh.getRange(lead.row, cols[h]).setValue(val); };
-    put('Customer Name', safeCell_(name)); put('Country', safeCell_(country)); put('Travel Date', parseDate_(travelDate));
-    put('Departure', safeCell_(departure)); put('Adults', counts[0]); put('Children', counts[1]); put('Infants', counts[2]);
-    const notes = String(sh.getRange(lead.row, CONFIG.NOTES_COL).getValue() || '');
+    const row = findLeadRow_(sh, leadId);
+    if (!row) fail_(CORR_ENDED, null, { restart: true });
+    const put = function (h, val) { sh.getRange(row, cols[h]).setValue(val); };
+    put('Customer Name', safeCell_(plan.name)); put('Country', safeCell_(plan.country)); put('Travel Date', parseDate_(plan.travelDate));
+    put('Departure', safeCell_(plan.departure)); put('Adults', plan.counts[0]); put('Children', plan.counts[1]); put('Infants', plan.counts[2]);
+    const notes = String(sh.getRange(row, CONFIG.NOTES_COL).getValue() || '');
     const line = 'Correction submitted ' + stamp + ': ' + changes.join('; ') + '.';
-    sh.getRange(lead.row, CONFIG.NOTES_COL).setValue(safeCell_(notes ? notes + '\n' + line : line));
+    sh.getRange(row, CONFIG.NOTES_COL).setValue(safeCell_(notes ? notes + '\n' + line : line));
     setReviewStatus_(leadId, 'Correction Received');
     PropertiesService.getScriptProperties().deleteProperty(corrKey_(leadId));
-    return { leadId: leadId, row: lead.row, changes: changes, folderUrl: app.getUrl(), round: st.r, name: name,
-      correctionFor: String(lead.get('Correction For') || '') };
+    return { leadId: leadId, row: row, changes: changes, folderUrl: app.getUrl(), round: st.r, name: plan.name, correctionFor: plan.correctionFor };
   });
   console.log('submitCorrection ok ' + result.leadId + ' changes=' + result.changes.length);
+  const reply = { ok: true, leadId: result.leadId };
+  if (doneKey) CacheService.getScriptCache().put(doneKey, JSON.stringify(reply), 3600);
   notifyCorrection_(result); // never throws
-  return { ok: true, leadId: result.leadId };
+  return reply;
+}
+
+/** Cache key for a finished submit of this correction token (a retry gets the same reply). */
+function corrDoneKey_(token, sid) {
+  const parts = String(token || '').split('.');
+  if (parts.length !== 4 || !/^\w+$/.test(parts[2]) || !sidKey_(sid)) return '';
+  return 'CORRDONE_' + sha256Hex_('cd|' + parts[2] + '|' + sid).slice(0, 40);
 }
 
 // ---------------------------------------------------------------------
@@ -462,6 +517,7 @@ function testRequestCorrection() {
     sh.getRange(row, cols['Correction For']).setValue('Passport photo');
     sh.getRange(row, cols['Review Status']).setValue('Correction Needed');
     sh.getRange(row, cols['Review Updated']).setValue(new Date());
+    addDue_(String(get('Lead ID')), 'status change (test)');
     Logger.log('Correction Needed set on ' + get('Lead ID') + '. Open the Track page with this reference.');
     return String(get('Lead ID'));
   }

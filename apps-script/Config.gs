@@ -38,6 +38,8 @@ const CONFIG = {
     'Visa Files',
     // v8 (round 2.4): staff tick it to recount + send the current status email at once (onTrackerEdit)
     'Send Now',
+    // v9 (round 2.5): when the row last changed (archive age) and which emails this lead already got
+    'Last Change', 'Emails Sent',
   ],
   // Columns 1–15 keep their fixed positions; columns added later are found by header name.
   NOTES_COL: 14,      // Follow-up Notes: staff only (the web app no longer writes here)
@@ -68,8 +70,40 @@ const CONFIG = {
         'to Customer, Visa Approved needs a visa file in Approved Visa, TEST leads are not emailed, and the email is ' +
         'queued when the daily quota is used up. The box unticks itself and its note shows the result. Several rows: ' +
         'select their Send Now cells and press Space.' },
+    'Last Change': { width: 150, auto: true, format: 'dd mmm yyyy, hh:mm',
+      note: 'When this row last changed (staff edits and the website). Finished leads move to the archive 90 days after this.' },
+    'Emails Sent': { width: 220, auto: true, hidden: true,
+      note: 'Which emails this lead already got (the system uses it so nothing is sent twice). Do not edit.' },
   },
-  SCHEMA_VERSION: '8',
+  SCHEMA_VERSION: '9',
+
+  // Archive (Archive.gs): finished leads move to "Elite Global – Archive <YYYY>-Q<n>" (by Date Received)
+  ARCHIVE: {
+    AGE_DAYS: 90,              // days since Last Change
+    FOLDER: 'Archive',         // in the root Drive folder
+    NAME: 'Elite Global – Archive ',
+    INDEX_TAB: 'Archive Index',
+    BATCH: 200,                // leads per lock hold (copy → verify → index → delete; contiguous rows)
+    BUDGET_MS: 270000,         // stop and resume next run after 4.5 minutes
+    LEAD_FINAL: ['Converted', 'Lost'],
+    REVIEW_FINAL: ['Visa Approved', 'Not Approved / Closed'],
+    STALE_DAYS: 365,           // unfinished and unchanged this long → "please close" in the daily summary
+    MIN_ROWS: 2000,            // the Lead Tracker keeps at least this many pre-formatted rows
+  },
+  DUE_TAB: 'Due',              // hidden tab: status emails waiting (Lead ID, due time, reason)
+
+  // Google limits the code stays inside (PRD §6.4). Script Property TRIGGER_LIMIT_MIN overrides the trigger limit.
+  LIMITS_GOOGLE: {
+    TRIGGER_MIN_CONSUMER: 90,  // total trigger runtime per day, gmail.com
+    TRIGGER_MIN_WORKSPACE: 360,
+    MAIL_CONSUMER: 100,        // MailApp recipients per day, gmail.com
+    MAIL_WORKSPACE: 1500,
+    CELLS: 10000000,           // cells per spreadsheet (whole grids)
+    WARN: 0.7,                 // ⚠️ in the daily summary at 70 % of a limit
+    LOCK_WAIT_MS: 20000,       // web app: wait up to 20 s for the script lock, then answer busy (website retries ~97 s)
+    SID_TTL_S: 21600,          // submission key replies kept 6 h (CacheService maximum)
+    DUE_MAX: 2000,             // Due rows handled per run (the rest next run)
+  },
 
   // Visa review workflow (Review Status column). Lead Status stays the sales pipeline.
   REVIEW_STATUSES: [
