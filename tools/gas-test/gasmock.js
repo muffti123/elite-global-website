@@ -41,10 +41,10 @@ module.exports = function (dir) {
     },
     deleteColumns(a, n) { this.cols -= n; },
     deleteRow(r) {
-      const next = {};
-      for (const k in this.cells) { const [rr, cc] = k.split(',').map(Number); if (rr < r) next[k] = this.cells[k]; else if (rr > r) next[(rr - 1) + ',' + cc] = this.cells[k]; }
-      this.cells = next; this.rows--;
+      const shift = (obj) => { const next = {}; for (const k in obj) { const [rr, cc] = k.split(',').map(Number); if (rr < r) next[k] = obj[k]; else if (rr > r) next[(rr - 1) + ',' + cc] = obj[k]; } return next; };
+      this.cells = shift(this.cells); this.formulas = shift(this.formulas); if (this.notes) this.notes = shift(this.notes); this.rows--;
     },
+    hideSheet() { this.hidden = true; return this; }, hideColumns(c) { this.hiddenCols = (this.hiddenCols || []).concat([c]); return this; },
     appendRow(vals) { const r = this.getLastRow() + 1; vals.forEach((v, i) => this.set(r, i + 1, v)); },
     getRange(r, c, nr, nc) { return new Range(this, r, c, nr || 1, nc || 1); },
     setFrozenRows() {}, setFrozenColumns() {}, setColumnWidth() {}, setRowHeight() {},
@@ -58,6 +58,8 @@ module.exports = function (dir) {
     getValues() { const o = []; for (let i = 0; i < this.nr; i++) { const row = []; for (let j = 0; j < this.nc; j++) row.push(this.sh.get(this.r + i, this.c + j)); o.push(row); } return o; },
     getValue() { return this.sh.get(this.r, this.c); },
     getFormula() { return this.sh.formulas[this.sh.key(this.r, this.c)] || ''; },
+    getFormulas() { const o = []; for (let i = 0; i < this.nr; i++) { const row = []; for (let j = 0; j < this.nc; j++) row.push(this.sh.formulas[this.sh.key(this.r + i, this.c + j)] || ''); o.push(row); } return o; },
+    clearContent() { for (let i = 0; i < this.nr; i++) for (let j = 0; j < this.nc; j++) this.sh.set(this.r + i, this.c + j, ''); return this; },
     setValues(v) { if (v.length !== this.nr || v[0].length !== this.nc) throw new Error('setValues size mismatch'); v.forEach((row, i) => row.forEach((x, j) => this.r + i > 1 && this.sh.checkValid(this.c + j, x))); v.forEach((row, i) => row.forEach((x, j) => this.sh.set(this.r + i, this.c + j, x))); return this; },
     setValue(v) { if (this.r > 1) this.sh.checkValid(this.c, v); this.sh.set(this.r, this.c, v); return this; },
     setFormula(f) { this.sh.set(this.r, this.c, f); return this; },
@@ -100,6 +102,7 @@ module.exports = function (dir) {
     return b;
   };
   const props = {};
+  const lockState = { held: false, busy: false }; // busy: tryLock fails (lock timeout)
   const cache = {};
   const folders = [];
   const allFiles = [];
@@ -143,7 +146,7 @@ module.exports = function (dir) {
       },
       // every builder method returns the builder; build() returns a rule object
       newConditionalFormatRule: () => { const b = new Proxy({}, { get: (o, k) => (k === 'build' ? () => ({}) : () => b) }); return b; } },
-    LockService: { getScriptLock: () => ({ tryLock: () => true, releaseLock() {} }) },
+    LockService: { getScriptLock: () => ({ tryLock: () => !lockState.busy && (lockState.held = true), releaseLock() { lockState.held = false; }, hasLock: () => lockState.held }) },
     // one shared script cache (like Apps Script), so rate limits persist between calls
     CacheService: { getScriptCache: () => ({ get: (k) => (k in cache ? cache[k] : null), put: (k, v) => { cache[k] = v; }, remove: (k) => { delete cache[k]; } }) },
     DriveApp: { getFolderById: (id) => folders.find((f) => f.id === id), createFolder: (n) => new Folder(n), getFileById: (id) => { const f = allFiles.find((x) => x.id === id); if (f) return f; return { moveTo() {} }; } },
@@ -182,5 +185,5 @@ module.exports = function (dir) {
   const src = files.map((f) => fs.readFileSync(path.join(dir, 'apps-script', f), 'utf8')).join('\n;\n') +
     '\n;this.__exports = {' + 'CONFIG, LISTS, COUNTRIES' + '};';
   vm.runInContext(src, ctx, { filename: 'apps-script.gs' });
-  return { ctx, ss, books, props, folders, allFiles, logs, Sheet, Folder, cache, mail, fetch, triggers, clock };
+  return { ctx, ss, books, props, folders, allFiles, logs, Sheet, Folder, cache, mail, fetch, triggers, clock, lockState };
 };
