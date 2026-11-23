@@ -14,7 +14,7 @@ header{background:#fff;position:sticky;top:0;z-index:10;box-shadow:0 2px 14px #0
 @keyframes menuIn{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:none}}
 .nav-cta,.btn{display:inline-flex;align-items:center;justify-content:center;border-radius:9px;padding:14px 21px;font-weight:800;border:2px solid transparent;transition:.2s;font-size:16px;font-family:inherit;line-height:1.2;text-align:center}
 .nav-cta{background:var(--navy);color:#fff}.btn-gold{background:var(--gold);color:var(--navy)}.btn-white{background:#fff;color:var(--navy);border-color:#fff}.btn-outline{border-color:var(--navy);color:var(--navy);background:transparent}.btn:hover,.nav-cta:hover{transform:translateY(-2px);filter:brightness(.97)}
-.hero{position:relative;color:white;background:linear-gradient(90deg,rgba(4,19,58,.97) 0%,rgba(4,19,58,.86) 42%,rgba(4,19,58,.15) 100%),url('https://images.unsplash.com/photo-1564769625905-50e93615e769?auto=format&fit=crop&w=2000&q=85') center/cover,var(--navy);min-height:550px;display:flex;align-items:center}
+.hero{position:relative;color:white;background:linear-gradient(90deg,rgba(4,19,58,.97) 0%,rgba(4,19,58,.86) 42%,rgba(4,19,58,.15) 100%),url('../img/hero-1600.webp') center/cover,var(--navy);min-height:550px;display:flex;align-items:center}
 .hero-content{padding:76px 0;max-width:650px}.eyebrow{color:var(--gold);font-weight:800;letter-spacing:2px;text-transform:uppercase;font-size:13px}
 .about-copy .eyebrow,.section-title .eyebrow{color:#a86f00}
 h1{font-size:clamp(36px,5vw,62px);line-height:1.08;margin:15px 0 18px;letter-spacing:-1.5px}h1 span{color:var(--gold)}
@@ -35,7 +35,7 @@ footer{background:#06163F;color:#D9E0EF;padding:52px 0 22px}.footer-grid{display
 .copyright{border-top:1px solid #ffffff2a;margin-top:30px;padding-top:16px;font-size:12px;color:#cbd4e5;display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap}
 [hidden]{display:none!important}
 @media(max-width:850px){.about-grid,.enquiry{grid-template-columns:1fr}.service-grid}
-@media(max-width:620px){.site-header .eg-brand{--brand:2.2px}.nav{padding:10px 0;min-height:0}.hero{min-height:600px;background-position:62% center}.hero-content{padding:65px 0}.hero p{font-size:17px}.actions{flex-direction:column;align-items:stretch}.btn{width:100%}section{padding:54px 0}.service-grid,form{grid-template-columns:1fr}.section-title h2,.cta-band h2{font-size:28px}.copyright{display:block}.formbox,.enquiry-intro{padding:22px}}
+@media(max-width:620px){.site-header .eg-brand{--brand:2.2px}.nav{padding:10px 0;min-height:0}.hero{min-height:600px;background-position:62% center;background-image:linear-gradient(90deg,rgba(4,19,58,.97) 0%,rgba(4,19,58,.86) 42%,rgba(4,19,58,.15) 100%),url('../img/hero-800.webp')}.hero-content{padding:65px 0}.hero p{font-size:17px}.actions{flex-direction:column;align-items:stretch}.btn{width:100%}section{padding:54px 0}.service-grid,form{grid-template-columns:1fr}.section-title h2,.cta-band h2{font-size:28px}.copyright{display:block}.formbox,.enquiry-intro{padding:22px}}
 @media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}.btn,.nav-cta,.menu-bars,.menu-bars:before,.menu-bars:after{transition:none}.menu.open{animation:none}}
 
 /* ---- Application pages (customize-umrah.html, apply-visa.html) ---- */
