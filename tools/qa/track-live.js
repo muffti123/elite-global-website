@@ -10,7 +10,9 @@ const GENERIC = 'We couldn\'t find an application with those details. Please che
 const ALLOWED = ['ok', 'leadId', 'service', 'received', 'stage', 'description', 'nextStep', 'message', 'upload', 'session', 'canCorrect', 'canDownload'];
 const b64 = (f) => fs.readFileSync(path.join(FX, f)).toString('base64');
 
+const { stagingOnly } = require('./staging-only');
 (async () => {
+  await stagingOnly(base); // live suite: staging only
   const b = await puppeteer.launch({ executablePath: exe, headless: true });
   const p = await b.newPage();
   const errors = []; p.on('pageerror', (e) => errors.push(String(e)));

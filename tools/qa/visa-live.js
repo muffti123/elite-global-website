@@ -23,7 +23,9 @@ const spec = {};
 vm.runInNewContext(fs.readFileSync(path.join(__dirname, '../../apps-script/Specimen.gs'), 'utf8') + ';out.pdf = specimenVisaPdf_;', { out: spec });
 const SPEC = [Buffer.from(spec.pdf(1), 'latin1'), Buffer.from(spec.pdf(2), 'latin1')];
 
+const { stagingOnly } = require('./staging-only');
 (async () => {
+  await stagingOnly(base); // live suite: staging only
   const b = await puppeteer.launch({ executablePath: exe, headless: true });
   const p = await b.newPage();
   const errors = []; p.on('pageerror', (e) => errors.push(String(e)));

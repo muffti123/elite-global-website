@@ -11,10 +11,9 @@ const path = require('path');
 const crypto = require('crypto');
 const [FX, nArg] = process.argv.slice(2);
 const N = Math.min(Math.max(parseInt(nArg || '25', 10) || 25, 3), 50);
-const STAGING_ID = 'AKfycbzSBOiav81YF7eKJvqLaXJM1p2S6oRXeKVVhsGKgCtMfkdKZUrXr7cC0UQ-bRZ6kjtqXQ';
-const cfg = fs.readFileSync(path.join(__dirname, '../../public/assets/js/config.js'), 'utf8');
-const URL = (/webAppUrl:\s*'([^']+)'/.exec(cfg) || [])[1] || '';
-if (URL.indexOf('/s/' + STAGING_ID + '/exec') === -1) { console.error('Refused: config.js webAppUrl is not the staging web app.'); process.exit(2); }
+const CONFIG_JS = path.join(__dirname, '../../public/assets/js/config.js');
+require('./staging-only').stagingOnlyFile(CONFIG_JS); // staging only — never production
+const URL = (/webAppUrl:\s*'([^']+)'/.exec(fs.readFileSync(CONFIG_JS, 'utf8')) || [])[1] || '';
 const TAG = crypto.randomBytes(3).toString('hex').toUpperCase(); // run tag, e.g. 4F2A9C
 const WAITS = [2000, 5000, 10000, 20000, 30000, 30000]; // same as public/assets/js/api.js
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));

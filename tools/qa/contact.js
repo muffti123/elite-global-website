@@ -1,7 +1,9 @@
 // Live test: contact form → staging web app. Usage: node contact.js <url> <chrome>
 const puppeteer = require('puppeteer-core');
+const { stagingOnly } = require('./staging-only');
 const [url, exe] = process.argv.slice(2);
 (async () => {
+  await stagingOnly(new URL(url).origin); // sends to the web app: staging only
   const b = await puppeteer.launch({ executablePath: exe, headless: true });
   const p = await b.newPage();
   const errors = []; p.on('console', m => m.type() === 'error' && errors.push(m.text())); p.on('pageerror', e => errors.push(String(e)));

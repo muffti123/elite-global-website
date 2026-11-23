@@ -1,9 +1,11 @@
 // Browser test: customize-umrah.html (+ live TEST submit). Usage: node customize.js <base> <chrome> [--submit]
 const puppeteer = require('puppeteer-core');
 const emailcode = require('./emailcode');
+const { stagingOnly } = require('./staging-only');
 const [base, exe, flag] = process.argv.slice(2);
 const res = []; const ok = (n, c, i = '') => res.push(`${c ? 'PASS' : 'FAIL'}  ${n}${i ? '  — ' + i : ''}`);
 (async () => {
+  if (flag === '--submit') await stagingOnly(base); // sends to the web app: staging only
   const b = await puppeteer.launch({ executablePath: exe, headless: true });
   const p = await b.newPage();
   const errors = []; p.on('console', m => m.type() === 'error' && errors.push(m.text())); p.on('pageerror', e => errors.push(String(e)));

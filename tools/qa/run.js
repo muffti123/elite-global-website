@@ -4,6 +4,8 @@
  *
  *   cd tools/qa && npm install            (once: puppeteer-core + serve, no browser download)
  *   node run.js static                    checks only — sends NOTHING to the web app
+ *   node run.js static --root <dir>       the same checks on another copy of the site (the production release:
+ *                                         node run.js static --root ../../release/site)
  *   node run.js live                      ⚠️ submits TEST leads + SPECIMEN files to the web app in
  *                                         SITE_CONFIG.webAppUrl. Use staging only, then run
  *                                         cleanupTestData() in the Apps Script editor.
@@ -17,7 +19,12 @@ const path = require('path');
 
 const mode = process.argv[2] || 'static';
 const here = __dirname;
-const publicDir = path.resolve(here, '../../public');
+const rootArg = process.argv.indexOf('--root');
+const publicDir = rootArg > 0 ? path.resolve(process.cwd(), process.argv[rootArg + 1] || '') : path.resolve(here, '../../public');
+if (!fs.existsSync(path.join(publicDir, 'index.html'))) { console.error('No index.html in ' + publicDir); process.exit(2); }
+// live suites send TEST leads: STAGING only, never production (CLAUDE.md rule 8)
+const { stagingOnlyFile } = require('./staging-only');
+if (mode === 'live') stagingOnlyFile(path.join(publicDir, 'assets/js/config.js'));
 const fixtures = path.join(here, 'fixtures');
 const base = 'http://localhost:3000';
 const chrome = process.env.CHROME_PATH || [
@@ -31,6 +38,7 @@ const node = (args) => spawnSync(process.execPath, args, { stdio: 'inherit', cwd
 
 (async () => {
   let failed = node([path.resolve(here, '../check-lists.js')]) !== 0;
+  if (mode !== 'live') failed = node(['staging-only.js']) !== 0 || failed;
 
   const server = spawn(process.execPath, [require.resolve('serve/build/main.js'), '-l', '3000', '--no-clipboard', publicDir], { stdio: 'ignore' });
   try {

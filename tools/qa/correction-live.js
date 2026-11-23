@@ -17,7 +17,9 @@ const b64 = (f) => fs.readFileSync(path.join(FX, f)).toString('base64');
 const NAME = 'TEST Correction Live', EMAIL = 'qa-correction@example.com';
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
+const { stagingOnly } = require('./staging-only');
 (async () => {
+  await stagingOnly(base); // live suite: staging only
   const b = await puppeteer.launch({ executablePath: exe, headless: true });
   const p = await b.newPage();
   const errors = []; p.on('pageerror', (e) => errors.push(String(e)));

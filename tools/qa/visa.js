@@ -2,6 +2,7 @@
 const path = require('path');
 const puppeteer = require('puppeteer-core');
 const emailcode = require('./emailcode');
+const { stagingOnly } = require('./staging-only');
 const [base, exe, FX, mode = 'offline'] = process.argv.slice(2);
 const fx = (f) => path.join(FX, f);
 const res = []; const ok = (n, c, i = '') => { res.push(`${c ? 'PASS' : 'FAIL'}  ${n}${i ? '  — ' + i : ''}`); console.log(res[res.length - 1]); };
@@ -43,6 +44,7 @@ const cardText = async (p, i, sel) => (await cards(p))[i].$eval(sel, (e) => e.te
 const cardInvalid = async (p, i) => (await cards(p))[i].$$eval('.field.invalid', (els) => els.length);
 
 (async () => {
+  if (mode === 'live') await stagingOnly(base); // sends to the web app: staging only
   const b = await puppeteer.launch({ executablePath: exe, headless: true });
 
   if (mode === 'offline') {
