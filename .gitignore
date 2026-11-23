@@ -21,3 +21,9 @@ tools/qa/fixtures/
 
 # QA screenshots (tools/qa/shots.js)
 tools/qa/screenshots/
+
+# per-environment clasp project files, e.g. .clasp.prod.json (production) — see docs/LAUNCH.md
+.clasp.*.json
+
+# production release build (tools/release/build.js)
+release/
