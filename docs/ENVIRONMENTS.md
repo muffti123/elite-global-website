@@ -53,54 +53,24 @@ Their old response sheets (read-only history):
 | 2 — Customize My Umrah Experience | https://docs.google.com/spreadsheets/d/1tltFG23vPjim4xzl1E44Kb-PKMtICf6ea3T58SdLeq8/edit |
 | 3 — General Contact Enquiries | https://docs.google.com/spreadsheets/d/1vAR_InBqfNKOx4bPBptY-Nlje9VdFCu0pz803zm8uCo/edit |
 
-## Production (eliteglobaltravelsng@gmail.com)
+## Production (admin@elitetravelng.com — Google Workspace)
 
 | Item | Value |
 |---|---|
 | Purpose | Live system that receives real customer leads |
-| Apps Script project | Elite Global Lead System |
-| scriptId | `1Lhrr8yjk5BISLVHBPY8BqRaidh09-4CBD7__bNpmm8iRB9TjnjWnDhe0` |
-| Editor | https://script.google.com/d/1Lhrr8yjk5BISLVHBPY8BqRaidh09-4CBD7__bNpmm8iRB9TjnjWnDhe0/edit |
-| Web app URL / Deployment ID | — (not deployed yet) |
+| Owner account | **admin@elitetravelng.com** (Workspace Business Standard). Staff: their own accounts, tracker + Visa Applications folder only (docs/LAUNCH.md §7) |
+| Website | https://elitetravelng.com on Hostinger — the release zip from `tools/release/build.js` (docs/LAUNCH.md §2) |
+| Apps Script project | Elite Global Lead System — created by admin@ (scriptId: in `deploy/production.json` once created) |
+| clasp | Named login `prod` + `.clasp.prod.json` (git-ignored), always through `tools/prod-clasp.ps1` |
+| Web app URL / Deployment ID | In `deploy/production.json` after the first deployment (docs/LAUNCH.md §1.5) |
 | Time zone / runtime | Africa/Lagos / V8 |
+| Script Properties | `SITE_URL=https://elitetravelng.com`, `OWNER_EMAIL` / `STAFF_EMAIL` = admin@elitetravelng.com, `ATTACH_VISA=on`, `EMAIL_PROVIDER=mailapp` → `brevo` once Brevo is verified. `TEST_OTP_BYPASS` never |
+| Customer email | info@elitetravelng.com (Workspace group; Reply-To of every email) |
 
-> This project still holds an old script version (Google Forms era) and setup has never run in it.
-> Step 4 below uploads the current code. Production has no Google Forms, so there is nothing to close.
+**How to go live:** follow **docs/LAUNCH.md** (step by step, with who does what and how each step is checked).
+No live QA suite ever runs against production: they refuse unless `config.js` points at staging.
 
----
-
-## Switching staging → production
-
-Run these from the project root. 🧑 means the operator does the step (logins and browser clicks).
-🤖 means Claude Code can do it.
-
-1. 🧑 **Turn on the Apps Script API for the company account.** Sign in to
-   https://script.google.com/home/usersettings **only** as eliteglobaltravelsng@gmail.com and set
-   **Google Apps Script API → On**.
-2. 🧑 **Switch clasp to the company account.**
-   ```
-   clasp logout
-   clasp login                  # choose eliteglobaltravelsng@gmail.com in the browser
-   clasp show-authorized-user   # must say eliteglobaltravelsng@gmail.com
-   ```
-3. 🤖 **Point clasp at the production project.** In `.clasp.json`, replace `scriptId` with the production
-   scriptId above. Leave `rootDir` set to `apps-script`.
-4. 🤖 **Upload the current code:** `clasp push`. Confirm `apps-script/appsscript.json` still says
-   `Africa/Lagos`, `V8` and the `webapp` block (execute as deploying user, access anyone).
-5. 🧑 **Build the system.** Open the production editor (`clasp open-script`) and run:
-   - `setOwnerEmail` — stores eliteglobaltravelsng@gmail.com as `OWNER_EMAIL` (recommended).
-   - `setupEliteGlobal` — Review permissions → Advanced → Go to … (unsafe) → Allow → **✅ SETUP COMPLETE**.
-     (If retired Google Forms exist in that account, setup closes them and reports their state.)
-6. 🧑 **Deploy the web app.** Deploy → New deployment → ⚙ Web app → *Execute as:* **Me** ·
-   *Who has access:* **Anyone** → Deploy → authorise. Copy the **Web app URL** and **Deployment ID** into
-   the Production table above. Open the URL: it must show `{"ok":true,…}`.
-7. 🤖 **Rewire the website.** Set `webAppUrl` in `public/assets/js/config.js` to the production `/exec`
-   URL. Run `node tools/check-lists.js` and `node tools/qa/run.js static`, then send **one** TEST of each
-   form by hand (contact, customise, visa with 1 passenger and SPECIMEN files) and check the production
-   tracker and Visa Applications folder. Run `cleanupTestData()` in production afterwards.
-   *Do not run `run.js live` against production* — it creates many TEST leads.
-8. 🤖 **Commit and push**, e.g. `git commit -m "feat(site): point website forms to production web app"`,
-   then `git push`. Netlify redeploys from `main`.
-9. 🧑 **Share** the production tracker and Visa Applications folder with named staff only.
-10. 🧑 **Retire staging.** Run `cleanupTestData()` in staging. Optionally archive the staging deployment
-    (Deploy → Manage deployments → Archive) so the staging URL stops accepting data.
+### Retired: the old gmail.com "production" project
+`1Lhrr8yjk5BISLVHBPY8BqRaidh09-4CBD7__bNpmm8iRB9TjnjWnDhe0` (owned by eliteglobaltravelsng@gmail.com, Google Forms
+era, setup never ran) is **not used** and is left untouched. eliteglobaltravelsng@gmail.com stays as the
+developer/staging-era account (no forwarding).

@@ -76,12 +76,14 @@ node shots.js                                    # desktop/tablet/phone screensh
 node ../gas-test/test.js                         # web app logic against a mock (no Google calls)
 ```
 Or by hand: `npx serve public` → http://localhost:3000, use names starting **`TEST`**, never real passports.
-Afterwards run **`cleanupTestData`** in the Apps Script editor (removes TEST rows from every tab and moves
+Afterwards run **`previewTestData`** (lists the matching Lead IDs, changes nothing), then **`cleanupTestData`** in the Apps Script editor — only names starting with "TEST " in capitals + a space count as test leads (so a customer called "Testimony …" is never removed) (removes TEST rows from every tab and moves
 TEST visa folders to the Drive bin).
 
 ## Part 4 — Put it live
 
-**Option A — client's existing host.** cPanel → File Manager → `public_html` → upload the **contents** of `public/`.
+**Production — elitetravelng.com on Hostinger.** Never upload `public/` itself: `node tools/release/build.js` makes the
+release zip (production web app, canonical URLs, security headers); upload it in hPanel → File Manager →
+`public_html` → Extract. Step by step, with every check: **docs/LAUNCH.md**.
 
 **Staging today:** elite-global-staging.netlify.app is a manual deploy — drag the `public/` folder onto the
 elite-global-staging *Deploys* page. It is not connected to the repo.
@@ -91,20 +93,11 @@ publishes `public/`). Every `git push` to `main` redeploys. *Domain settings →
 DNS records for the client's DNS team. HTTPS is automatic.
 
 
-## Launch: domain and email (last stage — do not start before then)
-Until this is done, **staging emails come from a gmail.com address and may land in Spam/Junk or Promotions** —
-that is expected and is why the website tells customers to check those folders. The company domain is already
-bought (registered elsewhere, not at Hostinger). At the final launch stage, in this order:
-
-1. **Point the domain to Hostinger** — at the company that sold the domain, change its nameservers (or A/CNAME records) to the ones Hostinger shows for the website. DNS changes can take a few hours.
-2. **Deploy the site on Hostinger** — upload the contents of `public/` to the website's `public_html`, turn on free SSL (HTTPS) and check every page loads on `https://` the domain.
-3. **Set up the company mailbox** on the domain (e.g. `info@` the domain) in Hostinger Email, so customers can reply and the address can receive mail.
-4. **Verify the domain in Brevo** — Brevo → Senders, domains & dedicated IPs → Domains → add the domain.
-5. **Add the SPF, DKIM and DMARC DNS records** exactly as Brevo shows them (TXT records; SPF must also include Hostinger mail if the mailbox sends mail). Wait until Brevo shows the domain as authenticated.
-6. **Script Properties** (Apps Script editor → Project Settings → Script Properties): `EMAIL_PROVIDER` = `brevo`, `BREVO_API_KEY` = a new Brevo API key, `SENDER_EMAIL` = the verified company address, `SITE_URL` = `https://` the domain (no slash at the end), `ATTACH_VISA` = `on` (company decision: the Visa Approved email attaches the visa, as on staging). Then run `checkEmailSettings`.
-7. **Send test emails** — run `sendEmailSamples`, then one real application with your own email; check they arrive in the inbox (Gmail, Yahoo and Outlook), with the logo and working links.
-
-The code needs no change for this: everything is Script Properties. Never put the API key in code, chat or documents.
+## Launch: domain and email
+Everything for the launch on **elitetravelng.com** — Workspace (admin@ owns production, info@ for customers), the
+production Apps Script, the Hostinger release, DNS (Google MX, SPF, DKIM, DMARC, Brevo), the trial/billing, the smoke
+test, rollback and staff access — is in **docs/LAUNCH.md**. Until production is live, staging emails come from a
+gmail.com address and may land in Spam/Junk or Promotions; that is expected.
 
 ## Repository mirror
 
@@ -139,6 +132,17 @@ git remote -v   # 1 fetch URL (personal), 2 push URLs (personal, org)
 | Unfinished visa application | Lead Tracker → **Application Status** says `Uploading k/N` (`Expired` after 24 h); the folder link shows what arrived. Follow-up Notes are for staff only |
 
 ## Staff guide — visa review, emails and settings
+
+### What staff can edit (protected columns)
+Staff are editors of the tracker, but only their working columns are open: Customer Name, Phone Number, Email,
+Country, Departure, Adults, Children, Infants, Travel Date, Budget, Lead Status, Assigned Agent, Follow-up Notes,
+Message to Customer, Review Status, Correction For and Send Now. Everything the system writes (Lead ID, Application
+Status, Review Updated, Last Customer Email, Visa Files, Last Change, Emails Sent, …), the header row and the Visa
+Applications, Visa Passengers, Custom Requests, Contact Enquiries, System Info, Due and Archive Index tabs can only
+be edited by the owner account — typing there shows *"You are trying to edit a protected cell"*. Staff cannot add
+or delete rows in the Lead Tracker: new leads come from the website (a walk-in customer: use the contact form).
+To filter or sort, use **Data → Filter views → Create new filter view** (only you see it). The list of staff
+columns is `CONFIG.STAFF_COLUMNS`; run `setupEliteGlobal` after changing it.
 
 ### Review Status (visa applications)
 - When a customer finishes uploading, the Lead Tracker sets **Review Status = Under Review** and the customer gets
@@ -283,6 +287,7 @@ always changed in Script Properties.)
 | Website address in emails | `SITE_URL` | `https://www.your-domain` (no slash at the end) — **set it on production**; default: the staging site |
 | Pause staff / customer emails | `NOTIFY_STAFF` / `NOTIFY_CUSTOMER` | `off` (emails skipped while off are not sent later); delete or `on` to resume |
 | Attach the visa to the Visa Approved email | `ATTACH_VISA` | `on` to attach (up to 15 MB together); `off` or empty: Download button only |
+| Pause new online requests (maintenance) | `FORMS_PAUSED` | Run `pauseForms`: new contact / customise / visa / code requests get a friendly "we're updating" message with the WhatsApp, phone and email links; anything already under way keeps working. Run `resumeForms` to open them again |
 | Check everything | — | Run `checkEmailSettings` (provider, addresses, quota left, queue size; the Brevo key shows only as "set") |
 | Preview every email | — | Run `sendEmailSamples` — 18 samples go to `STAFF_EMAIL` (Visa Approved three times: button only, SPECIMEN visa attached, too large) |
 | Email logo | `public/assets/brand/email-logo.png`, served from the website — run `cd tools/qa && node ../build-email-logo.js` after a logo change, then deploy `public/` |

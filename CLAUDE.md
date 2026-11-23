@@ -18,7 +18,9 @@ exception: a submitted correction appends one "Correction submitted …" line, k
 No Google Forms in the customer journey; the old ones are closed and kept in Drive.
 
 ## Layout
-- `public/` — the ONLY published folder (Netlify publishes it; cPanel gets its contents).
+- `public/` — the ONLY published folder. Staging: dragged to Netlify as it is (`_headers` = noindex). Production:
+  `node tools/release/build.js` makes `release/site` + a zip for Hostinger (production `webAppUrl` from
+  `deploy/production.json`, canonical URLs, `?v=` asset versions, CSP, robots/sitemap, `.htaccess`) — see docs/LAUNCH.md.
   - `index.html`, `apply-visa.html`, `customize-umrah.html` — share `assets/css/site.css` and the logo lockup
     (`assets/css/brand.css` + `assets/brand/*.svg` + `assets/fonts/`; header `eg-brand--light`, footer `eg-brand--dark`).
   - `assets/js/config.js` — **the single `window.SITE_CONFIG`** (company details, `webAppUrl`, team).
@@ -44,6 +46,8 @@ No Google Forms in the customer journey; the old ones are closed and kept in Dri
   and git-ignored.
 - `tools/gas-test/` — the Apps Script logic against an in-memory mock (`node tools/gas-test/test.js`, no deps).
 - `tools/check-lists.js` — list + airport data sync check, and company details in emails (`CONFIG.COMPANY_INFO`) == `config.js` (no deps).
+- `tools/release/` — `build.js` (production release), `check.js` (release + zip), `check-live.js` (live site, GET only).
+  `tools/prod-clasp.ps1` — production clasp (named login `prod`, `.clasp.prod.json`); refuses staging.
 - `tools/build-email-logo.js` — renders `public/assets/brand/email-logo.png` (email header logo) from the footer lockup. `tools/build-airports.js` — regenerates
   the airport data. `tools/qa/` — headless-Chrome QA (`npm install` once) and `shots.js` (screenshots).
 - `docs/` — PRD, runbook, ENVIRONMENTS. `source/` — client originals, git-ignored, never commit.
@@ -55,7 +59,8 @@ No Google Forms in the customer journey; the old ones are closed and kept in Dri
 2. **No Google Forms URLs and no `/edit` URLs on the website.** The only Google URL in `public/` is
    `webAppUrl` (`https://script.google.com/macros/s/…/exec`).
 3. Never commit `source/`, `.clasp.json`, `.clasprc.json`, tokens, passwords or real customer/passport
-   data. Test only with `TEST …` names and generated SPECIMEN files. Run `git status` before every commit
+   data. Test only with `TEST …` names ("TEST" in capitals + a space — `cleanupTestData` never matches "Testimony …";
+   run `previewTestData` first on production) and generated SPECIMEN files. Run `git status` before every commit
    and check what is staged.
 4. Never type passwords or verification codes. Logins (`gh auth login`, `clasp login`, `netlify login`,
    Google sign-in, script authorisation, web app deployment) are done by the operator in the browser.
@@ -81,12 +86,16 @@ No Google Forms in the customer journey; the old ones are closed and kept in Dri
    are one contiguous block; submits carry a submission key (`sid`) so retries never duplicate; anything that grows with
    traffic lives in sheets (Due tab, Emails Sent), never in Script Properties (9 KB per value) or only in CacheService;
    archive = copy → verify → index → delete, never the other way round.
+   Staff access (docs/LAUNCH.md §7): staff edit only `CONFIG.STAFF_COLUMNS`; system columns/tabs are owner-only
+   (`protectForStaff_` in setup) — a new system column must stay out of that list. `pauseForms` / `resumeForms`
+   (`FORMS_PAUSED`) stop new requests during maintenance.
    `TEST_OTP_BYPASS` is for staging only (`enableTestOtpBypass` / `disableTestOtpBypass`) — never on production.
    Functions staff run from the editor take no arguments (the Run button cannot pass any); settings are
    Script Properties, checked with `checkEmailSettings`.
 8. Ask before anything irreversible: deleting the Drive folder, `resetSetupFlag`, archiving a
    deployment, force-push, changing DNS, or deleting the GitHub repo. Never run `tools/qa/run.js live`
-   against production.
+   against production (every live suite refuses unless `config.js` points at the staging web app).
+   Production clasp commands only through `tools/prod-clasp.ps1`, after the operator's `clasp login --user prod`.
 
 ## Verify before every commit that touches `public/` or `apps-script/`
 - `node tools/check-lists.js` passes.
@@ -129,6 +138,10 @@ cd tools/qa && node run.js static        # browser QA, sends nothing
 cd tools/qa && node shots.js             # desktop/tablet/phone screenshots (git-ignored)
 node tools/gas-test/test.js              # Apps Script logic, mocked (run before clasp push)
 node tools/build-airports.js             # refresh airport data (then check-lists, commit both copies)
+node tools/release/build.js              # production release (release/site + zip); --preview = staging web app
+node tools/release/check.js              # release checks; then: cd tools/qa && node run.js static --root ../../release/site
+node tools/release/check-live.js         # live site checks (GET only); --staging = Netlify noindex
+powershell -ExecutionPolicy Bypass -File tools/prod-clasp.ps1 push   # production clasp (refuses staging)
 clasp show-authorized-user               # which Google account clasp uses
 clasp push                               # upload apps-script/ (to the project in .clasp.json)
 clasp list-deployments                   # deployment IDs (web app URL = …/macros/s/<id>/exec)

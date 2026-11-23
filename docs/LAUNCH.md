@@ -1,6 +1,7 @@
 # LAUNCH — production on elitetravelng.com (runbook)
 
-Status: **plan, not built yet** (branch `launch-prod`, from `main` @ `86d2604`).
+Status: **approved 23 Nov 2026; everything that doesn't need Workspace is built** (branch `launch-prod`).
+The only waits left are Google (Workspace verification and payment), DNS, and Brevo's checks.
 Staging stays exactly as it is: Netlify (manual drag) + the staging Apps Script (`1H510Iw…`, deployment
 `AKfycbzSBOiav…`). Nothing in this runbook touches staging data or its `/exec` URL.
 
@@ -11,15 +12,17 @@ Staging stays exactly as it is: Netlify (manual drag) + the staging Apps Script 
 
 **Hard rules that stay in force:**
 - **Production data:**
-  - No live QA suite (`run.js live`, `load-live.js`, `*-live.js`) against production, ever.
+  - No live QA suite (`run.js live`, `load-live.js`, `*-live.js`) against production, ever. They refuse unless `config.js` points at staging (`tools/qa/staging-only.js`).
   - `TEST_OTP_BYPASS` is never set on production.
   - No real data on staging.
 - **Logging and email:**
   - Never log email, name, code or token.
-  - The only email address in code is the company one.
+  - The only email address in code is the company one (info@elitetravelng.com).
 - **Git:** never commit `.clasp*.json` (except the example), `.clasprc.json`, `source/` or tokens. No force-push.
 
 ## Contents
+- [Decisions (23 Nov 2026)](#decisions-23-nov-2026)
+- [What's built](#whats-built)
 - [Target picture](#target-picture)
 - [1. Production Apps Script](#1-production-apps-script)
 - [2. Website release for Hostinger](#2-website-release-for-hostinger)
@@ -27,8 +30,46 @@ Staging stays exactly as it is: Netlify (manual drag) + the staging Apps Script 
 - [4. DNS records in Hostinger](#4-dns-records-in-hostinger)
 - [5. Google Workspace trial and plan](#5-google-workspace-trial-and-plan)
 - [6. Go-live checklist, smoke test, rollback](#6-go-live-checklist-smoke-test-rollback)
-- [Build work (after approval)](#build-work-after-approval)
-- [Open questions](#open-questions)
+- [7. Access rules and staff access checklist](#7-access-rules-and-staff-access-checklist)
+
+---
+
+## Decisions (23 Nov 2026)
+
+| # | Question | Decision |
+|---|---|---|
+| 1 | STAFF_EMAIL | `admin@elitetravelng.com` for now; staff addresses later (comma-separated) |
+| 2 | Sender until Brevo | admin@elitetravelng.com (MailApp), Reply-To info@; Brevo then sends from info@ |
+| 3 | Hero image | Copied into the site (`assets/img/hero-1600.webp`, `hero-800.webp`); no Unsplash request |
+| 4 | Existing mail on the domain | None (Go54 confirmed; no Hostinger email created). MX can move to Google straight away |
+| 5 | DMARC reports | admin@elitetravelng.com |
+| 6 | Staff Drive access | **Editor on the "Visa Applications" folder only** (they upload approved visas). Never the root folder, the Apps Script, the Email Log, archive files or other system files |
+| 7 | Seats | 4 staff + admin@ = **5 Workspace users** |
+| 8 | HSTS | `max-age=86400` (1 day) first; 1 year (`31536000`) after a week without problems; no preload |
+| 9 | Forms-paused switch | Built (`pauseForms` / `resumeForms`) |
+| 10 | eliteglobaltravelsng@gmail.com | Left as it is (staging/developer account); no forwarding, no auto-reply |
+| 11 | Go-live | As soon as possible: within 1–2 days after Google verifies the Workspace payment |
+
+---
+
+## What's built
+All of it is on `launch-prod`. Every commit passed `check-lists`, `gas-test` and the static QA.
+
+| # | Commit | What |
+|---|---|---|
+| B1 | `chore: ignore per-environment clasp files; add production clasp wrapper` | `.clasp.*.json` and `/release/` are git-ignored. `tools/prod-clasp.ps1` refuses staging and any login that is not @elitetravelng.com |
+| B2 | `chore(qa): refuse every live suite unless config.js points at staging` | `tools/qa/staging-only.js` + self-test in the static run; `run.js --root` |
+| B3 | `content(site): use info@elitetravelng.com as the company email` | `config.js`, `COMPANY_INFO`, tests; `check-lists` checks the domain |
+| — | `content(site): serve the hero image from the site instead of Unsplash` | Decision 3 |
+| B4 | `feat(site): add 404 page and noindex staging headers` | `public/404.html`, `public/_headers` |
+| B6 | `fix(forms): only remove capital "TEST " leads; add previewTestData` | "Testimony …" is safe. Lead IDs restart only if nothing was ever archived |
+| B7 | `feat(forms): forms-paused switch for maintenance` | §6.3 |
+| B9 | `feat(forms): protect system columns and tabs so only the owner can edit` | §7 |
+| — | `feat(forms): stop editors re-sharing the tracker and Visa Applications folder` | §7 |
+| B5 | `chore: add production release build and checks` | `tools/release/{build,check,check-live}.js`, `deploy/production.json` |
+| B8 | `docs: …` | This runbook, ENVIRONMENTS, CLAUDE.md, README, PRD |
+
+The Apps Script changes (B6, B7, B9) are on **staging** too: `clasp push` + `update-deployment AKfycbzSBOiav…`, with `"schema":9` unchanged.
 
 ---
 
@@ -39,46 +80,43 @@ Staging stays exactly as it is: Netlify (manual drag) + the staging Apps Script 
 | Website | elite-global-staging.netlify.app (drag `public/`), **noindex** | https://elitetravelng.com on Hostinger (upload the release zip in hPanel) |
 | Google account | saniabdulmumin70@gmail.com | **admin@elitetravelng.com** (Workspace Business Standard) |
 | Apps Script | `1H510Iw…`, `/exec` `AKfycbzSBOiav…` | New project "Elite Global Lead System" owned by admin@, new `/exec` |
-| Tracker + Drive | staging copies, TEST data only | New tracker, Drive folders, Email Log, all owned by admin@ |
-| clasp | default credentials + `.clasp.json` | named user `prod` + `.clasp.prod.json` (both git-ignored) |
+| Tracker + Drive | Staging copies, TEST data only | New tracker, Drive folders, Email Log, all owned by admin@ |
+| clasp | Default credentials + `.clasp.json` | Named user `prod` + `.clasp.prod.json` (both git-ignored), via `tools/prod-clasp.ps1` |
 | Customer email | — | info@elitetravelng.com (Workspace group): Reply-To, footer, website |
-| Sending | MailApp | MailApp (as admin@) → Brevo (from info@) once Brevo is verified |
+| Sending | MailApp | MailApp (from admin@, Reply-To info@) → Brevo (from info@) once Brevo is verified |
 
-The old "production" project in ENVIRONMENTS.md (`1Lhrr8…`, owned by eliteglobaltravelsng@gmail.com) is **not used**.
-We leave it untouched and mark it retired in ENVIRONMENTS.md.
+The old "production" project (`1Lhrr8…`, owned by eliteglobaltravelsng@gmail.com) is **not used**. It stays untouched and is marked retired in ENVIRONMENTS.md.
 
 ---
 
 ## 1. Production Apps Script
 
 ### 1.1 Prepare admin@ (🧑)
-1. **Sign-in:** sign in to admin@elitetravelng.com and turn on **2-Step Verification**. This account will own passports.
-2. **Admin console → Security → Access and data control → API controls:** leave Apps Script allowed (the default).
-3. **Admin console → Apps → Google Workspace → Drive and Docs → Sharing settings:** sharing outside the organisation must be **ON** for admin@'s unit.
-   - Without it, Google hides the web app's "Anyone" access option, and the website cannot post.
-   - Files stay private, because the code never changes Drive sharing.
+1. **Sign-in:** sign in to admin@elitetravelng.com and turn on **2-Step Verification**. This account owns passports.
+2. **Org units:** Admin console → Directory → **Organizational units** → create **`Staff`**. admin@ stays in the top unit, and the 4 staff accounts go into `Staff` later (§7).
+3. **External sharing:** Admin console → Apps → Google Workspace → Drive and Docs → **Sharing settings**.
+   - **Top unit (admin@): sharing outside Elite Global = ON.** Without it, Google hides the web app's "Anyone" access option, and the website cannot post. Files stay private, because the code never changes Drive sharing.
+   - **`Staff` unit: sharing outside = OFF.** Staff can't share any file outside the company.
 4. **Apps Script API:** open https://script.google.com/home/usersettings as **admin@** and set **Google Apps Script API → On**.
 5. **New project:** in the same session, script.google.com → **New project** → rename it "Elite Global Lead System".
    - Project Settings → time zone **Africa/Lagos**.
    - Copy the **Script ID** and send it to me.
-- ✅ The Script ID you send is not the staging one (`1H510Iw…`). I check this.
+- ✅ The Script ID is not the staging one (`1H510Iw…`). The wrapper also refuses it.
 
 ### 1.2 Separate clasp login and config (🧑 login, 🤖 config)
-clasp 3.4.1 supports named credentials (`--user`) and a project file (`-P`), so staging and production never mix:
-1. 🧑 Run `! clasp login --user prod` and choose **admin@elitetravelng.com** in the browser.
-2. 🤖 Add `.clasp.*.json` to `.gitignore` (`.clasp.json.example` stays tracked).
-3. 🤖 Create `.clasp.prod.json`: `{"scriptId":"<prod id>","rootDir":"apps-script", …}`.
-4. 🤖 **Every production command takes this form:**
+1. 🧑 Run `! clasp login --user prod` and choose **admin@elitetravelng.com** in the browser. Your staging login stays as it is.
+2. 🤖 I create `.clasp.prod.json` (git-ignored): `{"scriptId":"<prod id>","rootDir":"apps-script"}`.
+3. 🤖 **Every production command goes through the wrapper:**
    ```
-   clasp --user prod -P .clasp.prod.json <command>
+   powershell -ExecutionPolicy Bypass -File tools/prod-clasp.ps1 <command>
    ```
-   `tools/prod-clasp.ps1` wraps it. Before every command, the wrapper checks two things:
-   - `show-authorized-user` says admin@elitetravelng.com;
-   - the scriptId is not staging.
+   It runs `clasp --user prod -P .clasp.prod.json <command>`. It refuses in four cases:
+   - `.clasp.prod.json` is missing;
+   - the scriptId is the staging one;
+   - the command names the staging deployment;
+   - the `prod` login is not an @elitetravelng.com account.
 
-   If either fails, it refuses.
-
-Plain `clasp push` keeps going to **staging**, as today.
+   Plain `clasp push` keeps going to **staging**.
 - ✅ `clasp --user prod show-authorized-user` → admin@elitetravelng.com.
 - ✅ `git status` shows no `.clasp.prod.json`.
 
@@ -86,224 +124,190 @@ Plain `clasp push` keeps going to **staging**, as today.
 
 | Property | Production value | Notes |
 |---|---|---|
-| `SITE_URL` | `https://elitetravelng.com` | No trailing slash. Email links and the email logo use it, and it blocks `TEST_OTP_BYPASS` (that needs "staging" in SITE_URL). |
-| `OWNER_EMAIL` | admin@elitetravelng.com | Or run `setOwnerEmail` as admin@ (no argument = the current account). |
-| `STAFF_EMAIL` | **? (question 1)** | Staff alerts + daily summary. One address or several, comma-separated. |
-| `ATTACH_VISA` | `on` | The Visa Approved email attaches the visa (≤ 15 MB). |
-| `EMAIL_PROVIDER` | `mailapp` | → `brevo` only after Brevo's domain is verified (§4). |
-| `NOTIFY_STAFF` / `NOTIFY_CUSTOMER` | not set (= on) | |
-| `BREVO_API_KEY`, `SENDER_EMAIL` | later: key, `info@elitetravelng.com` | Set when switching to Brevo; the key is never in code or docs. |
-| `TEST_OTP_BYPASS` | **never** | `setTestOtpBypass` also refuses, because SITE_URL has no "staging". |
+| `SITE_URL` | `https://elitetravelng.com` | No trailing slash. Email links and the email logo use it, and it blocks `TEST_OTP_BYPASS` (that needs "staging" in SITE_URL) |
+| `OWNER_EMAIL` | `admin@elitetravelng.com` | Or run `setOwnerEmail` as admin@ (no argument = the current account) |
+| `STAFF_EMAIL` | `admin@elitetravelng.com` | Staff alerts + daily summary. Add staff later, comma-separated |
+| `ATTACH_VISA` | `on` | The Visa Approved email attaches the visa (≤ 15 MB) |
+| `EMAIL_PROVIDER` | `mailapp` | Change to `brevo` only after Brevo's domain is verified (§4) |
+| `NOTIFY_STAFF` / `NOTIFY_CUSTOMER` | Not set (= on) | |
+| `BREVO_API_KEY`, `SENDER_EMAIL` | Later: the key, `info@elitetravelng.com` | Set when switching to Brevo; the key is never in code or docs |
+| `TEST_OTP_BYPASS` | **Never** | `setTestOtpBypass` also refuses, because SITE_URL has no "staging" |
+| `FORMS_PAUSED` | Not set | Only through `pauseForms` / `resumeForms` (§6.3) |
 
-`OTP_SECRET`, `SCHEMA_VERSION`, the folder/tracker IDs and `EMAIL_LOG_ID` are created by setup. Never copy them from staging.
+Setup creates `OTP_SECRET`, `SCHEMA_VERSION`, the folder and tracker IDs, and `EMAIL_LOG_ID`. Never copy them from staging.
 
 ### 1.4 Code upload and setup
-1. 🤖 **Checks:** `node tools/check-lists.js`, `node tools/gas-test/test.js` and `cd tools/qa && node run.js static` must all be green on `launch-prod`.
+1. 🤖 **Checks:** `node tools/check-lists.js`, `node tools/gas-test/test.js` and `cd tools/qa && node run.js static`, all green.
 2. 🤖 **Upload:** `prod-clasp push`.
-3. 🧑 **Setup:** in the production editor, run `setupEliteGlobal` and authorise as admin@ (Advanced → Go to … → Allow).
+3. 🧑 **Setup:** in the production editor (`prod-clasp open-script`), run `setupEliteGlobal` and authorise as admin@ (Advanced → Go to … → Allow).
    - The log must end with **✅ SETUP COMPLETE**.
    - It must show no ⚠️ SITE_URL line.
+   - It must show the line "Staff access: Lead Tracker open for staff in 17 columns only …".
 4. 🧑 **Settings:** run `checkEmailSettings` and send me the log. It contains no customer data.
 - ✅ **Tracker and Drive:** the tracker, Drive folder, Visa Applications folder and Email Log exist in admin@'s Drive. Their links are in the tracker's System Info tab.
-- ✅ **Settings log:** SITE_URL is elitetravelng.com, the provider is mailapp, ATTACH_VISA is on, TEST_OTP_BYPASS is off, and the MailApp quota is shown.
+- ✅ **Settings log:** SITE_URL is elitetravelng.com, the provider is mailapp, ATTACH_VISA is on, TEST_OTP_BYPASS is off, FORMS_PAUSED is off, and the MailApp quota is shown.
 - ✅ **Triggers** (Editor → ⏰ Triggers): exactly **4**:
   - `onTrackerEdit` (on edit, tracker);
   - `runEmailJobs` (every 5 min);
   - `runArchive` (daily, 02:00);
   - `sendDailySummary` (daily, 08:00).
 
-  Setup never creates duplicates, so running it again must still show 4.
+  Running setup again must still show 4.
 
 ### 1.5 Deploy the web app
 1. 🤖 **Deploy:** `prod-clasp create-deployment -d "production v1"`. This uses the manifest: execute as **the deploying user**, access **Anyone (anonymous)**.
-2. 🤖 **Record:** I put the Deployment ID and the `/exec` URL in `deploy/production.json` and ENVIRONMENTS.md. They are public anyway, because the website calls them.
+2. 🤖 **Record:** I put the Deployment ID, the `/exec` URL and the scriptId in `deploy/production.json` and ENVIRONMENTS.md, and commit them. They are public anyway, because the website calls them.
 3. **Every later production deploy:** `prod-clasp update-deployment <prod id> -d "production vN"`, so the `/exec` URL never changes.
-- ✅ **Health check:** a GET on the prod `/exec` returns `{"ok":true,…,"schema":9}`. Read-only, no data.
+- ✅ **Health check:** a GET on the prod `/exec` returns `{"ok":true,…,"schema":9}`. Read-only.
 - ✅ **Signed out:** an incognito window opens the `/exec` URL without a Google sign-in. That proves the "Anyone" access works on Workspace.
-
-### 1.6 Permissions for staff (🧑, later)
-- **Tracker:** staff accounts get **Editor on the tracker only**.
-- **Folders:** do not share the Drive folders or the Email Log (but see question 6).
-- **Triggers:** they run as admin@, so staff edits still send status emails.
 
 ---
 
 ## 2. Website release for Hostinger
 
-### 2.1 Build step — `node tools/release/build.js` (🤖 writes it; no dependencies)
-**Input:** `public/` (unchanged; staging keeps using it as is) and `deploy/production.json`:
-```json
-{ "siteUrl": "https://elitetravelng.com", "webAppUrl": "https://script.google.com/macros/s/<prod id>/exec" }
-```
-**Output:** `release/site/` (git-ignored) and `release/elitetravelng-<yyyymmdd>-<commit>.zip`.
+### 2.1 Build — `node tools/release/build.js` (🤖)
+**Input:** `public/` (unchanged; staging keeps using it as is) and `deploy/production.json` (`siteUrl`, `webAppUrl`, `hstsMaxAge`).
+**Output:** `release/site/`, `release/elitetravelng-<yyyymmdd>-<commit>.zip`, `release/RELEASE-NOTES.txt` (all git-ignored).
 
-The build:
-1. **Copies** `public/` and leaves out `_headers` (Netlify-only).
-2. **`assets/js/config.js`:** replaces `webAppUrl` with the production URL. It stops if the staging deployment ID is still present anywhere.
-3. **Each HTML page:**
-   - **Canonical and og:url:**
-     - `<link rel="canonical">` and `og:url` on the indexable pages: `/` for index, `/apply-visa.html`, `/customize-umrah.html`.
-     - `track.html` and `correct-visa.html` keep `noindex` and get no canonical.
-   - **Asset versions:** every local CSS/JS link gets `?v=<commit>`, so files can be cached for a year and still update on release.
-   - **CSP meta tag:** a `Content-Security-Policy` meta tag (same policy as .htaccess, without `frame-ancestors`), so local QA sees any violation as a console error.
-4. **Writes:**
-   - `robots.txt`: allow all and point to the sitemap.
-   - `sitemap.xml`: the 3 indexable pages, `lastmod` = the release date.
-   - `.htaccess`: see 2.2.
-5. **Zips it** with Windows' built-in `tar -a -cf` (it includes `.htaccess`, which Explorer's "Send to → zip" can drop).
+**The build:**
+- **Clean tree:** refuses with uncommitted changes in `public/`, `deploy/` or `tools/release/`.
+- **Web app address:** refuses until `webAppUrl` is a production `/exec` URL.
+- **Copies** `public/` without `_headers` and sets the production `webAppUrl` in `config.js`.
+- **Each page:**
+  - **Asset versions:** CSS/JS links get `?v=<commit>`.
+  - **CSP meta tag:** a `Content-Security-Policy` meta tag (the inline script is allowed by its sha256 hash).
+  - **Canonical:** canonical URLs on index, apply-visa and customize-umrah, plus `og:url` on index. Track, correct-visa and 404 must have noindex.
+- **Writes** `robots.txt`, `sitemap.xml` (the 3 indexable pages) and `.htaccess`.
+- **Zips it** with Windows' own `tar.exe`. The zip includes `.htaccess`, and its files sit at the top level.
+- **Release notes:** list files removed since the last release (delete those on the server by hand).
 
-**Release check — `node tools/release/check.js` (🤖 runs it after every build; it fails on any miss):**
-- **Web app URL:** it is the production one in `config.js`.
-- **Nothing left from staging in `release/site`:** no `AKfycbzSBOiav…`, no `netlify`, no `eliteglobaltravelsng@gmail.com`, no `localhost`, no Google Forms and no `/edit` URLs.
-- **Page tags:** canonical, robots and sitemap match the domain.
-- **Zip contents:** the zip contains `.htaccess`, `404.html`, `robots.txt` and `sitemap.xml`.
-- **Browser QA:** `node run.js static` against `release/site` (new `--root` option) must pass. It sends nothing, except the read-only GET health check, which now hits the production web app.
+`node tools/release/build.js --preview` makes `release/site/` with the **staging** web app and no zip. It exists only so the QA can run on the release before production exists.
 
-### 2.2 `.htaccess` (Hostinger runs LiteSpeed, which reads `.htaccess`)
-- **Redirects:** `http://` → `https://` and `www.` → `https://elitetravelng.com`. One 301, in a single rule, so there is no redirect chain.
-  - Leave hPanel's "Force HTTPS" **off**, so the two don't stack.
+**Checks before every upload (🤖):**
+1. `node tools/release/check.js`:
+   - **Web app:** the production web app is in `config.js`.
+   - **Nothing left from staging:** no staging web app, Netlify, gmail address, localhost, Google Forms, `/edit` or Unsplash in the release.
+   - **Pages:** `?v=` on every CSS/JS link, CSP on every page, canonical/noindex per page, robots and sitemap.
+   - **`.htaccess`:** every rule is present.
+   - **Zip:** it is complete, at the top level.
+2. `cd tools/qa && node run.js static --root ../../release/site`: the whole static QA on the release, with the CSP on. Any violation is a console error and fails the run.
+   - **Tried on 23 Nov:** a preview build passes all 353 checks.
+
+### 2.2 `.htaccess` (Hostinger runs LiteSpeed)
+- **Redirects:**
+  - One **301** to `https://elitetravelng.com/` for http and www (a single rule, no chain).
+  - `/.well-known/` is never redirected (certificate renewal).
+  - Leave hPanel's **Force HTTPS off** so the two don't stack.
 - **Basics:**
-  - `DirectoryIndex index.html`, `Options -Indexes`.
-  - Deny dotfiles and `*.map`, `*.md`, `*.zip`.
-  - `ErrorDocument 404 /404.html`.
+  - `Options -Indexes`, `DirectoryIndex index.html`, `ErrorDocument 404 /404.html`.
+  - Dotfiles and `*.md|map|zip|bak|log|ps1|sh` are blocked.
 - **Caching:**
 
   | Files | Cache-Control |
   |---|---|
-  | HTML | `no-cache` (always revalidated) |
-  | CSS/JS (versioned) and fonts | `public, max-age=31536000, immutable` |
-  | Images, SVG, `airports.json` | `max-age=604800` (7 days) |
+  | HTML | `no-cache` |
+  | CSS/JS/woff2 | `max-age=31536000, immutable` |
+  | Images, SVG, JSON | 7 days |
+  | XML/TXT | 1 hour |
 
-  Compression (gzip/brotli) is on for text types.
+  Compression is on for text types.
 - **Security headers:**
-  - **HSTS:** `Strict-Transport-Security: max-age=86400` at first, raised to `31536000` after a week with no problems. No `preload` (question 8).
-  - **Others:** `X-Content-Type-Options: nosniff`, `Referrer-Policy: strict-origin-when-cross-origin`, `X-Frame-Options: DENY`, and `Permissions-Policy: geolocation=(), microphone=(), camera=(), payment=()` (file pickers still work).
-  - **Content-Security-Policy:** `default-src 'self'; script-src 'self' 'sha256-<hash of the 1-line js class script>'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src https://script.google.com https://script.googleusercontent.com; frame-ancestors 'none'; base-uri 'self'; form-action 'self'`.
-    - The build computes the hash.
-    - `connect-src` includes googleusercontent, because Apps Script redirects there for the reply.
-    - If the hero image stays on Unsplash, `img-src` also needs `https://images.unsplash.com` (question 3).
+  - `Strict-Transport-Security: max-age=86400` (from `deploy/production.json` → `hstsMaxAge`; raise it to 31536000 after a week and release again).
+  - `X-Content-Type-Options: nosniff`, `Referrer-Policy: strict-origin-when-cross-origin`, `X-Frame-Options: DENY`.
+  - `Permissions-Policy: geolocation=(), microphone=(), camera=(), payment=(), usb=()`, `Cross-Origin-Opener-Policy: same-origin`.
+  - **`Content-Security-Policy`:** `default-src 'self'; script-src 'self' 'sha256-…'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self' https://script.google.com https://script.googleusercontent.com; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; upgrade-insecure-requests`.
 
-### 2.3 404 page (🤖)
-- **New `public/404.html`:** the same header and footer, "Page not found", buttons to Home, Apply for a visa and Track.
-- **Paths:** absolute asset paths (`/assets/…`), so it works at any depth.
-- **Staging:** Netlify serves it automatically too.
-
-### 2.4 Staging gets noindex (🤖)
-- **New `public/_headers`** (Netlify only, left out of the production build):
-  ```
-  /*
-    X-Robots-Tag: noindex, nofollow
-  ```
-- **No robots.txt on staging:** crawlers must be able to fetch the pages to see the noindex.
-- ✅ After your next Netlify drag, `curl -sI https://elite-global-staging.netlify.app/` shows the `X-Robots-Tag` header.
+### 2.3 404 page and 2.4 staging noindex
+- **404 page:** `public/404.html` uses absolute paths, so it works at any depth. Netlify serves it too.
+- **Staging noindex:** `public/_headers` (Netlify only, never in the release) sends `X-Robots-Tag: noindex, nofollow`.
+  - ✅ After your next Netlify drag: `node tools/release/check-live.js --staging`.
 
 ### 2.5 Upload to Hostinger (🧑, hPanel File Manager)
 1. **Open the folder:** hPanel → Websites → elitetravelng.com → **File Manager** → `public_html`.
 2. **First time only:**
-   - Download a backup of whatever is there.
-   - Delete Hostinger's placeholder (`default.php`, `index.php`/old files).
-   - Keep nothing else unless I've checked it.
-3. **Upload:** upload `elitetravelng-<date>-<commit>.zip` → right-click → **Extract** → into `public_html` (not a subfolder) → delete the zip.
-4. **Hidden files:** File Manager → Settings → **Show hidden files** → confirm `.htaccess` is there.
-5. **Later releases:** the same steps. Extract and overwrite. If a file was removed from the site, delete it by hand (I'll list any in the release notes).
-6. **Keep the zip:** keep the previous release zip on your PC. It is the rollback.
-- ✅ 🤖 **`node tools/release/check-live.js https://elitetravelng.com`** (GET/HEAD only, no form posts):
-  - **Redirects:** http→https and www→apex each give a single 301.
-  - **Pages:** every page returns 200 with the right canonical.
-  - **Web app:** `config.js` has the production `/exec`.
+   - Download a backup of what's there.
+   - Delete Hostinger's placeholder files (`default.php`, `index.php` …).
+3. **Upload:** upload the zip → right-click → **Extract** → into `public_html` itself (not a subfolder) → delete the zip.
+4. **Hidden files:** File Manager → Settings → **Show hidden files** → `.htaccess` is there.
+5. **Later releases:** the same steps (Extract overwrites). Delete by hand any file that `RELEASE-NOTES.txt` lists as removed.
+6. **Keep the zip:** keep every release zip on your PC. The previous one is the rollback.
+- ✅ 🤖 **`node tools/release/check-live.js`** (GET/HEAD only, never a form post):
+  - **Redirects:** http, www and https-www each give **one 301** to the bare https domain.
+  - **Pages:** every page returns 200 with its canonical or noindex.
   - **Headers:** the security headers and cache headers are present.
-  - **Missing pages:** `/nope` returns **404** with our page.
+  - **Web app:** `config.js` has the production `/exec` and is cached for a year.
+  - **Images and logo:** images are cached for a week, and the email logo is online.
+  - **Missing pages:** a missing page → **404** with our page.
   - **Robots and sitemap:** `robots.txt` and `sitemap.xml` are OK.
-  - **TLS:** the certificate covers apex and www.
-  - **Health check:** the web app GET answers `schema 9`.
+  - **Hidden files:** `.htaccess`, `assets/.htaccess` and `README.md` are not served.
+  - **Health check:** the production web app answers `schema 9`, not paused.
+  - **Tried on 23 Nov:** the domain shows Hostinger's placeholder and its www redirect isn't set up yet. The checks will pass after the first upload.
 
 ---
 
 ## 3. Company email → info@elitetravelng.com
-
-### 🤖 Code (one commit, `content(site): use info@elitetravelng.com as the company email`)
-- **Company details:**
-  - `public/assets/js/config.js` → `company.email`.
-  - `apps-script/Config.gs` → `CONFIG.COMPANY_INFO.email`. It is the Reply-To, footer and "add us to your contacts" line in every email, and the Brevo `replyTo`.
-- **Tests:** `tools/check-lists.js` already checks that the two are equal. I add a check that it is `@elitetravelng.com` and not a gmail.com address.
-- **Expected values:** `tools/gas-test/test-email.js` (5 expectations), `tools/qa/site.js` (mailto link).
-- **Docs:** README, PRD, CLAUDE.md hard rules ("No email address in code except the company one" → info@elitetravelng.com), ENVIRONMENTS.md.
-- **Staging gets the same change,** because the code is shared. Staging emails then show Reply-To info@. That's harmless.
-- ✅ `check-lists`, `gas-test`, `run.js static`, and `grep -r eliteglobaltravelsng public apps-script tools` returns nothing.
-
-### 🧑 Workspace group info@
-- **Group settings:** **Who can post: Anyone on the web.** Without it, customer replies bounce.
-- **Members:** admin@ now, staff later.
-- **Delivery:** each member gets every email (or use a Collaborative Inbox).
-- ✅ Send a mail from a personal Gmail to info@: it arrives at admin@, and a reply goes out from the right place.
-
-### Sender while on MailApp
-- **Who sends:** MailApp always sends **from the script owner** (admin@elitetravelng.com). The name is "Elite Global World Travel & Tours" and Reply-To is info@.
-- **After Brevo:** emails come **from info@** (`SENDER_EMAIL`).
-- **Question 2:** do we accept admin@ as the From address until then?
+- 🤖 **Done in code (B3):**
+  - The website contact link, the Reply-To, the email footer, "add us to your contacts" and the Brevo `replyTo` all use info@.
+  - `check-lists` fails if it isn't info@elitetravelng.com.
+- **Staging:** it gets the same change after your next Netlify drag. Its emails' Reply-To becomes info@, which is harmless.
+- 🧑 **Create the group:** Admin console → Directory → **Groups** → create **info@elitetravelng.com**.
+  - **Who can post:** *Anyone on the web*. Without it, customer replies bounce.
+  - **Members:** admin@ now, staff later.
+  - **Delivery:** each member gets every email (or turn on Collaborative Inbox).
+- ✅ Send a mail from a personal Gmail to info@: it arrives at admin@.
+- **Sender until Brevo (decision 2):** MailApp sends **from admin@elitetravelng.com** as "Elite Global World Travel & Tours", with Reply-To info@.
 
 ---
 
 ## 4. DNS records in Hostinger (🧑 adds, 🤖 verifies with public DNS lookups)
+**Where:** hPanel → Domains → elitetravelng.com → **DNS / Nameservers**. The domain must use Hostinger's nameservers.
 
-**Where:** hPanel → Domains → elitetravelng.com → **DNS / Nameservers** → DNS records.
-The domain must use Hostinger's nameservers (`ns1/ns2.dns-parking.com`). If it still uses Go54's, change that first.
-
-**Day 0, before anything else:**
-- **Screenshot** the whole zone.
-- **TTL:** lower the TTL of existing MX/TXT records to 300 s.
-- **Delete** Hostinger's mail defaults if present:
-  - `MX` `mx1/mx2.hostinger.com`;
-  - `TXT v=spf1 include:_spf.mail.hostinger.com …`;
-  - `CNAME autodiscover`/`autoconfig`;
-  - any Hostinger DKIM.
-
-  Also delete Go54 leftovers. There must be **one** SPF record only. See question 4 on existing mailboxes.
-- **Keep:** the website records (`A @` → the Hostinger IP, `CNAME www` → `elitetravelng.com`, or as hPanel set them).
+**Day 0:**
+- **Screenshot** the whole zone, and lower the TTL of the records you change to 300 s.
+- **Delete** any Hostinger mail defaults (`MX mx1/mx2.hostinger.com`, `TXT v=spf1 include:_spf.mail.hostinger.com …`, `autodiscover`/`autoconfig` CNAMEs). No mailboxes are in use (decision 4).
+- **Keep** the website records (`A @`, `CNAME www` or `A www`). For the www redirect, `www` must reach Hostinger, and hPanel's SSL must cover **both** `elitetravelng.com` and `www.elitetravelng.com`.
+- **One SPF only:** there must be a single SPF record.
 
 | # | Type | Name | Value | When |
 |---|---|---|---|---|
-| 1 | TXT | `@` | `google-site-verification=…` (copied from Google Admin) | Day 0 → Admin: **Verify** |
-| 2 | MX | `@` | `smtp.google.com`, priority **1** (Google's current single MX) | After verification |
-| 3 | TXT | `@` | `v=spf1 include:_spf.google.com ~all` → once Brevo is set up: `v=spf1 include:_spf.google.com include:spf.brevo.com ~all` (only if Brevo's Domains page asks for it) | Day 0 |
+| 1 | TXT | `@` | `google-site-verification=…` (from Google Admin) | Day 0 → Admin: **Verify** |
+| 2 | MX | `@` | `smtp.google.com`, priority **1** | Right after verification |
+| 3 | TXT | `@` | `v=spf1 include:_spf.google.com ~all` → after Brevo: `v=spf1 include:_spf.google.com include:spf.brevo.com ~all` (only if Brevo's Domains page asks for it) | Day 0 |
 | 4 | TXT | `google._domainkey` | `v=DKIM1; k=rsa; p=…` from Admin → Apps → Gmail → **Authenticate email** → Generate (**2048-bit**) | Day 0, then **Start authentication** after ~24–48 h |
 | 5 | TXT | `brevo-code` (as shown) | `brevo-code:…` | When Brevo is set up |
-| 6 | CNAME | `brevo1._domainkey`, `brevo2._domainkey` | the targets Brevo shows (copy exactly) | When Brevo is set up |
-| 7 | TXT | `_dmarc` | `v=DMARC1; p=none; rua=mailto:<reports address>; fo=1` (question 5) | Day 0 |
+| 6 | CNAME | `brevo1._domainkey`, `brevo2._domainkey` | The targets Brevo shows (copy exactly) | When Brevo is set up |
+| 7 | TXT | `_dmarc` | `v=DMARC1; p=none; rua=mailto:admin@elitetravelng.com; fo=1` | Day 0 |
 
-**Notes:**
-- **Long TXT values:** Hostinger accepts long TXT values. Paste the DKIM key as one string, without quotes splitting it.
-- **DMARC stages:** after 2–4 weeks of clean reports (Google and Brevo both pass), change to `p=quarantine; pct=25` → `p=quarantine` → `p=reject`. Each step is its own decision.
+**DMARC stages:** after 2–4 weeks of clean reports (Google and Brevo both pass), change to `p=quarantine; pct=25` → `p=quarantine` → `p=reject`. Each step is its own decision.
 
 **✅ Verify:**
 - 🤖 **Public DNS:** `nslookup -type=TXT elitetravelng.com 8.8.8.8`, the same for `MX`, `_dmarc` and `google._domainkey`.
 - 🧑 **Google:** Google Admin shows the domain verified, Gmail active and DKIM "Authenticating email".
-- 🧑 **Inbound:** a test mail from outside arrives in admin@.
-- 🧑 **Outbound:** an email from the production script to a Gmail address shows `SPF: PASS`, `DKIM: PASS (elitetravelng.com)` and `DMARC: PASS` (Show original). Optional: mail-tester.com score ≥ 9.
-- 🧑 **Brevo:** the domain shows **Authenticated**, and a Brevo test mail shows DKIM aligned to elitetravelng.com and DMARC PASS. Only then: `EMAIL_PROVIDER=brevo`, `BREVO_API_KEY`, `SENDER_EMAIL=info@elitetravelng.com`, and run `checkEmailSettings` + `sendEmailSamples`.
-- **Brevo plan:** Brevo free = 300/day. At the expected volume (~3,000 emails/day at 500 applications/day) a paid plan is needed, sized for ~90k/month. MailApp on Workspace is ~1,500 recipients/day, enough for the first weeks.
+- 🧑 **Inbound:** a mail from outside arrives at admin@ and at info@.
+- 🧑 **Outbound:** a production email to a Gmail address shows **SPF, DKIM (elitetravelng.com) and DMARC: PASS** (Show original). Optional: mail-tester.com score ≥ 9.
+- 🧑 **Brevo:** the domain shows **Authenticated**, and a Brevo test mail shows DMARC PASS with DKIM aligned to elitetravelng.com. Only then:
+  - set `EMAIL_PROVIDER=brevo`, `BREVO_API_KEY`, `SENDER_EMAIL=info@elitetravelng.com`;
+  - run `checkEmailSettings` + `sendEmailSamples`.
+- **Brevo plan:** the free plan allows 300/day. At ~3,000 emails/day (500 applications/day) a paid plan is needed, sized for ~90k/month. MailApp on paid Workspace allows ~1,500 recipients/day, enough for the first weeks.
 
 ---
 
 ## 5. Google Workspace trial and plan (🧑, Admin console → Billing)
+**The trial** (check the exact numbers in your Admin console):
+- **Length and seats:** usually 14 days, about 10 users. 5 users fit.
+- **Sending limits:** lower for new and trial accounts.
+  - The code queues emails and keeps 20 quota units free for codes.
+  - `checkEmailSettings` shows the real remaining quota.
+- **When the trial ends:** without billing the services are suspended, and with them the web app, the tracker and the passports.
 
-**What the trial means for us** (check the exact numbers in your Admin console; Google changes them):
-- **Length and seats:** the trial is usually **14 days** and capped at about **10 users**.
-- **Sending limits:** Gmail and Apps Script limits are **lower for new and trial accounts**. MailApp's 1,500/day applies to paid accounts in good standing.
-  - Our code already protects itself: it queues emails and keeps 20 quota units free for verification codes.
-  - Check the real number with `checkEmailSettings` (remaining quota).
-- **When the trial ends:** if billing isn't set up, the services are suspended, and with them the web app, the tracker and the passports. That must never happen after launch.
-
-**Recommendation:**
-1. **Seats now:** keep the trial for setup and the smoke test, with only admin@ (and staff accounts you are sure of).
-2. **Before go-live:** **set up billing at least 2–3 days before go-live**. Setting it up ends the trial and starts the paid plan.
-   - This must happen after the domain is verified and DKIM is on, and before you announce the site.
-   - Sending limits and Drive storage are then the full ones.
-3. **Plan:** start on the **Flexible Plan** (monthly, seats can go up and down) for the first month while staff accounts are added.
-   - Switch to the **Annual/Fixed-Term Plan** once the seat count is stable. It is cheaper per month, but seats can't go down until renewal.
-   - Flexible → Annual is allowed at any time. Annual → Flexible only at renewal.
+**Plan for "go-live 1–2 days after Google verifies the payment" (decision 11):**
+1. **Billing:** set it up as soon as the domain is verified. That ends the trial, starts the paid plan and lets Google verify the payment.
+2. **While Google verifies:** do §1 (production Apps Script), §3 (info@ group) and §4 Day-0 DNS. None of these need the paid plan.
+3. **Plan:** start on the **Flexible Plan** (monthly; seats can go up and down) for the first month while the 4 staff accounts settle in.
+   - Switch to **Annual/Fixed-Term** once 5 seats is stable (cheaper; seats can't go down until renewal).
+   - Flexible → Annual is allowed at any time.
 - ✅ **Billing:** Admin → Billing → Subscriptions shows "Business Standard — Active", not "Trial".
-- ✅ **Quota:** `checkEmailSettings` shows the higher MailApp quota (re-check the next day; the quota resets every 24 h).
+- ✅ **Quota:** `checkEmailSettings` shows the full MailApp quota (re-check the next day; the quota resets every 24 h).
 
 ---
 
@@ -313,92 +317,112 @@ The domain must use Hostinger's nameservers (`ns1/ns2.dns-parking.com`). If it s
 
 | # | Step | Who | ✅ |
 |---|---|---|---|
-| 1 | Approve this plan + answer the questions | 🧑 | — |
-| 2 | Build work on `launch-prod` (list below), commit, push both mirrors (ls-remote) | 🤖 | All checks green |
-| 3 | Drag `public/` to Netlify (staging: noindex, 404, info@) | 🧑 | `X-Robots-Tag` header |
-| 4 | Workspace: group info@, 2SV, sharing setting, Apps Script API | 🧑 | §1.1, §3 |
-| 5 | DNS: verification, MX, SPF, Google DKIM, DMARC | 🧑 | §4 (Google part) |
-| 6 | Production Apps Script: project, clasp login, properties, push, setup, deploy | 🧑 + 🤖 | §1 |
-| 7 | Build the release with the production `/exec`, check it, give you the zip | 🤖 | `check.js` + static QA on the release |
-| 8 | Upload to `public_html` | 🧑 | `check-live.js` |
-| 9 | `sendEmailSamples` on production (to STAFF_EMAIL) | 🧑 | Logo loads from elitetravelng.com; SPF/DKIM/DMARC PASS |
-| 10 | Smoke test (6.2) + clean-up | 🧑 | 6.2 |
-| 11 | Billing: end the trial (≥ 2–3 days before the announcement) | 🧑 | §5 |
-| 12 | Go live: announce the site; update Instagram/WhatsApp links | 🧑 | First real lead in the tracker |
-| 13 | Merge `launch-prod` → `main` (no force), push both mirrors, delete the branch | 🤖 | ls-remote |
-| 14 | Later: Brevo domain + paid plan → `EMAIL_PROVIDER=brevo` | 🧑 + 🤖 | §4 Brevo |
-| 15 | Later: HSTS 1 year; DMARC → quarantine | 🤖 + 🧑 | Headers / reports |
+| 1 | ~~Plan approved, questions answered~~ | 🧑 | Done 23 Nov |
+| 2 | ~~Build work on `launch-prod`, pushed to both mirrors; Apps Script changes on staging~~ | 🤖 | Done 23 Nov |
+| 3 | Drag `public/` to Netlify (staging: noindex, 404, info@, hero image) | 🧑 | `check-live.js --staging` |
+| 4 | Staging: run `setupEliteGlobal` once (applies the staff protection to the staging tracker), then try an edit as a non-owner if you like | 🧑 | Log shows "Staff access: …" |
+| 5 | Workspace: verify the domain, set up billing, 2SV, `Staff` org unit + sharing settings, Apps Script API, info@ group | 🧑 | §1.1, §3, §5 |
+| 6 | DNS Day 0: verification, MX, SPF, Google DKIM, DMARC | 🧑 | §4 |
+| 7 | Production Apps Script: project, `clasp login --user prod`, properties, push, setup, deploy | 🧑 + 🤖 | §1 |
+| 8 | Fill `deploy/production.json`, build the release, check it, QA on it, give you the zip | 🤖 | §2.1 |
+| 9 | Upload to `public_html` | 🧑 | `check-live.js` |
+| 10 | `sendEmailSamples` on production (to admin@) | 🧑 | Logo from elitetravelng.com; SPF/DKIM/DMARC PASS |
+| 11 | Smoke test (6.2) + `previewTestData` + `cleanupTestData` | 🧑 | 6.2 |
+| 12 | Staff accounts + shares (§7) | 🧑 | §7 checks |
+| 13 | Go live: announce; update the Instagram/WhatsApp links | 🧑 | First real lead in the tracker |
+| 14 | Merge `launch-prod` → `main` (no force), push both mirrors, delete the branch | 🤖 | ls-remote |
+| 15 | Later: Brevo domain + paid plan → `EMAIL_PROVIDER=brevo` | 🧑 + 🤖 | §4 |
+| 16 | After a week: `hstsMaxAge` 31536000 + a new release; later DMARC → quarantine | 🤖 + 🧑 | Headers / reports |
 
 ### 6.2 Smoke test (🧑, on production, once)
-Use **your own real email address** (the bypass is off, so a real code arrives), names starting with **`TEST `**,
-and the SPECIMEN files from `tools/qa/fixtures/`. No real passports.
-1. **Contact form** on the home page → `TEST Contact`.
-   - ✅ Lead ID shown, a tracker row, a staff alert.
+- **Your details:** use **your own real email address** (the bypass is off, so a real code arrives) and names starting with **`TEST `**, capital letters and a space.
+- **Files:** use the SPECIMEN files from `tools/qa/fixtures/`. No real passports.
+
+1. **Contact form** → `TEST Contact`.
+   - ✅ Lead ID shown, a tracker row, a staff alert at admin@.
 2. **Customise** → `TEST Customise`, through the email code.
-   - ✅ Lead ID, a Custom Requests row, a confirmation email (inbox, not spam; the logo shows; Reply-To info@), a staff alert.
-3. **Visa**, 1 passenger, SPECIMEN passport and photo → `TEST Visa`.
-   - ✅ Lead ID, the Visa Applications row, the Drive folder with `01 – TEST …`, the "under review" email and a staff alert.
+   - ✅ Lead ID, a Custom Requests row, a confirmation email (inbox, not spam; logo; Reply-To info@), a staff alert.
+3. **Visa**, 1 passenger, SPECIMEN passport + photo → `TEST Visa`.
+   - ✅ Lead ID, the Visa Applications row, the Drive folder `01 – TEST …`, the "under review" email, a staff alert.
 4. **Track page:** reference + email → ✅ "Under review".
-5. **Status email:** in the tracker, set the visa lead's Review Status → *Verified*.
-   - ✅ The status email arrives 5–10 minutes later.
+5. **Status email:** in the tracker, set Review Status → *Verified*.
+   - ✅ The status email arrives 5–10 min later.
    - ✅ A reply to it reaches info@.
 6. **Optional:** run `testApproveVisa` (SPECIMEN visa).
    - ✅ The Visa Approved email has the attachment (ATTACH_VISA on), and Track → Download works.
-7. **Clean-up:** run `cleanupTestData`.
-   - ✅ The 3 TEST leads are gone from every tab.
-   - ✅ The folder is in admin@'s Drive bin. Empty the bin for that folder.
-   - ✅ The Email Log has no TEST rows.
-8. **Last check:** 🤖 `check-live.js` once more, then you announce.
-
-⚠️ **Before the smoke test, the TEST match has to be tightened.** `cleanupTestData` matches names starting with
-"test" in any case (`/^\s*'?TEST/i`). On production that would also delete a real customer called **"Testimony …"**.
-Build work item B6 changes it before production exists:
-- **What it matches:** only names that start with `TEST` + a space, in capitals.
-- **New function:** a no-argument `previewTestData` that logs the matching Lead IDs and counts only (no names), so you see what will go.
+7. **Clean-up:**
+   - Run **`previewTestData`**. It changes nothing and lists the matching Lead IDs only. ✅ Exactly your 3 TEST leads.
+   - Then run **`cleanupTestData`**. ✅ The 3 leads are gone from every tab, the folder is in admin@'s Drive bin (empty it), and the Email Log has no TEST rows.
+8. 🤖 **Last check:** `check-live.js` once more, then you announce.
 
 ### 6.3 Rollback plan
 
 | Problem | Rollback | Time |
 |---|---|---|
-| Bad website release | Upload the **previous release zip** to `public_html` (extract, overwrite) | ~5 min |
-| Bad Apps Script version | `prod-clasp deployments` → `prod-clasp update-deployment <prod id> -V <previous version>` (same `/exec`). Or: editor → Deploy → Manage deployments → ✏️ → Version: previous | ~2 min |
-| Web app down or broken, need to stop new leads | **Forms paused** (question 9): the Script Property `FORMS_PAUSED=on` makes every submit answer "We're updating our system — please WhatsApp us on …", and the website shows that message with the WhatsApp button. Nothing is lost half-way. | ~1 min |
-| Emails failing or going to spam | Brevo → set `EMAIL_PROVIDER=mailapp` (or back). Queued emails are sent by `runEmailJobs` when fixed; nothing is lost. | ~1 min |
-| DNS mistake (mail) | Restore from the Day-0 screenshot. The low TTL (300 s) makes it take effect quickly. | ~5–30 min |
-| Wrong data in the tracker | Tracker → File → Version history → restore, or copy cells back. Archive files are never deleted before verification. | — |
+| Bad website release | Upload the **previous release zip** (Extract, overwrite) | ~5 min |
+| Bad Apps Script version | `prod-clasp deployments` → `prod-clasp update-deployment <prod id> -V <previous version>` (same `/exec`); or editor → Deploy → Manage deployments → ✏️ → previous version | ~2 min |
+| Need to stop new leads (web app trouble, maintenance) | Run **`pauseForms`**. New contact, customise, visa and code requests then get *"We're updating our online system for a short while…"*, and the website adds the WhatsApp/phone/email links. Uploads, corrections, Track and downloads already under way keep working. `checkEmailSettings` and the health check show it. **`resumeForms`** opens them again | ~1 min |
+| Emails failing or going to spam | Switch `EMAIL_PROVIDER` (brevo ↔ mailapp). Queued emails go out by `runEmailJobs`; nothing is lost | ~1 min |
+| DNS mistake (mail) | Restore from the Day-0 screenshot (TTL 300 s) | ~5–30 min |
+| Wrong data in the tracker | Tracker → File → Version history → restore, or copy cells back | — |
 
 We **never** roll production back to the staging web app (no real data on staging), and we never force-push.
 
 ---
 
-## Build work (after approval)
-Branch `launch-prod`. Each item is its own commit. Before each commit: `check-lists`, `gas-test` and static QA.
-Then push to both mirrors and check them with ls-remote.
+## 7. Access rules and staff access checklist
 
-| # | Commit | Touches |
-|---|---|---|
-| B1 | `chore: ignore per-environment clasp files; add prod clasp wrapper` | `.gitignore`, `tools/prod-clasp.ps1`, `.clasp.json.example` comment |
-| B2 | `chore(qa): refuse every live suite unless config.js points at staging` | `run.js live`, `*-live.js` (the same guard `load-live.js` already has) |
-| B3 | `content(site): use info@elitetravelng.com as the company email` | §3 |
-| B4 | `feat(site): add 404 page and noindex staging headers` | `public/404.html`, `public/_headers` (**public/ changes → Netlify drag**) |
-| B5 | `chore: add production release build and checks` | `tools/release/{build,check,check-live}.js`, `deploy/production.json` (filled after §1.5), `run.js --root` |
-| B6 | `fix(forms): only remove capital "TEST " leads; add previewTestData` | `Cleanup.gs`, gas-test |
-| B7 | `feat(forms): forms-paused switch for maintenance` (if question 9 = yes) | `WebApp.gs`, `api.js`, gas-test + static QA |
-| B8 | `docs: production environment and launch runbook` | `ENVIRONMENTS.md` (prod = admin@, retire `1Lhrr8…`), CLAUDE.md (Hostinger instead of cPanel, release build, prod clasp), README |
+### 7.1 Rules
+- **admin@ only:**
+  - the Apps Script project and its Script Properties;
+  - the Admin console;
+  - the root "Elite Global" Drive folder;
+  - the Email Log;
+  - the archive files;
+  - the triggers.
 
-B6 and B7 change Apps Script. They go to **staging first** (`clasp push` + `update-deployment AKfycbzSBOiav…`, schema stays 9), then to production in §1.4.
+  The project is standalone (not inside the tracker), so tracker editors never see it.
+- **The tracker:** staff are **Editors**. `setupEliteGlobal` (`protectForStaff_`) protects it so that **only admin@ can edit**:
+  - **Lead Tracker:** the whole sheet is protected, except the **staff working columns** (`CONFIG.STAFF_COLUMNS`). Those 17 columns are open for staff from row 2 down:
 
----
+    | Group | Columns |
+    |---|---|
+    | Customer details | Customer Name, Phone Number, Email, Country, Departure, Adults, Children, Infants, Travel Date, Budget |
+    | Lead work | Lead Status, Assigned Agent, Follow-up Notes |
+    | Visa review | Message to Customer, Review Status, Correction For, Send Now |
 
-## Open questions
-1. **STAFF_EMAIL:** which address(es) get staff alerts and the daily summary? For example info@ (the whole group), or admin@ plus named staff later.
-2. **From address until Brevo:** customers see **admin@elitetravelng.com** as the sender (Reply-To info@). OK for the first weeks? The alternative is sending as info@ through Gmail's "send as" alias, which needs a code change and a broader Gmail permission. I don't recommend it, because Brevo will send from info@ anyway.
-3. **Hero image:** it is loaded from images.unsplash.com. Should I copy it into `assets/img/` (faster, no third party, simpler CSP)? I recommend yes.
-4. **Existing mail on elitetravelng.com:** are there mailboxes at Hostinger or Go54 that anyone still uses? Switching MX to Google moves **all** incoming mail to Workspace.
-5. **DMARC reports:** to which address? admin@, or a new group like dmarc@ (recommended, to keep admin@'s inbox clean).
-6. **Staff access:** "tracker only" means the Drive folder links in the tracker won't open for staff. Should they get **view** access to the Visa Applications folder to check passports, or does only admin@ open them?
-7. **Seats:** how many staff accounts at launch? This decides when to move from Flexible to Annual.
-8. **HSTS:** start at 1 day and raise to 1 year after a week, without preload (recommended)?
-9. **Forms-paused switch (B7):** build it for rollback? I recommend yes; it's small.
-10. **The old Gmail address** eliteglobaltravelsng@gmail.com: should it auto-forward to info@ and/or auto-reply with the new address? Customers and old printed material have it. (That's your setting in Gmail; no code.)
-11. **Go-live date:** that date sets when to end the trial (§5).
+  - **Protected for staff:**
+    - the header row;
+    - Lead ID, Date Received, Lead Category, Total Travellers, Drive Folder, Passengers, Lead Source;
+    - **Application Status, Review Updated, Last Customer Email, Visa Files, Last Change, Emails Sent**.
+  - **Whole tabs, admin@ only:** Visa Applications, Visa Passengers, Custom Requests, Contact Enquiries, System Info, **Due**, **Archive Index**. Staff can read them but not edit them.
+  - These are real protections, not warnings. The web app and the triggers run as admin@, so they are not affected.
+  - When the grid grows, the open staff columns grow with it.
+  - Tabs that staff add themselves are left alone.
+- **Sharing:**
+  - `setupEliteGlobal` turns off **"Editors can change permissions and share"** on the tracker and the Visa Applications folder.
+  - The `Staff` org unit cannot share outside the company (§1.1).
+- **The Visa Applications folder:** staff are **Editors**, so they can upload approved visas into each lead's `Approved Visa` folder. They can also see the passports, which is the agreed decision.
+
+**What this means for staff:**
+- **No adding or deleting in the Lead Tracker:** staff can't insert or delete rows or columns, rename the tab, or change headers. New leads come only from the website. For a walk-in customer, staff fill in the contact form on the website.
+- **Filtering:** use **Data → Filter views → Create new filter view** (each person gets their own). The shared filter row belongs to admin@.
+
+### 7.2 Staff access checklist (🧑, after go-live step 11)
+1. **Create the 4 users:** Admin console → Directory → Users → **Add new user** (e.g. `firstname@elitetravelng.com`).
+   - Put each one in the **`Staff`** org unit.
+   - Security → 2-Step Verification: **enforce** it for `Staff` (allow a 1-week enrolment period).
+2. **Emails:** add the users who answer customers to the **info@** group, and to `STAFF_EMAIL` if they should get the alerts. `STAFF_EMAIL` is comma-separated; run `checkEmailSettings` after a change.
+3. **Tracker:** open the production tracker → **Share** → the 4 addresses → **Editor** → Send.
+   - ⚙️ in the Share dialog: "Editors can change permissions and share" must be **off** (setup turns it off).
+4. **Visa Applications folder:** open the folder (from System Info) → **Share** → the 4 addresses → **Editor**.
+   - **Only** this folder, never the root "Elite Global" folder above it.
+5. **Never share:** the Apps Script project, the root folder, "Elite Global – Email Log", the archive files ("Elite Global – Archive …").
+6. **Check as a staff member** (incognito, signed in as one staff account):
+   - ✅ **Working column:** editing Lead Status, Follow-up Notes or Review Status works.
+   - ✅ **Protected column:** typing in Lead ID, Application Status or Review Updated → *"You are trying to edit a protected cell"*.
+   - ✅ **Protected tab:** System Info, Due and Visa Applications are read-only.
+   - ✅ **Drive links:** a lead's Drive Folder link opens. The root "Elite Global" folder does not.
+   - ✅ **Apps Script:** script.google.com shows no Elite Global project.
+7. **When someone leaves:** Admin console → Users → the user → **Delete**, and choose **transfer Drive files to admin@**. This keeps any approved visas they uploaded, because Drive counts those files as theirs.
+   - Remove them from the info@ group and from `STAFF_EMAIL`.

@@ -517,7 +517,10 @@ fills **only empty cells** of earlier leads from their old `[Auto]` notes (notes
 again changes nothing.
 
 2,000 pre-formatted rows (500 more added automatically), frozen header and first three columns, filter on,
-warning-only protection on Lead ID, Date Received, Total Travellers and Drive Folder.
+owner-only protection (v3.4, docs/LAUNCH.md §7): the Lead Tracker sheet is protected except the staff columns
+(`CONFIG.STAFF_COLUMNS`: customer details, Lead Status, Assigned Agent, Follow-up Notes, Message to Customer, Review
+Status, Correction For, Send Now); the header row, every generated column and the detail, System Info, Due and
+Archive Index tabs can only be edited by the owner. Editors cannot re-share the tracker or the Visa Applications folder.
 
 ### 4.4 Email Log spreadsheet ("Elite Global – Email Log", v3.3)
 A **separate** spreadsheet in the root Drive folder (ID in Script Property `EMAIL_LOG_ID`; link in System Info), created by `setupEliteGlobal`:
@@ -645,7 +648,9 @@ deploying user, access anyone).
 |---|---|
 | `setupEliteGlobal()` | **Idempotent.** Creates or reuses the root folder, `Visa Applications` folder and tracker; adds the Drive Folder column and detail tabs; keeps `LEAD_SEQ`; removes old form triggers; **closes retired Forms 1–3** if their IDs exist (custom "This form has moved. Please apply on our website." message where Google accepts it, otherwise Google's default closed message; `setPublished(false)` fallback; the real state is logged and shown in System Info); purges stale upload state; writes System Info |
 | `showSystemInfo()` | Prints the folder, tracker and web app URLs and the retired forms' state |
-| `cleanupTestData()` | Removes every lead whose name starts with "TEST" from all four tabs, moves their visa folders to the Drive bin, deletes their upload state, purges state > 24 h, cleans retired-form responses |
+| `previewTestData()` | Lists the Lead IDs `cleanupTestData` would remove (counts and IDs only, no names); changes nothing |
+| `pauseForms()` / `resumeForms()` | Script Property `FORMS_PAUSED`: new contact / customise / visa / code requests get `{paused:true}` and a friendly message (the website adds the contact links); requests under way continue; the health check shows `paused` |
+| `cleanupTestData()` | Removes every lead whose name starts with "TEST " (capitals + a space; never "Testimony …") from all four tabs, moves their visa folders to the Drive bin, deletes their upload state, purges state > 24 h, cleans retired-form responses |
 | `setOwnerEmail(email?)` | Stores the expected owner for this environment (`OWNER_EMAIL`) |
 | `testBackdateUpload(leadId)` | Test only: makes an unfinished application 25 h old to test the purge |
 | `resetSetupFlag()` | ⚠️ Forgets every stored ID (only after deleting the Drive folder) |
@@ -710,7 +715,7 @@ Everything is Script Properties (§3.6.3); no code change. Open items 8 and 9 (�
 
 | Option | When | Steps |
 |---|---|---|
-| **A. The client's existing host** | The domain's host includes web space or cPanel | cPanel → File Manager → `public_html` → upload the contents of `public/` |
+| **A. Production: Hostinger (elitetravelng.com)** | Chosen (v3.4) | `tools/release/build.js` → zip → hPanel File Manager → `public_html` → Extract; `.htaccess` forces https://elitetravelng.com, security + cache headers, 404 (docs/LAUNCH.md) |
 | **B. GitHub (private) + Netlify** | Preview/history always; production if the host has no web space | Netlify publishes `public/` on every push → DNS records to the client's DNS team → HTTPS automatic |
 
 The Apps Script is deployed separately with `clasp push` + a web app deployment (docs/ENVIRONMENTS.md).
