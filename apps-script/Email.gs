@@ -129,6 +129,7 @@ function showNotifySettings() {
     '\n  ATTACH_VISA      ' + (s.attachVisa ? 'on (the Visa Approved email attaches the visa files, up to 15 MB together)'
       : 'off (the Visa Approved email has the Download button only; set ATTACH_VISA = on to attach)') +
     '\n  TEST_OTP_BYPASS  ' + (testBypassOn_() ? 'on (staging tests only)' : 'off') +
+    '\n  FORMS_PAUSED     ' + (formsPaused_() ? 'on ⏸ (new online requests are refused — run resumeForms)' : 'off') +
     '\n  MailApp quota left today: ' + quota +
     '\n  Email queue: ' + emailQueueCount_() + ' waiting');
 }

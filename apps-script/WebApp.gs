@@ -32,6 +32,29 @@ const ACTIONS = {
   loadTestReport: loadTestReport_,
 };
 
+// FORMS PAUSED (maintenance / rollback, docs/LAUNCH.md §6.3): Script Property FORMS_PAUSED = on (pauseForms /
+// resumeForms in the editor). New requests are refused with a friendly message — the website adds the WhatsApp,
+// phone and email links. Anything already under way (uploads, finalize, corrections, Track, downloads) keeps working,
+// so nothing is left half-way.
+const PAUSABLE_ACTIONS = { submitContact: 1, submitCustomRequest: 1, createVisaApplication: 1, sendEmailCode: 1 };
+
+function formsPaused_() {
+  return String(PropertiesService.getScriptProperties().getProperty('FORMS_PAUSED') || '').trim().toLowerCase() === 'on';
+}
+
+/** Editor (no arguments): stop new online requests for a while (maintenance, rollback). */
+function pauseForms() {
+  PropertiesService.getScriptProperties().setProperty('FORMS_PAUSED', 'on');
+  Logger.log('⏸ Forms paused: new requests get "' + CONFIG.PAUSED_MESSAGE + '" plus the WhatsApp/phone/email links. ' +
+    'Uploads, corrections, Track and downloads already under way keep working. Run resumeForms to open them again.');
+}
+
+/** Editor (no arguments): accept new online requests again. */
+function resumeForms() {
+  PropertiesService.getScriptProperties().deleteProperty('FORMS_PAUSED');
+  Logger.log('▶ Forms open again: the website accepts new requests.');
+}
+
 // Google is busy or briefly unavailable (quota per second, simultaneous executions, a service hiccup):
 // the website retries these automatically, so they get {busy: true} and no error email.
 const BUSY_RE = /too many (simultaneous|times)|service invoked too many times|rate limit|lock timeout|could not obtain lock|timed out|temporarily unavailable|service (spreadsheets|drive|documents) (failed|error)|server error occurred|internal error|backend error|try again later|address unavailable|exceeded maximum execution time/i;
@@ -43,7 +66,9 @@ const BUSY_RE = /too many (simultaneous|times)|service invoked too many times|ra
  */
 function doGet() {
   const schema = Number(PropertiesService.getScriptProperties().getProperty('SCHEMA_VERSION') || 0);
-  return json_({ ok: true, service: 'Elite Global lead API', version: API_VERSION, schema: schema });
+  const out = { ok: true, service: 'Elite Global lead API', version: API_VERSION, schema: schema };
+  if (formsPaused_()) out.paused = true;
+  return json_(out);
 }
 
 function doPost(e) {
@@ -69,6 +94,11 @@ function doPost(e) {
 
     // Bots fill the hidden field: pretend it worked and store nothing.
     if (d.hp) return json_(honeypotReply_(action));
+
+    if (PAUSABLE_ACTIONS[action] && formsPaused_()) {
+      console.log('doPost ' + action + ' paused');
+      return json_({ ok: false, paused: true, error: CONFIG.PAUSED_MESSAGE });
+    }
 
     return json_(qaTiming_(qa, ACTIONS[action](d), t0));
   } catch (err) {

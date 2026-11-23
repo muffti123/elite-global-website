@@ -231,6 +231,25 @@ require('./test-correction')(g, ok, { tok, future, setCell, colOf, tr, b64 });
 require('./test-visa')(g, ok, { tok, future, setCell, colOf, tr, b64 });
 require('./test-scale')(g, ok, { tok, future, setCell, colOf, tr, b64 });
 
+// --- forms paused (maintenance switch) ----------------------------------------------------------
+{
+  const call = (o) => JSON.parse(ctx.doPost({ postData: { contents: JSON.stringify(o) } }));
+  const seq = props.LEAD_SEQ;
+  ctx.pauseForms();
+  const paused = ['submitContact', 'submitCustomRequest', 'createVisaApplication', 'sendEmailCode'].map((a) => call({ action: a, hp: '', name: 'TEST Paused', email: 'p@example.com', phone: '+234 800 000 0009' }));
+  ok('FORMS_PAUSED on: new contact / customise / visa / email-code requests get {paused:true} and the friendly message', paused.every((r) => r.ok === false && r.paused === true && r.error === C.PAUSED_MESSAGE) &&
+    props.LEAD_SEQ === seq, JSON.stringify(paused[0]));
+  ok('… the message has no phone, link or address (the website adds the contact links)', !/https?:|@|\+?\d{6,}/.test(C.PAUSED_MESSAGE));
+  const tr2 = call({ action: 'trackApplication', hp: '', leadId: v.leadId, contact: 'v@e.co' });
+  ok('… requests already under way still work (Track)', tr2.ok === true || !tr2.paused, JSON.stringify(tr2).slice(0, 80));
+  ok('… the health check says paused', JSON.parse(ctx.doGet()).paused === true);
+  logs.length = 0; ctx.showNotifySettings();
+  ok('… checkEmailSettings shows FORMS_PAUSED on', /FORMS_PAUSED\s+on/.test(logs.join('\n')));
+  ctx.resumeForms();
+  ok('resumeForms: requests are accepted again and the health check has no paused flag', !('FORMS_PAUSED' in props) && !('paused' in JSON.parse(ctx.doGet())) &&
+    !call({ action: 'submitContact', hp: '', name: 'TEST Resumed', phone: '+234 800 000 0010', enquiryType: 'Other Travel Enquiry', details: '' }).paused);
+}
+
 // --- cleanup -----------------------------------------------------------------------------------
 // real customers whose names only look like test names: never removed (production safety)
 const lookAlikes = [['EG-GE-09001', 'Testimony Okafor'], ['EG-GE-09002', 'test lower case'], ['EG-GE-09003', 'TESTIMONY ADEYEMI'], ['EG-GE-09004', 'Tester Bello']];

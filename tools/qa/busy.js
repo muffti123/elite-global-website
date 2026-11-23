@@ -84,6 +84,18 @@ const notice = (p) => p.evaluate(() => { const n = document.querySelector('.busy
   ok('contact form (phone width): the notice shows during the busy retries (on screen), then the thank-you with the reference', seen3 && box.right && box.left &&
     p3.posts.filter((x) => x.action === 'submitContact').length === 3 && !(await notice(p3)).shown);
   ok('no console errors (contact form)', p3.errors.length === 0, p3.errors.join(' | '));
+  // forms paused (FORMS_PAUSED on the web app): one request, no busy notice, the message + WhatsApp/phone/email links
+  const PAUSED = { ok: false, paused: true, error: 'We\'re updating our online system for a short while, so we can\'t take new requests online right now. Please try again later.' };
+  const pp = await open(b, 'index.html', (body) => (body.action === 'submitContact' ? PAUSED : { ok: true }), { width: 390 });
+  await pp.type('[name=name]', 'TEST Paused Form');
+  await pp.type('[name=phone]', '+234 800 000 0004');
+  await pp.evaluate(() => { const s = document.querySelector('[name=request]'); s.value = 'Other Travel Enquiry'; s.dispatchEvent(new Event('change', { bubbles: true })); });
+  await pp.$eval('#submitBtn', (e) => e.click());
+  await pp.waitForFunction(() => /updating our online system/.test(document.body.innerText), { timeout: 10000 });
+  const pst = await pp.evaluate(() => { const s = [...document.querySelectorAll('.status')].find((x) => /updating our online system/.test(x.textContent)); return s ? { html: s.innerHTML } : null; });
+  ok('forms paused: the contact form shows the message once (1 request, no busy notice) with the WhatsApp link', pst && /wa\.me\//.test(pst.html) &&
+    pp.posts.filter((x) => x.action === 'submitContact').length === 1 && !(await notice(pp)).shown, pst && pst.html.slice(0, 120));
+  await pp.close();
   // email-code actions are never repeated after a network error (a second code would be sent)
   const p4 = await open(b, 'apply-visa.html', (body) => (body.action === 'sendEmailCode' ? 'cors' : { ok: true }));
   const r4 = await p4.evaluate(() => window.EG.postAction('sendEmailCode', { hp: '', email: 'qa@example.com', name: 'TEST' }, { retries: 0 }).then(() => 'resolved', (e) => (e.network ? 'network' : 'other')));

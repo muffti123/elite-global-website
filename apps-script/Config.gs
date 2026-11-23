@@ -133,6 +133,10 @@ const CONFIG = {
     NEXT_STEP: 'Download your visa with the button below. Our team will also contact you about the next steps.',
   },
 
+  // FORMS_PAUSED = on (pauseForms): the reply to a new request. The website adds the WhatsApp / phone / email links.
+  PAUSED_MESSAGE: 'We\'re updating our online system for a short while, so we can\'t take new requests online right now. ' +
+    'Please try again later.',
+
   // Company details used in every email. Must equal public/assets/js/config.js company (check-lists.js).
   COMPANY_INFO: {
     name: 'Elite Global World Travel & Tours Ltd.',
