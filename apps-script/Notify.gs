@@ -183,7 +183,7 @@ function fmtDate_(v) {
 }
 
 function isTestLead_(name, email) {
-  return /^\s*'?TEST/i.test(String(name || '')) && /@example\.com$/i.test(String(email || '').trim());
+  return isTestName_(name) && /@example\.com$/i.test(String(email || '').trim());
 }
 
 /** Customer emails are skipped (and logged) for TEST @example.com leads or when NOTIFY_CUSTOMER is off. */

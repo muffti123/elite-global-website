@@ -4,12 +4,57 @@
 
 // ---------------------------------------------------------------------
 // TEST DATA CLEAN-UP
-// Submit test enquiries with a name starting with "TEST", then run this to remove them from
-// every tracker tab (incl. Visa Applications), move their visa folders to the Drive bin and drop their upload state.
+// Submit test enquiries with a name starting with "TEST " (capitals + a space), then run previewTestData to see
+// which Lead IDs match and cleanupTestData to remove them from every tracker tab (incl. Visa Applications), move
+// their visa folders to the Drive bin and drop their upload state.
 // ---------------------------------------------------------------------
+
+/** A TEST lead's name: "TEST" in capitals + a space at the start (Sheets may keep a leading '). Never "Testimony …",
+ *  "test …" or "TESTIMONY …" — on production those are real customers. */
+function isTestName_(name) {
+  return /^\s*'?TEST\s/.test(String(name || ''));
+}
+
+/**
+ * Editor (no arguments): shows what cleanupTestData would remove — Lead IDs and counts only (never names).
+ * Changes nothing. Run it on production before cleanupTestData.
+ */
+function previewTestData() {
+  const ss = trackerSS_();
+  const ids = {};
+  const counts = [];
+  [CONFIG.TRACKER_TAB, CONFIG.TABS.VISA.name, CONFIG.TABS.CUSTOM.name, CONFIG.TABS.CONTACT.name].forEach(function (tab) {
+    const sh = ss.getSheetByName(tab);
+    let n = 0;
+    if (sh && sh.getLastRow() >= 2) {
+      sh.getRange(2, 1, sh.getLastRow() - 1, 3).getValues().forEach(function (r) {
+        if (r[0] !== '' && isTestName_(r[2])) { ids[String(r[0])] = true; n++; }
+      });
+    }
+    counts.push(tab + ': ' + n);
+  });
+  let folders = 0;
+  const visa = folderOrNull_(PropertiesService.getScriptProperties().getProperty('VISA_FOLDER_ID'));
+  if (visa) {
+    const it = visa.getFolders();
+    while (it.hasNext()) {
+      const m = it.next().getName().match(/^(EG-VO-\d{5}) – (.*)$/);
+      if (m && (ids[m[1]] || isTestName_(m[2]))) { ids[m[1]] = true; folders++; }
+    }
+  }
+  const list = Object.keys(ids).sort();
+  Logger.log('previewTestData — nothing was changed.\ncleanupTestData would remove ' + list.length +
+    ' TEST lead(s) (names starting with "TEST " in capitals):\n' + (list.length ? list.slice(0, 300).join(', ') +
+    (list.length > 300 ? ' … and ' + (list.length - 300) + ' more' : '') : '(none)') +
+    '\nRows: ' + counts.join(', ') + ', visa folders: ' + folders +
+    '\n(plus their passenger rows, upload/correction states, Due, Email Log and archive rows).' +
+    '\nIf a Lead ID here is a real customer, do NOT run cleanupTestData — rename that lead first.');
+  return list;
+}
+
 function cleanupTestData() {
   const p = PropertiesService.getScriptProperties();
-  const isTest = function (name) { return /^\s*'?TEST/i.test(String(name || '')); };
+  const isTest = isTestName_;
   const ss = trackerSS_();
   const testIds = {};
   const removed = { tracker: 0, visa: 0, passengers: 0, custom: 0, contact: 0, folders: 0, uploads: 0, corrections: 0, legacy: 0, emails: 0 };
@@ -86,8 +131,11 @@ function cleanupTestData() {
   // 7. Email Log + Email Queue rows of TEST leads (separate spreadsheet)
   removed.emails = cleanupEmailLog_(testIds);
 
-  // Restart Lead IDs at 00001 if the tracker is now empty
-  if (tr.getRange(2, 1).getValue() === '') p.setProperty('LEAD_SEQ', '0');
+  // Restart Lead IDs at 00001 only if the tracker is empty AND nothing was ever archived (archived leads keep their
+  // IDs: restarting would give a new lead the ID of an archived one)
+  let archivedLeads = 0;
+  try { archivedLeads = Math.max(archiveIndexSheet_().getLastRow() - 1, 0); } catch (e) { archivedLeads = 1; }
+  if (tr.getRange(2, 1).getValue() === '' && archivedLeads === 0) p.setProperty('LEAD_SEQ', '0');
 
   Logger.log('Removed TEST data — tracker rows: ' + removed.tracker + ', visa applications: ' + removed.visa + ', visa passengers: ' + removed.passengers +
     ', custom requests: ' + removed.custom + ', contact enquiries: ' + removed.contact +

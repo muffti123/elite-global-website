@@ -232,9 +232,21 @@ require('./test-visa')(g, ok, { tok, future, setCell, colOf, tr, b64 });
 require('./test-scale')(g, ok, { tok, future, setCell, colOf, tr, b64 });
 
 // --- cleanup -----------------------------------------------------------------------------------
+// real customers whose names only look like test names: never removed (production safety)
+const lookAlikes = [['EG-GE-09001', 'Testimony Okafor'], ['EG-GE-09002', 'test lower case'], ['EG-GE-09003', 'TESTIMONY ADEYEMI'], ['EG-GE-09004', 'Tester Bello']];
+lookAlikes.forEach((x) => { const r = tr.getLastRow() + 1; tr.set(r, 1, x[0]); tr.set(r, 3, x[1]); });
+ok('isTestName_: "TEST " in capitals + a space only', ctx.isTestName_('TEST Visa') && ctx.isTestName_("'TEST Visa") && ctx.isTestName_('  TEST x') &&
+  !ctx.isTestName_('Testimony Okafor') && !ctx.isTestName_('test lower') && !ctx.isTestName_('TESTIMONY A') && !ctx.isTestName_('TEST') && !ctx.isTestName_(''));
+const before = JSON.stringify(tr.cells);
+logs.length = 0;
+const preview = ctx.previewTestData();
+const plog = logs.join('\n');
+ok('previewTestData changes nothing and lists the TEST Lead IDs only (no look-alikes, no names)', JSON.stringify(tr.cells) === before && preview.length > 0 &&
+  preview.every((id) => /^EG-(VO|CE|GE)-\d{5}$/.test(id)) && !preview.some((id) => /^EG-GE-0900/.test(id)) && /nothing was changed/.test(plog) &&
+  !/TEST [A-Z]|Testimony|@/.test(plog), preview.length + ' ids');
 ctx.cleanupTestData();
 const leftIds = []; for (let r = 2; r <= tr.getLastRow(); r++) if (tr.get(r, 1)) leftIds.push(tr.get(r, 1));
-ok('cleanupTestData removes TEST rows from Lead Tracker + Visa Applications', leftIds.join() === 'EG-CE-00002,EG-GE-00003' && va.getLastRow() === 1, leftIds.join() + ' / visa rows ' + (va.getLastRow() - 1));
+ok('cleanupTestData removes TEST rows from Lead Tracker + Visa Applications; keeps Testimony / test / TESTIMONY / Tester', leftIds.join() === 'EG-CE-00002,EG-GE-00003,EG-GE-09001,EG-GE-09002,EG-GE-09003,EG-GE-09004' && va.getLastRow() === 1, leftIds.join() + ' / visa rows ' + (va.getLastRow() - 1));
 const elIds = elog.getSheetByName('Email Log').getRange(2, 4, Math.max(elog.getSheetByName('Email Log').getLastRow() - 1, 1), 1).getValues().map((r) => r[0]).filter(String);
 ok('cleanupTestData removes the TEST leads\' Email Log rows', elIds.length === 0, elIds.join(','));
 const dueLeft = ctx.readDue_().map((x) => x.id);
@@ -242,6 +254,15 @@ const idxSh = ss.getSheetByName('Archive Index');
 const archRows = Object.values(JSON.parse(props.ARCHIVE_FILES || '{}')).map((id) => g.books[id].getSheetByName('Lead Tracker').getLastRow() - 1);
 ok('cleanupTestData: TEST leads\' Due rows, Archive Index rows and archived rows removed (others kept)', dueLeft.every((id) => leftIds.indexOf(id) !== -1 || id === 'EG-VO-00099') &&
   dueLeft.indexOf('EG-VO-00099') !== -1 && idxSh.getLastRow() === 1 && archRows.length > 0 && archRows.every((n) => n === 0), JSON.stringify({ dueLeft, idx: idxSh.getLastRow(), archRows }));
+// Lead IDs restart at 00001 only when the tracker is empty AND nothing was ever archived
+for (let r = tr.getLastRow(); r >= 2; r--) tr.deleteRow(r);
+props.LEAD_SEQ = '42';
+idxSh.getRange(2, 1, 1, 4).setValues([['EG-VO-00500', 'x', 'x', 'ARCH']]);
+ctx.cleanupTestData();
+ok('an empty tracker with archived leads keeps LEAD_SEQ (no reused Lead IDs)', props.LEAD_SEQ === '42', props.LEAD_SEQ);
+idxSh.deleteRow(2);
+ctx.cleanupTestData();
+ok('an empty tracker with no archive restarts LEAD_SEQ at 0', props.LEAD_SEQ === '0', props.LEAD_SEQ);
 console.log(fails ? fails + ' failure(s)' : 'all passed');
 console.log(logs.filter((l) => /Added|Filled|Removed/.test(l)).join('\n'));
 process.exit(fails ? 1 : 0);
