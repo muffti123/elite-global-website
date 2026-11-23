@@ -13,7 +13,7 @@ window.SITE_CONFIG = {
     address: 'No. 335, Suite 3, Opposite Fidelity Bank, Zoo Road, Kano, Nigeria',
     phone: '+234 706 215 2046',
     whatsapp: '2347062152046',
-    email: 'eliteglobaltravelsng@gmail.com',
+    email: 'info@elitetravelng.com',
     instagram: 'https://www.instagram.com/elite_global_travels/'
   },
 

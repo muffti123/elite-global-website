@@ -209,7 +209,7 @@ const PAGES = ['index.html', 'customize-umrah.html', 'apply-visa.html', 'track.h
     const p = await b.newPage();
     await p.goto(base + '/index.html', { waitUntil: 'networkidle0' });
     const links = await p.evaluate(() => ['#contact', 'footer'].map((sel) => [...document.querySelectorAll(sel + ' .social a')].filter((a) => a.offsetParent).map((a) => a.getAttribute('aria-label') + '=' + a.href)));
-    const want = ['Chat with us on WhatsApp=https://wa.me/2347062152046', 'Follow us on Instagram=https://www.instagram.com/elite_global_travels/', 'Email us=mailto:eliteglobaltravelsng@gmail.com'];
+    const want = ['Chat with us on WhatsApp=https://wa.me/2347062152046', 'Follow us on Instagram=https://www.instagram.com/elite_global_travels/', 'Email us=mailto:info@elitetravelng.com'];
     ok('contact + footer: WhatsApp, Instagram, email icons', links.every((l) => JSON.stringify(l) === JSON.stringify(want)), JSON.stringify(links));
     const det = await p.evaluate(() => ['#contact', 'footer'].map((sel) => ({
       tel: !!document.querySelector(sel + ' a[href^="tel:+2347062152046"]'),

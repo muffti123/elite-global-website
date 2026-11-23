@@ -67,6 +67,8 @@ const webCo = cfg.window.SITE_CONFIG.company;
   const same = gas.__I[k] === webCo[k];
   report(same, 'company ' + k + ' (emails) == config.js' + (same ? '' : ': ' + JSON.stringify(gas.__I[k]) + ' vs ' + JSON.stringify(webCo[k])));
 });
+// the company email is the domain address (info@elitetravelng.com), never a personal/gmail.com one (docs/LAUNCH.md §3)
+report(/^info@elitetravelng.com$/.test(webCo.email), 'company email is info@elitetravelng.com: ' + webCo.email);
 
 console.log(failed ? `\n${failed} mismatch(es). Update public/assets/js/lists.js (or index.html) to match apps-script/Config.gs.` : '\nAll lists match.');
 process.exit(failed ? 1 : 0);

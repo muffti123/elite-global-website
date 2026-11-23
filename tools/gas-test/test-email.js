@@ -30,7 +30,7 @@ module.exports = function (g, ok, t) {
     /track\.html\?id=EG-VO-/.test(conf[0].htmlBody) && /spam/.test(conf[0].htmlBody), conf.map((m) => m.subject).join(' | '));
   ok('confirmation: branded (navy header, logo from SITE_URL, gold button, RC, Reply-To company), plain text too',
     /#06163F/.test(conf[0].htmlBody) && /https:\/\/elite-global-staging\.netlify\.app\/assets\/brand\/email-logo\.png/.test(conf[0].htmlBody) &&
-    /#F5AE00/.test(conf[0].htmlBody) && /RC: 7787410/.test(conf[0].htmlBody) && conf[0].replyTo === 'eliteglobaltravelsng@gmail.com' &&
+    /#F5AE00/.test(conf[0].htmlBody) && /RC: 7787410/.test(conf[0].htmlBody) && conf[0].replyTo === 'info@elitetravelng.com' &&
     /Reference number: EG-VO-/.test(conf[0].body) && /^Elite Global — /.test(conf[0].subject), conf[0].subject);
   ok('Last Customer Email after finalize', /^Confirmation \+ Status: Under Review · /.test(cell(v.leadId, 'Last Customer Email')), cell(v.leadId, 'Last Customer Email'));
   ok('customise: confirmation to the customer, contact form: none (no email address)', to('q@e.co').length === 1 && /customised Umrah/i.test(to('q@e.co')[0].htmlBody));
@@ -172,7 +172,7 @@ module.exports = function (g, ok, t) {
   const call = fetch.calls[0];
   const pl = call && JSON.parse(call.o.payload);
   ok('Brevo: POST to the transactional API with api-key header, sender, Reply-To company, html + text', sentBrevo === 'ok' && call.url === 'https://api.brevo.com/v3/smtp/email' &&
-    call.o.headers['api-key'] === 'xkeysib-test' && pl.sender.email === 'sender@example.org' && pl.replyTo.email === 'eliteglobaltravelsng@gmail.com' && pl.htmlContent && pl.textContent && pl.to[0].email === 'p2@e.co');
+    call.o.headers['api-key'] === 'xkeysib-test' && pl.sender.email === 'sender@example.org' && pl.replyTo.email === 'info@elitetravelng.com' && pl.htmlContent && pl.textContent && pl.to[0].email === 'p2@e.co');
   fetch.responses = [503, 201]; fetch.calls = [];
   ok('Brevo 503 → retried once → ok', send(3) === 'ok' && fetch.calls.length === 2);
   fetch.responses = [429, 'throw']; fetch.calls = [];
@@ -318,7 +318,7 @@ module.exports = function (g, ok, t) {
     va[1].attachments && va[1].attachments.length === 1 && va[1].attachments[0].getName() === 'EG-VO-01234 – Visa 1 of 1.pdf' && /Your visa is attached to this email/.test(va[1].body) &&
     !va[2].attachments && /Your visa is too large to attach — please download it from the Track page\./.test(va[2].body));
   ok('every email has an HTML and a plain-text version (no tags in the text)', samples.every((m) => m.htmlBody && m.body && m.body.length > 200 && !/<\/?(p|a|div|table|tr|td|br|b|img|h1|ul|li|span)\b/i.test(m.body)));
-  ok('sender name "Elite Global World Travel & Tours", Reply-To = company email', samples.every((m) => m.name === 'Elite Global World Travel & Tours' && m.replyTo === 'eliteglobaltravelsng@gmail.com'));
+  ok('sender name "Elite Global World Travel & Tours", Reply-To = company email', samples.every((m) => m.name === 'Elite Global World Travel & Tours' && m.replyTo === 'info@elitetravelng.com'));
   const caps = samples.map((m) => (subj(m) + ' ' + visible(m.htmlBody) + ' ' + m.body).replace(/https?:\/\/\S+/g, ' ').match(/\b[A-Z]{4,}\b/g) || []).flat();
   ok('no ALL-CAPS words, no "!!", no urgent / free / act now', caps.length === 0 && samples.every((m) => !/!!|\burgent\b|\bfree\b|act now/i.test(subj(m) + m.htmlBody + m.body)), caps.slice(0, 5).join(','));
   ok('only the logo image (alt, width, height); no tracking pixels', samples.every((m) => (m.htmlBody.match(/<img\b/g) || []).length === 1 &&
@@ -328,7 +328,7 @@ module.exports = function (g, ok, t) {
   ok('footer: company address, RC number and why the email was sent', customer.every((m) => /RC: 7787410/.test(m.htmlBody) && /No\. 335, Suite 3/.test(m.htmlBody) &&
     /You&#39;re receiving this because you applied on our website\./.test(m.htmlBody) && /You're receiving this because you applied on our website\./.test(m.body)) &&
     staffMail.every((m) => /Staff notification from the Elite Global lead system\./.test(m.body)));
-  const inbox = /add eliteglobaltravelsng@gmail\.com to your contacts\. If you found this in Spam, mark it 'Not spam'\./;
+  const inbox = /add info@elitetravelng.com to your contacts\. If you found this in Spam, mark it 'Not spam'\./;
   ok('code email and first confirmations ask to add the company email to contacts', [0, 4, 5].every((i) => inbox.test(samples[i].body)) && !inbox.test(samples[7].body));
   ok('templates are mostly text (visible text ≥ 12% of the inline-styled HTML of customer emails)', customer.every((m) => visible(m.htmlBody).replace(/\s+/g, ' ').length / m.htmlBody.length > 0.12),
     customer.map((m) => (visible(m.htmlBody).replace(/\s+/g, ' ').length / m.htmlBody.length).toFixed(2)).join(','));
