@@ -80,6 +80,7 @@ function setupEliteGlobal() {
   purgeStaleCorrections_();
   writeSystemInfo_();
   protectForStaff_(ss); // last: every system tab exists now
+  lockSharing_(ss, visa);
   p.setProperties({ SETUP_DONE: 'yes', SCHEMA_VERSION: CONFIG.SCHEMA_VERSION });
 
   Logger.log('✅ SETUP COMPLETE');
@@ -511,6 +512,13 @@ function protectForStaff_(ss) {
   });
   Logger.log('Staff access: Lead Tracker open for staff in ' + CONFIG.STAFF_COLUMNS.length + ' columns only; ' +
     'system columns and tabs can only be edited by ' + Session.getEffectiveUser().getEmail() + '.');
+}
+
+/** Staff who are editors of the tracker or the Visa Applications folder cannot share them on or change access. */
+function lockSharing_(ss, visaFolder) {
+  [function () { return DriveApp.getFileById(ss.getId()); }, function () { return visaFolder; }].forEach(function (get) {
+    try { const item = get(); if (item) item.setShareableByEditors(false); } catch (e) { Logger.log('⚠️ Could not turn off "Editors can share": ' + e.message); }
+  });
 }
 
 /** The grid grew (applyRowRules_): stretch the open staff ranges to the new rows. Never throws. */
