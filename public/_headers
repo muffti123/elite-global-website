@@ -1,0 +1,4 @@
+# Netlify only (staging: elite-global-staging.netlify.app). Never indexed by search engines.
+# Left out of the production release (tools/release/build.js); production headers live in .htaccess.
+/*
+  X-Robots-Tag: noindex, nofollow
