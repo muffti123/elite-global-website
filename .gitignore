@@ -26,4 +26,4 @@ tools/qa/screenshots/
 .clasp.*.json
 
 # production release build (tools/release/build.js)
-release/
+/release/
