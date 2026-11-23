@@ -230,6 +230,7 @@ require('./test-email')(g, ok, { v, vd, v2, cu, c1, tok, future, track, setCell,
 require('./test-correction')(g, ok, { tok, future, setCell, colOf, tr, b64 });
 require('./test-visa')(g, ok, { tok, future, setCell, colOf, tr, b64 });
 require('./test-scale')(g, ok, { tok, future, setCell, colOf, tr, b64 });
+require('./test-access')(g, ok, { tr });
 
 // --- forms paused (maintenance switch) ----------------------------------------------------------
 {

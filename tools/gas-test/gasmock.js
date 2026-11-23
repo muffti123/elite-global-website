@@ -49,9 +49,29 @@ module.exports = function (dir) {
     getRange(r, c, nr, nc) { return new Range(this, r, c, nr || 1, nc || 1); },
     setFrozenRows() {}, setFrozenColumns() {}, setColumnWidth() {}, setRowHeight() {},
     setConditionalFormatRules(r) { this.cfRules = r; }, getFilter() { return this.filter; },
-    protect() { return protection; }, clear() { this.cells = {}; },
+    // sheet protection: one per sheet (Sheets returns the existing one); range protections: a new one per call
+    protect() { this.prots = this.prots || []; return this.prots.find((x) => x.type === 'SHEET') || newProtection(this, 'SHEET', null); },
+    getProtections(type) { return (this.prots || []).filter((x) => x.type === type); },
+    clear() { this.cells = {}; },
   };
-  const protection = { setDescription() { return this; }, setWarningOnly() { return this; } };
+  // Protection: description, warning-only, editors (owner = the script account), domain edit, open ranges
+  const OWNER = 'test@example.com';
+  function newProtection(sh, type, range) {
+    const pr = { type, range, desc: '', warning: false, editors: [OWNER, 'staff@example.com'], domain: true, open: [] };
+    Object.assign(pr, {
+      setDescription(d) { pr.desc = d; return pr; }, getDescription() { return pr.desc; },
+      setWarningOnly(w) { pr.warning = !!w; return pr; }, isWarningOnly() { return pr.warning; },
+      addEditor(u) { const e = typeof u === 'string' ? u : u.getEmail(); if (pr.editors.indexOf(e) === -1) pr.editors.push(e); return pr; },
+      getEditors() { return pr.editors.map((e) => ({ getEmail: () => e })); },
+      removeEditors(list) { const out = list.map((u) => u.getEmail()); pr.editors = pr.editors.filter((e) => e === OWNER || out.indexOf(e) === -1); return pr; },
+      canDomainEdit() { return pr.domain; }, setDomainEdit(v) { pr.domain = !!v; return pr; },
+      setUnprotectedRanges(rs) { if (type !== 'SHEET') throw new Error('only sheet protections have open ranges'); pr.open = rs.slice(); return pr; },
+      getUnprotectedRanges() { return pr.open.slice(); }, getRange() { return range; },
+      remove() { sh.prots.splice(sh.prots.indexOf(pr), 1); },
+    });
+    sh.prots.push(pr);
+    return pr;
+  }
   function Range(sh, r, c, nr, nc) { Object.assign(this, { sh, r, c, nr, nc }); }
   const chain = function () { return this; };
   Range.prototype = {
@@ -76,7 +96,7 @@ module.exports = function (dir) {
       return new Range(this.sh, Math.max(r, 1), this.c, 1, 1);
     },
     createFilter() { this.sh.filter = { getRange: () => this, remove: () => { this.sh.filter = null; } }; return this.sh.filter; },
-    protect() { return protection; },
+    protect() { this.sh.prots = this.sh.prots || []; return newProtection(this.sh, 'RANGE', this); },
     createTextFinder(t) {
       const hits = [];
       for (let i = 0; i < this.nr; i++) for (let j = 0; j < this.nc; j++) if (String(this.sh.get(this.r + i, this.c + j)) === t) hits.push(new Range(this.sh, this.r + i, this.c + j, 1, 1));
@@ -146,7 +166,7 @@ module.exports = function (dir) {
       getProperty: (k) => (k in props ? props[k] : null), setProperty: (k, v) => { props[k] = String(v); },
       deleteProperty: (k) => { delete props[k]; }, getProperties: () => Object.assign({}, props), setProperties: (o) => Object.assign(props, o),
     }) },
-    SpreadsheetApp: { Direction: { UP: 'UP', DOWN: 'DOWN' }, flush() {}, openById: (id) => { if (!books[id]) throw new Error('no spreadsheet ' + id); return books[id]; },
+    SpreadsheetApp: { Direction: { UP: 'UP', DOWN: 'DOWN' }, ProtectionType: { SHEET: 'SHEET', RANGE: 'RANGE' }, flush() {}, openById: (id) => { if (!books[id]) throw new Error('no spreadsheet ' + id); return books[id]; },
       create: (name) => { const id = 'SS' + Object.keys(books).length; const b = new Spreadsheet(id, name); b.sheets = [new Sheet('Sheet1', 1000, 26)]; books[id] = b; return b; },
       newDataValidation: () => {
         const b = { requireValueInList(l) { b.list = l; return b; }, requireNumberGreaterThanOrEqualTo() { return b; }, requireCheckbox() { b.checkbox = true; return b; },

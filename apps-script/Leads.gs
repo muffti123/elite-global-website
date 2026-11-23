@@ -276,6 +276,7 @@ function appendDetailRow_(tab, values, formulaCols) {
 
 /** Formats, dropdowns and the Total Travellers formula for a block of Lead Tracker rows. */
 function applyRowRules_(sh, startRow, numRows) {
+  refreshStaffRanges_(sh);
   sh.getRange(startRow, 2, numRows, 1).setNumberFormat('dd mmm yyyy, hh:mm');
   sh.getRange(startRow, 4, numRows, 1).setNumberFormat('@');
   sh.getRange(startRow, 6, numRows, 4).setNumberFormat('0').setHorizontalAlignment('center');

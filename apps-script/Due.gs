@@ -15,6 +15,7 @@ function dueSheet_() {
     sh.getRange(1, 1, 1, 3).setValues([DUE_HEADERS]).setFontWeight('bold');
     try { if (sh.getMaxColumns() > 3) sh.deleteColumns(4, sh.getMaxColumns() - 3); } catch (e) { /* keep */ }
     try { sh.hideSheet(); } catch (e) { /* mock */ }
+    protectSheet_(sh, SYSTEM_TAB_DESC);
   }
   return sh;
 }

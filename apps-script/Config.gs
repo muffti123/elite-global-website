@@ -77,6 +77,16 @@ const CONFIG = {
   },
   SCHEMA_VERSION: '9',
 
+  // Staff access (docs/LAUNCH.md "Staff access checklist"): staff are editors of the tracker, but only these Lead
+  // Tracker columns are editable for them. Everything else in the Lead Tracker (Lead ID, Date Received, Lead
+  // Category, Total Travellers, Drive Folder, Passengers, Lead Source, Application Status, Review Updated, Last
+  // Customer Email, Visa Files, Last Change, Emails Sent, the header row) and the whole Visa Applications, Visa
+  // Passengers, Custom Requests, Contact Enquiries, System Info, Due and Archive Index tabs are protected: only the
+  // owner (the script account) can edit them. The web app and the triggers run as the owner, so they are not affected.
+  STAFF_COLUMNS: ['Customer Name', 'Phone Number', 'Adults', 'Children', 'Infants', 'Travel Date', 'Budget', 'Lead Status',
+    'Assigned Agent', 'Follow-up Notes', 'Email', 'Country', 'Departure', 'Message to Customer', 'Review Status',
+    'Correction For', 'Send Now'],
+
   // Archive (Archive.gs): finished leads move to "Elite Global – Archive <YYYY>-Q<n>" (by Date Received)
   ARCHIVE: {
     AGE_DAYS: 90,              // days since Last Change

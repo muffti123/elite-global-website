@@ -76,7 +76,7 @@ function archiveIndexSheet_() {
     sh.getRange(1, 1, 1, 4).setValues([ARCHIVE_INDEX_HEADERS]).setBackground(CONFIG.NAVY).setFontColor('#ffffff').setFontWeight('bold');
     try { if (sh.getMaxColumns() > 4) sh.deleteColumns(5, sh.getMaxColumns() - 4); } catch (e) { /* keep */ }
     sh.setFrozenRows(1);
-    sh.getRange(2, 1, sh.getMaxRows() - 1, 4).protect().setDescription('Archive Index is written by the archive job').setWarningOnly(true);
+    protectSheet_(sh, SYSTEM_TAB_DESC);
   }
   return sh;
 }
