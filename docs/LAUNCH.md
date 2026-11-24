@@ -44,7 +44,7 @@ Staging stays exactly as it is: Netlify (manual drag) + the staging Apps Script 
 | 4 | Existing mail on the domain | None (Go54 confirmed; no Hostinger email created). MX can move to Google straight away |
 | 5 | DMARC reports | admin@elitetravelng.com |
 | 6 | Staff Drive access | **Editor on the "Visa Applications" folder only** (they upload approved visas). Never the root folder, the Apps Script, the Email Log, archive files or other system files |
-| 7 | Seats | 4 staff + admin@ = **5 Workspace users** |
+| 7 | Seats | 5 staff (muhammad@, abdulmumin@, mustapha@, hamza@ and abdul@elitetravelng.com) + admin@ = **6 Workspace users** |
 | 8 | HSTS | `max-age=86400` (1 day) first; 1 year (`31536000`) after a week without problems; no preload |
 | 9 | Forms-paused switch | Built (`pauseForms` / `resumeForms`) |
 | 10 | eliteglobaltravelsng@gmail.com | Left as it is (staging/developer account); no forwarding, no auto-reply |
@@ -93,7 +93,7 @@ The old "production" project (`1Lhrr8…`, owned by eliteglobaltravelsng@gmail.c
 
 ### 1.1 Prepare admin@ (🧑)
 1. **Sign-in:** sign in to admin@elitetravelng.com and turn on **2-Step Verification**. This account owns passports.
-2. **Org units:** Admin console → Directory → **Organizational units** → create **`Staff`**. admin@ stays in the top unit, and the 4 staff accounts go into `Staff` later (§7).
+2. **Org units:** Admin console → Directory → **Organizational units** → create **`Staff`**. admin@ stays in the top unit, and the 5 staff accounts go into `Staff` later (§7).
 3. **External sharing:** Admin console → Apps → Google Workspace → Drive and Docs → **Sharing settings**.
    - **Top unit (admin@): sharing outside Elite Global = ON.** Without it, Google hides the web app's "Anyone" access option, and the website cannot post. Files stay private, because the code never changes Drive sharing.
    - **`Staff` unit: sharing outside = OFF.** Staff can't share any file outside the company.
@@ -294,7 +294,7 @@ Setup creates `OTP_SECRET`, `SCHEMA_VERSION`, the folder and tracker IDs, and `E
 
 ## 5. Google Workspace trial and plan (🧑, Admin console → Billing)
 **The trial** (check the exact numbers in your Admin console):
-- **Length and seats:** usually 14 days, about 10 users. 5 users fit.
+- **Length and seats:** usually 14 days, about 10 users. 6 users fit.
 - **Sending limits:** lower for new and trial accounts.
   - The code queues emails and keeps 20 quota units free for codes.
   - `checkEmailSettings` shows the real remaining quota.
@@ -303,8 +303,8 @@ Setup creates `OTP_SECRET`, `SCHEMA_VERSION`, the folder and tracker IDs, and `E
 **Plan for "go-live 1–2 days after Google verifies the payment" (decision 11):**
 1. **Billing:** set it up as soon as the domain is verified. That ends the trial, starts the paid plan and lets Google verify the payment.
 2. **While Google verifies:** do §1 (production Apps Script), §3 (info@ group) and §4 Day-0 DNS. None of these need the paid plan.
-3. **Plan:** start on the **Flexible Plan** (monthly; seats can go up and down) for the first month while the 4 staff accounts settle in.
-   - Switch to **Annual/Fixed-Term** once 5 seats is stable (cheaper; seats can't go down until renewal).
+3. **Plan:** start on the **Flexible Plan** (monthly; seats can go up and down) for the first month while the 5 staff accounts settle in.
+   - Switch to **Annual/Fixed-Term** once 6 seats is stable (cheaper; seats can't go down until renewal).
    - Flexible → Annual is allowed at any time.
 - ✅ **Billing:** Admin → Billing → Subscriptions shows "Business Standard — Active", not "Trial".
 - ✅ **Quota:** `checkEmailSettings` shows the full MailApp quota (re-check the next day; the quota resets every 24 h).
@@ -409,13 +409,18 @@ We **never** roll production back to the staging web app (no real data on stagin
 - **Filtering:** use **Data → Filter views → Create new filter view** (each person gets their own). The shared filter row belongs to admin@.
 
 ### 7.2 Staff access checklist (🧑, after go-live step 11)
-1. **Create the 4 users:** Admin console → Directory → Users → **Add new user** (e.g. `firstname@elitetravelng.com`).
+1. **Create the 5 users:** Admin console → Directory → Users → **Add new user**:
+   - `muhammad@elitetravelng.com`
+   - `abdulmumin@elitetravelng.com`
+   - `mustapha@elitetravelng.com`
+   - `hamza@elitetravelng.com`
+   - `abdul@elitetravelng.com`
    - Put each one in the **`Staff`** org unit.
    - Security → 2-Step Verification: **enforce** it for `Staff` (allow a 1-week enrolment period).
 2. **Emails:** add the users who answer customers to the **info@** group, and to `STAFF_EMAIL` if they should get the alerts. `STAFF_EMAIL` is comma-separated; run `checkEmailSettings` after a change.
-3. **Tracker:** open the production tracker → **Share** → the 4 addresses → **Editor** → Send.
+3. **Tracker:** open the production tracker → **Share** → the 5 staff addresses → **Editor** → Send.
    - ⚙️ in the Share dialog: "Editors can change permissions and share" must be **off** (setup turns it off).
-4. **Visa Applications folder:** open the folder (from System Info) → **Share** → the 4 addresses → **Editor**.
+4. **Visa Applications folder:** open the folder (from System Info) → **Share** → the 5 staff addresses → **Editor**.
    - **Only** this folder, never the root "Elite Global" folder above it.
 5. **Never share:** the Apps Script project, the root folder, "Elite Global – Email Log", the archive files ("Elite Global – Archive …").
 6. **Check as a staff member** (incognito, signed in as one staff account):

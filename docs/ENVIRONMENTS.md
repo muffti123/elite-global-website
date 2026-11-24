@@ -58,7 +58,7 @@ Their old response sheets (read-only history):
 | Item | Value |
 |---|---|
 | Purpose | Live system that receives real customer leads |
-| Owner account | **admin@elitetravelng.com** (Workspace Business Standard). Staff: their own accounts, tracker + Visa Applications folder only (docs/LAUNCH.md §7) |
+| Owner account | **admin@elitetravelng.com** (Workspace Business Standard). 6 Workspace users. Staff (5, OU `Staff`): muhammad@, abdulmumin@, mustapha@, hamza@ and abdul@elitetravelng.com — tracker + Visa Applications folder only (docs/LAUNCH.md §7) |
 | Website | https://elitetravelng.com on Hostinger — the release zip from `tools/release/build.js` (docs/LAUNCH.md §2) |
 | Apps Script project | Elite Global Lead System — created by admin@ (scriptId: in `deploy/production.json` once created) |
 | clasp | Named login `prod` + `.clasp.prod.json` (git-ignored), always through `tools/prod-clasp.ps1` |
