@@ -102,7 +102,7 @@ function refreshVisaFiles_(lead, checkBytes, sh, cols) {
   }
   let scan;
   try { scan = scanVisaFiles_(approvedVisaFolder_(leadFolder_(lead), true), checkBytes); } catch (e) {
-    console.error('Visa Files ' + lead.leadId + ': ' + e.message);
+    console.error('Visa Files ' + lead.leadId + ': ' + noEmails_(e.message));
     return null;
   }
   if (lead.archived) return scan; // archive rows are never written
@@ -136,7 +136,7 @@ function visaAttachments_(leadId) {
     const blobs = scan.files.map(function (x, i) { return x.blob.setName(visaFileName_(leadId, i + 1, n, x.type)); });
     return { blobs: blobs, detail: 'attached ' + n + (n === 1 ? ' file' : ' files') };
   } catch (e) {
-    console.error('visa attachments: ' + e.message);
+    console.error('visa attachments: ' + noEmails_(e.message));
     return { blobs: [], detail: 'not attached (Drive error)' };
   }
 }

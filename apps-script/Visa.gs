@@ -242,7 +242,7 @@ function finalizeVisaApplication_(d) {
     deleteUploadState_(leadId);
   });
   // Where staff will put the approved visa (VisaDelivery.gs)
-  try { approvedVisaFolder_(DriveApp.getFolderById(st.f), true); } catch (e) { console.error('Approved Visa folder: ' + e.message); }
+  try { approvedVisaFolder_(DriveApp.getFolderById(st.f), true); } catch (e) { console.error('Approved Visa folder: ' + noEmails_(e.message)); }
   console.log('finalizeVisaApplication ok ' + leadId);
 
   // Emails never fail the application: staff alert + one combined "received + under review" email

@@ -119,7 +119,7 @@ function doPost(e) {
       return json_(out);
     }
     // Unexpected: log the error class only — never the request (it may hold passport data).
-    console.error('doPost ' + action + ' failed: ' + (err && err.message));
+    console.error('doPost ' + action + ' failed: ' + noEmails_(err && err.message));
     notifyError_(err, action);
     return json_({ ok: false, error: 'Sorry, something went wrong on our side. Please try again in a moment.' });
   } finally {

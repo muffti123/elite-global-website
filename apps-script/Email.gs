@@ -77,7 +77,7 @@ function setStaffEmail(email) {
   if (email === undefined || email === null || typeof email === 'object') { // Run button: no argument (or an event object)
     Logger.log('To change who gets staff alerts and the daily summary:\n  ' + SETTINGS_HOWTO +
       '\n  → STAFF_EMAIL = the address (several: separate with commas) → Save.\nThen run checkEmailSettings to confirm.' +
-      '\nCurrent STAFF_EMAIL: ' + (settings_().staffEmailRaw || '(empty → script owner)'));
+      '\nCurrent STAFF_EMAIL: ' + (validEmails_(settings_().staffEmailRaw).length ? validEmails_(settings_().staffEmailRaw).length + ' address(es) set (see Script Properties)' : '(empty → the owner account)'));
     return;
   }
   const list = validEmails_(email);
@@ -117,7 +117,7 @@ function showNotifySettings() {
   const raw = String(s.staffEmailRaw || '').split(',').filter(function (e) { return e.trim(); });
   const badStaff = raw.length && validEmails_(s.staffEmailRaw).length !== raw.length;
   Logger.log('\nEmail settings (Script Properties — change them in ' + SETTINGS_HOWTO + '):' +
-    '\n  STAFF_EMAIL      ' + (s.staffEmail || '(empty → script owner)') +
+    '\n  STAFF_EMAIL      ' + (raw.length ? raw.length + (raw.length === 1 ? ' address' : ' addresses') + ' set (see Script Properties)' : '(empty → the owner account)') +
     (badStaff ? '   ⚠️ some addresses are not valid and are ignored: check STAFF_EMAIL' : '') +
     '\n  SITE_URL         ' + s.siteUrl + (!s.siteUrlValid ? '   ⚠️ SITE_URL is not a valid https:// address — the default is used'
       : s.siteUrlSet ? '' : '  (default — set it on production)') +
@@ -125,7 +125,7 @@ function showNotifySettings() {
     '\n  NOTIFY_CUSTOMER  ' + (s.notifyCustomer ? 'on' : 'off') +
     '\n  EMAIL_PROVIDER   ' + s.provider +
     '\n  BREVO_API_KEY    ' + (s.brevoKey ? 'set' : 'not set') +
-    '\n  SENDER_EMAIL     ' + (s.senderEmail || '(not set)') +
+    '\n  SENDER_EMAIL     ' + (s.senderEmail ? 'set (see Script Properties)' : '(not set)') +
     '\n  ATTACH_VISA      ' + (s.attachVisa ? 'on (the Visa Approved email attaches the visa files, up to 15 MB together)'
       : 'off (the Visa Approved email has the Download button only; set ATTACH_VISA = on to attach)') +
     '\n  TEST_OTP_BYPASS  ' + (testBypassOn_() ? 'on (staging tests only)' : 'off') +
@@ -183,6 +183,14 @@ function emailLogUrl_() {
   return ss ? ss.getUrl() : '(missing — run setupEliteGlobal)';
 }
 
+/**
+ * Masks anything shaped like an email address. Every log line that can carry text we don't control (a Google error
+ * message such as "Invalid email: …", a Script Property) goes through it: logs never show an address.
+ */
+function noEmails_(s) {
+  return String(s == null ? '' : s).replace(/[^\s@<>"'(),;:\[\]]+@[^\s@<>"'(),;:\[\]]+\.[A-Za-z]{2,}/g, '(an email address)');
+}
+
 /** One log row (and one console line). Never an address, name or code. */
 function logEmail_(m, result, detail) {
   console.log('email ' + m.kind + ' ' + result + (m.leadId ? ' ' + m.leadId : ''));
@@ -190,8 +198,8 @@ function logEmail_(m, result, detail) {
   if (result === 'ok') countHealth_('mail', String(m.to || '').split(',').length || 1);
   try {
     emailLogSheet_().appendRow([new Date(), m.key || '', m.kind, m.leadId || '', result,
-      settings_().provider, String(detail || '').slice(0, 300)]);
-  } catch (e) { console.error('email log unavailable: ' + e.message); }
+      settings_().provider, noEmails_(detail).slice(0, 300)]);
+  } catch (e) { console.error('email log unavailable: ' + noEmails_(e.message)); }
   return result;
 }
 
@@ -325,7 +333,7 @@ function deliver_(m) {
     } catch (e) {
       if (/too many times|quota/i.test(e && e.message)) return { result: 'queue', detail: 'MailApp quota' };
       if (attempt === 0) Utilities.sleep(2000);
-      else return { result: 'queue', detail: 'MailApp: ' + String(e && e.message).slice(0, 120) };
+      else return { result: 'queue', detail: 'MailApp: ' + noEmails_(e && e.message).slice(0, 120) };
     }
   }
   return { result: 'queue', detail: 'unknown' };
@@ -418,6 +426,6 @@ function cleanupEmailLog_(testIds) {
         if (testIds[ids[i][0]]) { sh.deleteRow(i + 2); n++; }
       }
     });
-  } catch (e) { Logger.log('Skipped Email Log clean-up: ' + e.message); }
+  } catch (e) { Logger.log('Skipped Email Log clean-up: ' + noEmails_(e.message)); }
   return n;
 }

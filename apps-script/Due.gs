@@ -35,7 +35,7 @@ function addDueMany_(items) {
     const lock = LockService.getScriptLock();
     if (lock.hasLock && lock.hasLock()) write();
     else withLock_(write, 5000);
-  } catch (e) { console.error('Due not written (the hourly scan catches it): ' + e.message); }
+  } catch (e) { console.error('Due not written (the hourly scan catches it): ' + noEmails_(e.message)); }
 }
 function addDue_(leadId, reason, at) { addDueMany_([{ id: leadId, at: at || Date.now() + CONFIG.EMAIL.UNDO_MIN * 60000, reason: reason }]); }
 

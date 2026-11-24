@@ -170,8 +170,8 @@ function archiveRun_(manual) {
     }
   } catch (e) {
     out.unfinished = true;
-    out.error = e.message;
-    console.error('archive stopped: ' + e.message);
+    out.error = noEmails_(e.message);
+    console.error('archive stopped: ' + noEmails_(e.message));
   } finally {
     p.setProperty('ARCHIVE_PENDING', out.unfinished ? '1' : '0');
     p.setProperty('ARCHIVE_LAST', Utilities.formatDate(new Date(), 'Africa/Lagos', 'd MMM yyyy HH:mm') + ' — ' + out.archived + ' archived' +

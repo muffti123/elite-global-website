@@ -172,7 +172,7 @@ function cleanupLegacyForms_(isTest) {
           });
         }
       } catch (e) {
-        Logger.log('Skipped retired ' + pair[1] + ' clean-up: ' + e.message);
+        Logger.log('Skipped retired ' + pair[1] + ' clean-up: ' + noEmails_(e.message));
       }
     });
   return removed;
@@ -201,7 +201,7 @@ function cleanupDue_(testIds) {
         if (testIds[String(sh.getRange(r, 1).getValue())]) { sh.deleteRow(r); n++; }
       }
     }, 30000);
-  } catch (e) { Logger.log('Due clean-up skipped: ' + e.message); }
+  } catch (e) { Logger.log('Due clean-up skipped: ' + noEmails_(e.message)); }
   return n;
 }
 

@@ -472,7 +472,7 @@ function notifyCorrection_(r) {
     const m = renderCorrectionAlert_(r);
     return sendEmail_({ to: staffEmail_(), kind: 'staff-alert', key: r.leadId + '|correction|' + r.round, leadId: r.leadId,
       subject: m.subject, html: m.html, text: m.text });
-  } catch (e) { console.error('correction alert failed: ' + e.message); return 'failed'; }
+  } catch (e) { console.error('correction alert failed: ' + noEmails_(e.message)); return 'failed'; }
 }
 
 // ---------------------------------------------------------------------

@@ -161,7 +161,7 @@ function setLastCustomerEmail_(leadId, label) {
     sh.getRange(row, cols['Last Customer Email']).setValue(label + ' · ' + stamp);
     touchLead_(sh, row, cols);
     SpreadsheetApp.flush();
-  } catch (e) { console.error('Last Customer Email not updated: ' + e.message); }
+  } catch (e) { console.error('Last Customer Email not updated: ' + noEmails_(e.message)); }
 }
 
 /** Sets Review Status + Review Updated (used at finalize; staff edits go through onTrackerEdit). */
@@ -236,7 +236,7 @@ function notifyNewLead_(lead) {
     const m = renderStaffAlert_(lead);
     return sendEmail_({ to: staffEmail_(), kind: 'staff-alert', key: lead.leadId + '|staff-alert', leadId: lead.leadId,
       subject: m.subject, html: m.html, text: m.text });
-  } catch (e) { console.error('staff alert failed: ' + e.message); return 'failed'; }
+  } catch (e) { console.error('staff alert failed: ' + noEmails_(e.message)); return 'failed'; }
 }
 
 function renderConfirmation_(lead) {
@@ -284,7 +284,7 @@ function sendConfirmation_(lead) {
     if (r === 'queued') setLastCustomerEmail_(lead.leadId, 'Queued: ' + label);
     if (visa && (r === 'ok' || r === 'queued')) logEmail_({ kind: 'status', key: statusKey, leadId: lead.leadId }, r, 'combined with confirmation');
     return r === 'ok' || r === 'queued' || r === 'duplicate';
-  } catch (e) { console.error('confirmation failed: ' + e.message); return false; }
+  } catch (e) { console.error('confirmation failed: ' + noEmails_(e.message)); return false; }
 }
 
 // ---------------------------------------------------------------------
@@ -520,7 +520,7 @@ function onTrackerEdit(e) {
     // Review Status edits start the undo window (and go on the Due list); then ticked Send Now boxes are handled
     if (hit && block) stampReviewUpdated_(sh, cols, r1, r2, block);
     if (inside('Send Now')) sendNowRows_(e, sh, cols, r1, Math.min(r2, r1 + SEND_NOW_MAX - 1));
-  } catch (err) { console.error('onTrackerEdit: ' + err.message); }
+  } catch (err) { console.error('onTrackerEdit: ' + noEmails_(err.message)); }
   finally { recordRun_('edit', Date.now() - t0); }
 }
 
@@ -632,7 +632,7 @@ function runEmailJobs() {
       ['sent', 'queued', 'skipped', 'held', 'waiting'].forEach(function (k) { s[k] += f[k]; });
       s.full = true;
       p.setProperty('LAST_FULL_SCAN', String(Date.now()));
-      try { purgeStaleCorrections_(); } catch (e) { console.error('purgeStaleCorrections: ' + e.message); }
+      try { purgeStaleCorrections_(); } catch (e) { console.error('purgeStaleCorrections: ' + noEmails_(e.message)); }
     }
     console.log('runEmailJobs ' + (s.full ? 'full' : 'due') + ' sent=' + s.sent + ' queued=' + s.queued + ' held=' + s.held + ' waiting=' + s.waiting +
       ' due=' + s.due + ' · queue sent=' + q.sent + ' waiting=' + q.waiting + ' failed=' + q.failed + ' · ' + (Date.now() - t0) + ' ms');
@@ -712,7 +712,7 @@ function collectSummary_() {
   let quota = '';
   if (settings_().provider === 'mailapp') { try { quota = String(MailApp.getRemainingDailyQuota()); } catch (e) { quota = 'unknown'; } }
   let health = [];
-  try { health = healthRows_(); } catch (e) { health = [['System health', 'unavailable: ' + e.message]]; }
+  try { health = healthRows_(); } catch (e) { health = [['System health', 'unavailable: ' + noEmails_(e.message)]]; }
   return { counts: counts, waitingReview: waitingReview, waitingNew: waitingNew, held: held, stale: stale, health: health,
     queue: emailQueueCount_(), queueFailed: emailQueueFailed_(), quota: quota, provider: settings_().provider };
 }
@@ -767,7 +767,7 @@ function renderErrorEmail_(action, err) {
     subject: 'Elite Global — Web app error' + (action ? ' (' + action + ')' : ''),
     heading: 'A website submission failed',
     paragraphs: ['The customer was asked to try again. Check Apps Script → Executions for details.'],
-    rows: [['Action', action || '—'], ['Error', String(err && err.message || '')]],
+    rows: [['Action', action || '—'], ['Error', noEmails_(err && err.message)]],
     small: [String(err && err.stack || '').slice(0, 1500)],
     staff: true,
   });

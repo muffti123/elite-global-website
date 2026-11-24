@@ -39,4 +39,26 @@ module.exports = function (g, ok, t) {
   ctx.protectForStaff_(ss);
   ok('a tab staff added themselves is left alone', other.getProtections('SHEET').length === 0);
   ss.sheets.splice(ss.sheets.indexOf(other), 1);
+
+  // logs never show an email address (the owner, STAFF_EMAIL, SENDER_EMAIL, or one inside a Google error message)
+  const logs = g.logs, props = g.props;
+  const keepProps = { STAFF_EMAIL: props.STAFF_EMAIL, SENDER_EMAIL: props.SENDER_EMAIL, OWNER_EMAIL: props.OWNER_EMAIL };
+  props.STAFF_EMAIL = 'staff@example.org,boss@example.org'; props.SENDER_EMAIL = 'sender@example.org'; delete props.OWNER_EMAIL;
+  const from = logs.length;
+  ctx.protectForStaff_(ss);
+  ctx.showNotifySettings();
+  ctx.setStaffEmail();
+  ctx.showSystemInfo();
+  ctx.checkOwner_();
+  ctx.setOwnerEmail();
+  props.OWNER_EMAIL = 'someone-else@example.org';
+  let thrown = '';
+  try { ctx.checkOwner_(); } catch (e) { thrown = e.message; }
+  try { ctx.setOwnerEmail('not an email@x'); } catch (e) { thrown += ' ' + e.message; }
+  const out = logs.slice(from).join('\n');
+  ok('setup, checkEmailSettings, setStaffEmail, showSystemInfo, setOwnerEmail: no email address in the logs', out.length > 0 && !/@/.test(out), (out.match(/\S*@\S*/g) || []).join(' '));
+  ok('… "edited by the owner account"; STAFF_EMAIL shown as a count', /can only be edited by the owner account\./.test(out) && /STAFF_EMAIL\s+2 addresses set/.test(out) && /SENDER_EMAIL\s+set/.test(out));
+  ok('… the wrong-owner and invalid-address errors name no address', thrown.length > 20 && !/@/.test(thrown), thrown);
+  ok('noEmails_ masks addresses inside error text', ctx.noEmails_('Invalid email: a.b+c@mail.example.com, x') === 'Invalid email: (an email address), x' && ctx.noEmails_(null) === '');
+  Object.keys(keepProps).forEach((k) => { if (keepProps[k] === undefined) delete props[k]; else props[k] = keepProps[k]; });
 };

@@ -379,7 +379,7 @@ function closeLegacyForms_() {
     if (!id) return;
     let form;
     try { form = FormApp.openById(id); } catch (e) {
-      Logger.log('Skipped ' + f[1] + ': could not open it (' + e.message + ').');
+      Logger.log('Skipped ' + f[1] + ': could not open it (' + noEmails_(e.message) + ').');
       return;
     }
     const notes = [];
@@ -511,13 +511,13 @@ function protectForStaff_(ss) {
     if (sh) protectSheet_(sh, SYSTEM_TAB_DESC);
   });
   Logger.log('Staff access: Lead Tracker open for staff in ' + CONFIG.STAFF_COLUMNS.length + ' columns only; ' +
-    'system columns and tabs can only be edited by ' + Session.getEffectiveUser().getEmail() + '.');
+    'system columns and tabs can only be edited by the owner account.');
 }
 
 /** Staff who are editors of the tracker or the Visa Applications folder cannot share them on or change access. */
 function lockSharing_(ss, visaFolder) {
   [function () { return DriveApp.getFileById(ss.getId()); }, function () { return visaFolder; }].forEach(function (get) {
-    try { const item = get(); if (item) item.setShareableByEditors(false); } catch (e) { Logger.log('⚠️ Could not turn off "Editors can share": ' + e.message); }
+    try { const item = get(); if (item) item.setShareableByEditors(false); } catch (e) { Logger.log('⚠️ Could not turn off "Editors can share": ' + noEmails_(e.message)); }
   });
 }
 
@@ -528,7 +528,7 @@ function refreshStaffRanges_(sh) {
     const prot = sh.getProtections(SpreadsheetApp.ProtectionType.SHEET)[0];
     if (!prot || prot.getDescription() !== STAFF_PROTECT_DESC) return;
     prot.setUnprotectedRanges(staffRanges_(sh));
-  } catch (e) { console.error('staff ranges not refreshed (setup fixes it): ' + e.message); }
+  } catch (e) { console.error('staff ranges not refreshed (setup fixes it): ' + noEmails_(e.message)); }
 }
 
 function writeSystemInfo_() {
@@ -544,7 +544,7 @@ function writeSystemInfo_() {
 }
 
 function showSystemInfo() {
-  const lines = collectInfo_().map(function (r) { return r[0] ? r[0] + ':\n   ' + r[1] : ''; });
+  const lines = collectInfo_().map(function (r) { return r[0] ? r[0] + ':\n   ' + noEmails_(r[1]) : ''; });
   Logger.log('\n' + lines.join('\n'));
 }
 
@@ -556,13 +556,13 @@ function checkOwner_() {
   const expected = (PropertiesService.getScriptProperties().getProperty('OWNER_EMAIL') || '')
     .trim().toLowerCase();
   if (!expected) {
-    Logger.log('ℹ️ No OWNER_EMAIL set in Script Properties — continuing as ' + (me || '(unknown account)') +
+    Logger.log('ℹ️ No OWNER_EMAIL set in Script Properties — continuing as the account you are signed in as' +
       '. Every file will be owned by this account. Run setOwnerEmail() to enforce an owner.');
     return;
   }
   if (me && me !== expected) {
-    throw new Error('You are signed in as ' + me + '. Please run this script while signed in as ' +
-      expected + ' (Script Property OWNER_EMAIL) so every file is owned by the right account.');
+    throw new Error('You are signed in as a different account from OWNER_EMAIL (Script Properties). Please run this script ' +
+      'while signed in as the owner account so every file is owned by the right account.');
   }
 }
 
@@ -573,10 +573,10 @@ function checkOwner_() {
 function setOwnerEmail(email) {
   const value = String(email || Session.getEffectiveUser().getEmail() || '').trim().toLowerCase();
   if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(value)) {
-    throw new Error('setOwnerEmail: "' + value + '" is not a valid email address.');
+    throw new Error('setOwnerEmail: that is not a valid email address.');
   }
   PropertiesService.getScriptProperties().setProperty('OWNER_EMAIL', value);
-  Logger.log('OWNER_EMAIL set to ' + value);
+  Logger.log('OWNER_EMAIL set' + (email ? '.' : ' to the account you are signed in as.'));
 }
 
 /** Only use if you deleted the generated folder and want to rebuild everything. */
