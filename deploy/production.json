@@ -1,8 +1,8 @@
 {
   "_about": "Production website settings for tools/release/build.js (docs/LAUNCH.md). Public values only: the website calls the web app anyway. webAppUrl and deploymentId are filled in after the first production deployment (LAUNCH.md section 1.5). hstsMaxAge: 86400 (1 day) first, 31536000 (1 year) after a week without problems.",
   "siteUrl": "https://elitetravelng.com",
-  "webAppUrl": "",
-  "deploymentId": "",
-  "scriptId": "",
+  "webAppUrl": "https://script.google.com/macros/s/AKfycbzPI_aKRvNWhjWK9YtQXiKVg0YvAzAr9T9TtnYBkd2Ua85vwrZ48AGS25DA0WVuGqxC/exec",
+  "deploymentId": "AKfycbzPI_aKRvNWhjWK9YtQXiKVg0YvAzAr9T9TtnYBkd2Ua85vwrZ48AGS25DA0WVuGqxC",
+  "scriptId": "1wQBFJw_ZuIlJl1XMKutUNhqCDm-XWU-XsuYfeMkTCJB_RbdZdI392vex",
   "hstsMaxAge": 86400
 }
