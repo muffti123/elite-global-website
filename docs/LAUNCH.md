@@ -348,8 +348,10 @@ Setup creates `OTP_SECRET`, `SCHEMA_VERSION`, the folder and tracker IDs, and `E
 5. **Status email:** in the tracker, set Review Status → *Verified*.
    - ✅ The status email arrives 5–10 min later.
    - ✅ A reply to it reaches info@.
-6. **Optional:** run `testApproveVisa` (SPECIMEN visa).
-   - ✅ The Visa Approved email has the attachment (ATTACH_VISA on), and Track → Download works.
+6. **Optional — visa delivery:** `testApproveVisa` is staging-only and refuses on production, so do it by hand.
+   - Upload a generated SPECIMEN visa PDF (🤖 makes one in `release/smoke/`, from `Specimen.gs`) into the TEST lead's
+     `Approved Visa` folder, then set Review Status → *Visa Approved*.
+   - ✅ The Visa Approved email arrives 5–10 min later with the attachment (ATTACH_VISA on), and Track → Download works.
 7. **Clean-up:**
    - Run **`previewTestData`**. It changes nothing and lists the matching Lead IDs only. ✅ Exactly your 3 TEST leads.
    - Then run **`cleanupTestData`**. ✅ The 3 leads are gone from every tab, the folder is in admin@'s Drive bin (empty it), and the Email Log has no TEST rows.
