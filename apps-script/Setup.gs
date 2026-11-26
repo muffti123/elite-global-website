@@ -61,21 +61,24 @@ function setupEliteGlobal() {
     Logger.log('Created Central Lead Tracker.');
   }
   p.setProperty('TRACKER_ID', ss.getId());
+
+  // 4. Email Log spreadsheet + email settings — before anything that reads them (setupScale_ fills Emails Sent from the log)
+  ensureEmailLog_(root);
+  ensureEmailSettings_();
+
   upgradeTracker_(ss);
   if (p.getProperty('LEAD_SEQ') === null) p.setProperty('LEAD_SEQ', '0');
   setupVisaDelivery_(); // "Approved Visa" in every visa lead folder + Visa Files recount (schema 7)
   setupScale_(ss);      // schema 9: Due + Archive Index tabs, unused grid columns trimmed, Emails Sent filled once
 
-  // 4. Retire the Google Forms system
+  // 5. Retire the Google Forms system
   removeLegacyTriggers_();
   closeLegacyForms_();
 
-  // 5. Email Log spreadsheet, email settings, triggers (status emails, queue, daily summary)
-  ensureEmailLog_(root);
-  ensureEmailSettings_();
+  // 6. Triggers (status emails, queue, archive, daily summary) — each created only if missing
   ensureTriggers_(ss);
 
-  // 6. Housekeeping + info
+  // 7. Housekeeping + info
   purgeStaleUploads_();
   purgeStaleCorrections_();
   writeSystemInfo_();
@@ -612,7 +615,9 @@ function setupScale_(ss) {
 function backfillEmailsSent_() {
   const p = PropertiesService.getScriptProperties();
   if (p.getProperty('EMAILS_SENT_FILLED') === 'yes') return;
-  const log = emailLogSheet_();
+  const logSS = spreadsheetOrNull_(p.getProperty('EMAIL_LOG_ID'));
+  const log = logSS && logSS.getSheetByName(CONFIG.EMAIL.LOG_TAB);
+  if (!log) { Logger.log('Emails Sent: no Email Log yet — skipped (the next setup run fills it).'); return; }
   const per = {};
   if (log.getLastRow() >= 2) {
     log.getRange(2, 1, log.getLastRow() - 1, 5).getValues().forEach(function (r) {
