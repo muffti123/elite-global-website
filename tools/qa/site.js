@@ -29,7 +29,7 @@ const PAGES = ['index.html', 'customize-umrah.html', 'apply-visa.html', 'track.h
     const brand = await p.evaluate(() => ({
       head: [...document.querySelectorAll('.site-header .eg-brand.eg-brand--light')].map((a) => a.getAttribute('href')),
       foot: [...document.querySelectorAll('footer .eg-brand.eg-brand--dark')].map((a) => a.getAttribute('href')),
-      css: [...document.styleSheets].some((s) => /brand\.css$/.test(s.href || '')),
+      css: [...document.styleSheets].some((s) => /brand\.css(\?v=[0-9a-f]+)?$/.test(s.href || '')),
       w: (document.querySelector('.site-header .eg-brand') || {}).offsetWidth,
       fontOk: document.fonts.check('800 20px "EG Display"'),
     }));
