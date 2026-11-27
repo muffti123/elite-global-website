@@ -288,6 +288,29 @@ Setup creates `OTP_SECRET`, `SCHEMA_VERSION`, the folder and tracker IDs, and `E
 - 🧑 **Brevo:** the domain shows **Authenticated**, and a Brevo test mail shows DMARC PASS with DKIM aligned to elitetravelng.com. Only then:
   - set `EMAIL_PROVIDER=brevo`, `BREVO_API_KEY`, `SENDER_EMAIL=info@elitetravelng.com`;
   - run `checkEmailSettings` + `sendEmailSamples`.
+### 4.1 New-domain deliverability and the Brevo fallback (27 Nov 2026)
+**What happened:** Google's outbound spam filter bounced the first code emails to gmail.com within a second
+("Message rejected", answer/69585). The domain was days old and Workspace was still on trial. Internal copies were delivered.
+**What changed (v3.4.1):**
+- **The code email is minimal:** "Your Elite Global confirmation code", with no code in the subject, no image, no link, no button and no preheader. It is short plain text plus the same text as simple HTML.
+- **Other customer emails:** no remote logo (a text wordmark instead), and the button is their only link.
+- **Diagnostic:** `diagExternalEmail` (Script Property `DIAG_TO`) sends variants A, B and C to compare.
+- **Monitoring:** System health and the daily summary show **Email codes** (sent / confirmed / failed) with a ⚠️ when most codes are never confirmed.
+- **Website:** "If no code arrives within 2 minutes, email info@ or message us on WhatsApp" under every code.
+
+**Brevo as the fallback (prepare now, switch only if Google keeps bouncing):**
+1. 🧑 **Account:** brevo.com → sign up with admin@elitetravelng.com, company "Elite Global World Travel & Tours Ltd.", website https://elitetravelng.com. Answer the onboarding questions truthfully (transactional emails to customers who asked for them). Brevo may review a new account for up to a day.
+2. 🧑 **Domain:** Brevo → Settings (gear) → **Senders, Domains & Dedicated IPs → Domains → Add a domain** → `elitetravelng.com` → "Authenticate it yourself". It shows the records to add in Hostinger (rows 5–6 above):
+   - `TXT brevo-code` = `brevo-code:…`;
+   - `CNAME brevo1._domainkey` and `CNAME brevo2._domainkey` → the targets shown;
+   - DMARC already exists. **Do not add a second SPF record** (only change the one SPF, and only if Brevo asks).
+   - hPanel → Domains → elitetravelng.com → DNS → **Add record**, copy each value exactly, TTL 300. Then Brevo → **Authenticate**. ✅ The domain shows "Authenticated".
+3. 🧑 **Sender:** Senders → **Add a sender**: name `Elite Global World Travel & Tours`, email `info@elitetravelng.com`. It verifies automatically once the domain is authenticated (otherwise Brevo emails a link to info@, which reaches the group).
+4. 🧑 **API key:** SMTP & API → **API keys → Generate**, name `apps-script-prod`. Copy it once into Apps Script → Project Settings → Script Properties `BREVO_API_KEY`. Never put it into chat, code or documents.
+5. 🧑 **Authorised IPs:** Settings → Security → **Authorised IPs** → **deactivate** the IP blocking. Apps Script calls come from changing Google IPs, so with blocking on, every call is refused (HTTP 401).
+6. 🧑 **Switch (only when you decide):** set Script Properties `SENDER_EMAIL=info@elitetravelng.com` and `EMAIL_PROVIDER=brevo` → run `checkEmailSettings` (Brevo key "set"), then `sendEmailSamples`. ✅ A sample in Gmail → Show original: DKIM `elitetravelng.com` PASS, DMARC PASS.
+   - **Back:** `EMAIL_PROVIDER=mailapp`. Queued emails are kept either way.
+
 - **Brevo plan:** the free plan allows 300/day. At ~3,000 emails/day (500 applications/day) a paid plan is needed, sized for ~90k/month. MailApp on paid Workspace allows ~1,500 recipients/day, enough for the first weeks.
 
 ---

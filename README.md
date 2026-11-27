@@ -242,6 +242,7 @@ columns is `CONFIG.STAFF_COLUMNS`; run `setupEliteGlobal` after changing it.
   - *Trigger time* close to the daily limit (90 min on gmail.com, 6 h on Workspace): check for a very large Due list or
     a tracker that is too big (run `archiveNow`); on gmail.com, moving to Workspace raises the limit to 6 hours.
   - *Emails sent* close to the quota: switch to Brevo (below), or a bigger Brevo plan.
+  - *Email codes* ⚠️ "customer emails may be failing" (most codes sent were never confirmed, or sending failed): Google may be bouncing them. Check Admin console → Reporting → Email Log Search, run `diagExternalEmail`, and if Google keeps bouncing, switch to Brevo (docs/LAUNCH.md §4.1).
   - *Lead Tracker size* over 7 M of 10 M cells: run `archiveNow`, and close old leads from the "please close" list.
   - *Email Log size* over 7 M cells: tell the developer (the log keeps 90 days).
   - *Busy replies* in the hundreds: many customers at the same moment. The website retries for them (for about
@@ -290,7 +291,8 @@ always changed in Script Properties.)
 | Pause new online requests (maintenance) | `FORMS_PAUSED` | Run `pauseForms`: new contact / customise / visa / code requests get a friendly "we're updating" message with the WhatsApp, phone and email links; anything already under way keeps working. Run `resumeForms` to open them again |
 | Check everything | — | Run `checkEmailSettings` (provider, addresses, quota left, queue size; the Brevo key shows only as "set") |
 | Preview every email | — | Run `sendEmailSamples` — 18 samples go to `STAFF_EMAIL` (Visa Approved three times: button only, SPECIMEN visa attached, too large) |
-| Email logo | `public/assets/brand/email-logo.png`, served from the website — run `cd tools/qa && node ../build-email-logo.js` after a logo change, then deploy `public/` |
+| Test delivery to an outside address | `DIAG_TO` | Set `DIAG_TO` to one test address, run `diagExternalEmail`: three variants (A plain text, B the code email, C the old code email) — see which arrive (Inbox / Spam) and Admin console → Reporting → Email Log Search (Bounced?). Delete `DIAG_TO` afterwards |
+| Email logo (staff emails only; customer emails have no images) | `public/assets/brand/email-logo.png`, served from the website — run `cd tools/qa && node ../build-email-logo.js` after a logo change, then deploy `public/` |
 
 ### Switching email sending to Brevo (needed for production volume)
 MailApp on a gmail.com account sends ~100 emails a day; at ~500 applications a day the system needs about
