@@ -18,6 +18,7 @@
  *   checkEmailSettings() – prints the email settings (STAFF_EMAIL, SITE_URL, provider, on/off, quota, queue);
  *                          change them in Project Settings → Script Properties (setStaffEmail / setSiteUrl explain how)
  *   sendEmailSamples()   – sends one sample of every email to STAFF_EMAIL for approval
+ *   diagExternalEmail()  – delivery test: variants A/B/C to Script Property DIAG_TO (delete DIAG_TO afterwards)
  *   checkRecentEmailJobs() – the last 20 review-email decisions (sent / waiting / held / …), no personal data
  *   enableTestOtpBypass() / disableTestOtpBypass() – STAGING ONLY: fixed email code for TEST names @example.com
  *   testRequestCorrection() – STAGING ONLY: sets Correction Needed on the newest TEST visa lead (@example.com)

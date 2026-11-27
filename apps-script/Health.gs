@@ -41,6 +41,24 @@ function recordAction_(action, ms, busy, lock) {
   });
 }
 
+/**
+ * Codes sent vs confirmed (yesterday and today). Google can accept an email and then bounce it (outbound spam
+ * block): the script never sees that bounce, but customers who never type their code show it. ⚠️ when at least
+ * CODE_WARN_MIN codes went out and fewer than half were confirmed, or when sending failed.
+ */
+const CODE_WARN_MIN = 4;
+function codeHealthText_(y, t) {
+  const part = function (h, label) {
+    const sent = h.code || 0, okN = h.codeOk || 0, bad = h.mailFail || 0;
+    return label + ' ' + sent + ' sent · ' + okN + ' confirmed' + (bad ? ' · ' + bad + ' failed to send' : '');
+  };
+  const weak = function (h) { return (h.code || 0) >= CODE_WARN_MIN && (h.codeOk || 0) < (h.code || 0) / 2 || (h.mailFail || 0) > 0; };
+  const text = part(y, 'yesterday') + ' — ' + part(t, 'today');
+  return weak(y) || weak(t)
+    ? '⚠️ customer emails may be failing (' + text + '). Check Admin console → Reporting → Email Log Search for bounces, and consider EMAIL_PROVIDER = brevo.'
+    : text;
+}
+
 /** Removes health records older than 8 days. */
 function pruneHealth_() {
   const p = PropertiesService.getScriptProperties();
@@ -83,6 +101,7 @@ function healthRows_() {
   const mail = y.mail || 0;
   rows.push(['Emails sent yesterday', s.provider === 'brevo' ? mail + ' (Brevo — see the Brevo dashboard for its limit)'
     : warn(mail, lim.mail) + mail + ' of ' + lim.mail + ' (MailApp, ' + pct(mail, lim.mail) + ' %)']);
+  rows.push(['Email codes', codeHealthText_(y, healthGet_(healthKey_(new Date())))]);
   rows.push(['Website requests yesterday', String(y.act || 0) + ' · busy replies ' + (y.busy || 0) + (y.slow ? ' · slowest ' + y.slow[0] + ' ' + Math.round(y.slow[1] / 100) / 10 + ' s' : '')]);
   // Every create / upload waits for the script lock: a long hold means bursts queue up (⚠️ at 70 % of the 20 s wait)
   const lk = y.lock;

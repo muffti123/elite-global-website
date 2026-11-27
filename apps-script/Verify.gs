@@ -62,8 +62,35 @@ function enableTestOtpBypass() { setTestOtpBypass(true); }
 /** Run button: turn the test code off (do this after testing). */
 function disableTestOtpBypass() { setTestOtpBypass(false); }
 
+/**
+ * The code email (Step 1, correction and download codes). Deliberately minimal for a new sending domain: the code
+ * is NOT in the subject, no images, no links, no button or tables, no hidden preheader, no customer-typed text —
+ * short plain text plus the same text as simple HTML. Sender name and Reply-To info@ come from sendEmail_.
+ */
 function renderCodeEmail_(code) {
+  const C = CONFIG.COMPANY_INFO;
+  const lines = [
+    'Hello,',
+    'Your confirmation code for the Elite Global website is:',
+    String(code),
+    'The code is valid for 30 minutes. If you did not request it, you can ignore this email.',
+    'Questions? Just reply to this email.',
+  ];
+  const sig = [C.name, 'Phone: ' + C.phone];
+  const e = escHtml_;
+  const html = '<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Your Elite Global confirmation code</title></head>' +
+    '<body style="margin:0;padding:16px;font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:1.5;color:#18233d">' +
+    '<p>' + e(lines[0]) + '</p><p>' + e(lines[1]) + '</p>' +
+    '<p style="font-size:24px;font-weight:bold;letter-spacing:3px">' + e(lines[2]) + '</p>' +
+    '<p>' + e(lines[3]) + '</p><p>' + e(lines[4]) + '</p>' +
+    '<p>' + sig.map(e).join('<br>') + '</p></body></html>';
+  return { subject: 'Your Elite Global confirmation code', html: html, text: lines.join('\n\n') + '\n\n' + sig.join('\n') };
+}
+
+/** The code email as it was until v3.4 (logo, links, code in the subject) — diagExternalEmail variant C only. */
+function renderCodeEmailOld_(code) {
   return renderEmail_({
+    logo: true,
     subject: 'Elite Global — Your email confirmation code: ' + code,
     preheader: 'Your code is ' + code + '. It is valid for 30 minutes.',
     heading: 'Confirm your email address',
@@ -105,6 +132,7 @@ function issueCode_(scope, email, bypass, field) {
   if (!bypass) {
     const m = renderCodeEmail_(code);
     const r = sendEmail_({ to: email, kind: 'code', urgent: true, subject: m.subject, html: m.html, text: m.text });
+    if (r === 'ok') countHealth_('code');
     if (r !== 'ok') fail_('We could not send the code right now. Please try again in a few minutes, or contact us on WhatsApp.', field);
   }
   cache.put(key, JSON.stringify({ h: codeHash_(code, scope), x: Date.now() + O.TTL_S * 1000, n: 0 }), O.TTL_S);
@@ -144,6 +172,7 @@ function checkCode_(scope, raw, logName) {
     fail_(OTP_WRONG + ' (' + left + (left === 1 ? ' attempt' : ' attempts') + ' left)', 'code');
   }
   cache.remove(key);
+  countHealth_('codeOk');
 }
 
 // ---------------------------------------------------------------------

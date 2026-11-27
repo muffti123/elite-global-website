@@ -232,6 +232,7 @@ require('./test-visa')(g, ok, { tok, future, setCell, colOf, tr, b64 });
 require('./test-scale')(g, ok, { tok, future, setCell, colOf, tr, b64 });
 require('./test-access')(g, ok, { tr });
 require('./test-fresh')(dir, ok);
+require('./test-deliv')(dir, ok);
 
 // --- forms paused (maintenance switch) ----------------------------------------------------------
 {

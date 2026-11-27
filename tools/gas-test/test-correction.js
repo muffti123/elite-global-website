@@ -13,7 +13,7 @@ module.exports = function (g, ok, t) {
   const jobs = () => { delete g.cache.EMAIL_JOBS; delete props.LAST_FULL_SCAN; return ctx.runEmailJobs(); }; // full scan each time (the Due path: test-scale.js)
   const err = (fn) => { try { const r = fn(); return { ok: true, r }; } catch (e) { return { ok: false, msg: e.message, e }; } };
   const to = (addr) => mail.outbox.filter((m) => m.to === addr);
-  const codeIn = (m) => (/code: (\d{6})/.exec(m.subject) || [])[1];
+  const codeIn = (m) => (/\n(\d{6})\n/.exec(m.body) || [])[1];
   mail.quota = 1000;
   clock.offset = 0;
 

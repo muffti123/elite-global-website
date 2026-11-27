@@ -30,6 +30,8 @@ function trackUrl_(leadId) {
  * o = {subject, preheader, heading, paragraphs: [text], box?: {title, text}, rows?: [[label, value]],
  *      button?: {label, url}, small?: [text], lists?: [{title, items: [text]}]}
  * Everything is plain text and escaped here. Returns {subject, html, text}.
+ * Customer emails (no o.staff): no remote image (a text wordmark instead) and no footer link — the button is
+ * their only link (deliverability on a new domain). Staff emails keep the logo and the Track link.
  */
 function renderEmail_(o) {
   const C = CONFIG.COMPANY_INFO;
@@ -70,6 +72,7 @@ function renderEmail_(o) {
   // Footer: contact details as text — the only links in customer emails go to SITE_URL (deliverability)
   const wa = whatsappText_();
   const ig = instagramHandle_();
+  const rich = !!(o.staff || o.logo);
   const why = o.staff ? 'Staff notification from the Elite Global lead system.'
     : 'You\'re receiving this because you applied on our website.';
   const footer =
@@ -78,7 +81,7 @@ function renderEmail_(o) {
     '<p style="margin:0 0 6px;font-size:13px;line-height:1.5;color:#d8deeb">' + e(C.address) + '</p>' +
     '<p style="margin:0 0 6px;font-size:13px;line-height:1.7;color:#d8deeb">Phone: ' + e(C.phone) +
     ' &nbsp;·&nbsp; WhatsApp: ' + e(wa) + (ig ? ' &nbsp;·&nbsp; Instagram: ' + e(ig) : '') + ' &nbsp;·&nbsp; Email: ' + e(C.email) + '</p>' +
-    '<p style="margin:10px 0 8px;font-size:13px"><a href="' + e(site + '/track.html') + '" style="color:' + EMAIL_GOLD + ';font-weight:bold">Track your application</a></p>' +
+    (rich ? '<p style="margin:10px 0 8px;font-size:13px"><a href="' + e(site + '/track.html') + '" style="color:' + EMAIL_GOLD + ';font-weight:bold">Track your application</a></p>' : '') +
     '<p style="margin:0;font-size:12px;color:#aab4cc">' + e(why) + '</p>';
 
   const html = '<!doctype html><html lang="en"><head><meta charset="utf-8">' +
@@ -89,7 +92,8 @@ function renderEmail_(o) {
     '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#eef1f6"><tr><td align="center" style="padding:20px 10px">' +
     '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:600px;background:#ffffff;border-radius:12px;overflow:hidden">' +
     '<tr><td style="background:' + EMAIL_NAVY + ';padding:20px 24px;border-bottom:4px solid ' + EMAIL_GOLD + '">' +
-    '<img src="' + e(site + '/assets/brand/email-logo.png') + '" width="220" height="141" alt="Elite Global World Travel &amp; Tours Ltd." style="display:block;width:220px;max-width:100%;height:auto;border:0;color:#ffffff;font-size:18px;font-weight:bold"></td></tr>' +
+    (rich ? '<img src="' + e(site + '/assets/brand/email-logo.png') + '" width="220" height="141" alt="Elite Global World Travel &amp; Tours Ltd." style="display:block;width:220px;max-width:100%;height:auto;border:0;color:#ffffff;font-size:18px;font-weight:bold">'
+      : '<p style="margin:0;font-size:20px;font-weight:bold;color:#ffffff">Elite Global</p><p style="margin:2px 0 0;font-size:13px;color:' + EMAIL_GOLD + '">World Travel &amp; Tours Ltd.</p>') + '</td></tr>' +
     '<tr><td style="padding:28px 24px 12px;font-family:' + EMAIL_FONT + '">' +
     '<h1 style="margin:0 0 16px;font-size:22px;line-height:1.3;color:' + EMAIL_NAVY + '">' + e(o.heading) + '</h1>' + body + '</td></tr>' +
     '<tr><td style="background:' + EMAIL_NAVY + ';padding:22px 24px;font-family:' + EMAIL_FONT + '">' + footer + '</td></tr>' +
@@ -105,7 +109,9 @@ function renderEmail_(o) {
   if (o.button) t.push(o.button.label + ': ' + o.button.url, '');
   (o.small || []).forEach(function (x) { t.push(x); });
   t.push('', '—', C.name + ' (RC: ' + C.rc + ')', C.address, 'Phone: ' + C.phone + ' · WhatsApp: ' + wa +
-    (ig ? ' · Instagram: ' + ig : ''), 'Email: ' + C.email, 'Track your application: ' + site + '/track.html', '', why);
+    (ig ? ' · Instagram: ' + ig : ''), 'Email: ' + C.email);
+  if (rich) t.push('Track your application: ' + site + '/track.html');
+  t.push('', why);
   return { subject: o.subject, html: html, text: t.join('\n') };
 }
 
@@ -734,7 +740,7 @@ function renderSummary_(s) {
       { title: 'Visa reviews waiting more than ' + CONFIG.EMAIL.WAIT_DAYS + ' days', items: cap(s.waitingReview) },
       { title: 'New leads not contacted for more than ' + CONFIG.EMAIL.WAIT_DAYS + ' days', items: cap(s.waitingNew) },
       { title: 'Please close (unchanged for ' + CONFIG.ARCHIVE.STALE_DAYS + ' days: set Lead Status to Converted or Lost so they can be archived)', items: cap(s.stale || []) },
-      { title: 'System health' + ((s.health || []).some(function (r) { return /⚠️/.test(r[1]); }) ? ' — ⚠️ action needed (see the README)' : ''),
+      { title: 'System health' + ((s.health || []).some(function (r) { return /⚠️/.test(r[1]); }) ? ' — ⚠️ action needed (see the staff guide)' : ''),
         items: (s.health || []).map(function (r) { return r[0] + ': ' + r[1]; }) },
     ],
     button: { label: 'Open the Lead Tracker', url: trackerSS_().getUrl() },

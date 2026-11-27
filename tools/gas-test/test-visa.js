@@ -15,7 +15,7 @@ module.exports = function (g, ok, t) {
   const jobs = () => { delete g.cache.EMAIL_JOBS; delete props.LAST_FULL_SCAN; return ctx.runEmailJobs(); }; // full scan each time (the Due path: test-scale.js)
   const err = (fn) => { try { const r = fn(); return { ok: true, r }; } catch (e) { return { ok: false, msg: e.message, e }; } };
   const to = (addr) => mail.outbox.filter((m) => m.to === addr);
-  const codeIn = (m) => (/code: (\d{6})/.exec(m.subject) || [])[1];
+  const codeIn = (m) => (/\n(\d{6})\n/.exec(m.body) || [])[1];
   const logSh = () => g.books[Object.keys(g.books).find((k) => g.books[k].getSheetByName('Email Log'))].getSheetByName('Email Log');
   const logRows = () => { const sh = logSh(); return sh.getLastRow() < 2 ? [] : sh.getRange(2, 1, sh.getLastRow() - 1, 7).getValues(); };
   const queueSh = () => g.books[Object.keys(g.books).find((k) => g.books[k].getSheetByName('Email Queue'))].getSheetByName('Email Queue');

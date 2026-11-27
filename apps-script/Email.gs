@@ -196,6 +196,7 @@ function logEmail_(m, result, detail) {
   console.log('email ' + m.kind + ' ' + result + (m.leadId ? ' ' + m.leadId : ''));
   if (m.key && EMAIL_DONE[result]) markEmailSent_(m.key);
   if (result === 'ok') countHealth_('mail', String(m.to || '').split(',').length || 1);
+  if (result === 'failed' || result === 'unavailable') countHealth_('mailFail');
   try {
     emailLogSheet_().appendRow([new Date(), m.key || '', m.kind, m.leadId || '', result,
       settings_().provider, noEmails_(detail).slice(0, 300)]);

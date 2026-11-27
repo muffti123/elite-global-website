@@ -28,10 +28,13 @@ module.exports = function (g, ok, t) {
   const conf = to('v@e.co');
   ok('visa: ONE combined "received + under review" email (not two)', conf.length === 1 && /under review/i.test(conf[0].htmlBody) &&
     /track\.html\?id=EG-VO-/.test(conf[0].htmlBody) && /spam/.test(conf[0].htmlBody), conf.map((m) => m.subject).join(' | '));
-  ok('confirmation: branded (navy header, logo from SITE_URL, gold button, RC, Reply-To company), plain text too',
-    /#06163F/.test(conf[0].htmlBody) && /https:\/\/elite-global-staging\.netlify\.app\/assets\/brand\/email-logo\.png/.test(conf[0].htmlBody) &&
+  ok('confirmation: branded (navy header, text wordmark — NO remote image, gold button, RC, Reply-To company), plain text too',
+    /#06163F/.test(conf[0].htmlBody) && !/<img /.test(conf[0].htmlBody) && />Elite Global<\/p>/.test(conf[0].htmlBody) &&
     /#F5AE00/.test(conf[0].htmlBody) && /RC: 7787410/.test(conf[0].htmlBody) && conf[0].replyTo === 'info@elitetravelng.com' &&
     /Reference number: EG-VO-/.test(conf[0].body) && /^Elite Global — /.test(conf[0].subject), conf[0].subject);
+  ok('confirmation: one link only (the Track button), no footer link', (conf[0].htmlBody.match(/<a /g) || []).length === 1 && /track\.html\?id=EG-VO-/.test(conf[0].htmlBody) &&
+    (conf[0].body.match(/track\.html/g) || []).length === 1, (conf[0].htmlBody.match(/href="[^"]*"/g) || []).join(' '));
+  ok('staff alert keeps the logo from SITE_URL and the Track link', /assets\/brand\/email-logo\.png/.test(alert.htmlBody) && /Track your application<\/a>/.test(alert.htmlBody));
   ok('Last Customer Email after finalize', /^Confirmation \+ Status: Under Review · /.test(cell(v.leadId, 'Last Customer Email')), cell(v.leadId, 'Last Customer Email'));
   ok('customise: confirmation to the customer, contact form: none (no email address)', to('q@e.co').length === 1 && /customised Umrah/i.test(to('q@e.co')[0].htmlBody));
   const before = mail.outbox.length;
@@ -212,10 +215,16 @@ module.exports = function (g, ok, t) {
 
   // --- verification codes ------------------------------------------------------------------------
   resetLimits();
-  const codeOf = (addr) => /(\d{6})/.exec(to(addr).slice(-1)[0].subject)[1];
+  const codeOf = (addr) => /\n(\d{6})\n/.exec(to(addr).slice(-1)[0].body)[1];
   const verify = (email, code) => { try { return ctx.verifyEmailCode_({ email, code }); } catch (e) { return { ok: false, error: e.message, field: e.field }; } };
   const sendCode = (email, name) => { try { return ctx.sendEmailCode_({ email, name: name || 'Ola' }); } catch (e) { return { ok: false, error: e.message }; } };
   ok('code email: 6 digits, no visitor-typed text (name not included)', sendCode('k@e.co', 'Mallory <a href=x>Click</a>').ok && /^\d{6}$/.test(codeOf('k@e.co')) && !/Mallory|Click|href=x/.test(to('k@e.co')[0].htmlBody + to('k@e.co')[0].body));
+  const ce = to('k@e.co')[0];
+  ok('code email: code NOT in the subject ("Your Elite Global confirmation code"), sender name + Reply-To info@', ce.subject === 'Your Elite Global confirmation code' &&
+    !/\d/.test(ce.subject) && ce.name === C.EMAIL.SENDER_NAME && ce.replyTo === 'info@elitetravelng.com', ce.subject);
+  ok('code email: minimal — no image, no link, no button/table, no hidden preheader; code in the HTML and the plain text',
+    !/<img |<a |<table|display:none|https?:\/\//.test(ce.htmlBody) && ce.htmlBody.indexOf(codeOf('k@e.co')) !== -1 && /^Hello,\n\nYour confirmation code/.test(ce.body) &&
+    !/https?:\/\/|www\./.test(ce.body) && ce.htmlBody.length < 1200, ce.htmlBody.length + ' bytes');
   ok('resend within 60 s refused', /wait a minute/.test(sendCode('k@e.co').error));
   const right = codeOf('k@e.co');
   const wrong = right === '000000' ? '111111' : '000000';
@@ -300,7 +309,7 @@ module.exports = function (g, ok, t) {
   const nS = mail.outbox.length;
   ctx.sendEmailSamples();
   const samples = mail.outbox.slice(nS);
-  ok('sendEmailSamples: one of every email type to STAFF_EMAIL', samples.length === 18 && samples.every((m) => m.to === 'staff@example.org' && /^\[SAMPLE \d+\/18\] Elite Global — /.test(m.subject)), samples.length + '');
+  ok('sendEmailSamples: one of every email type to STAFF_EMAIL', samples.length === 18 && samples.every((m) => m.to === 'staff@example.org' && /^\[SAMPLE \d+\/18\] (Elite Global — |Your Elite Global confirmation code$)/.test(m.subject)), samples.length + '');
   ok('samples are not written to the Email Log', !logRows().some((r) => r[2] === 'sample'));
 
   // --- deliverability: every email type -----------------------------------------------------------
@@ -321,15 +330,17 @@ module.exports = function (g, ok, t) {
   ok('sender name "Elite Global World Travel & Tours", Reply-To = company email', samples.every((m) => m.name === 'Elite Global World Travel & Tours' && m.replyTo === 'info@elitetravelng.com'));
   const caps = samples.map((m) => (subj(m) + ' ' + visible(m.htmlBody) + ' ' + m.body).replace(/https?:\/\/\S+/g, ' ').match(/\b[A-Z]{4,}\b/g) || []).flat();
   ok('no ALL-CAPS words, no "!!", no urgent / free / act now', caps.length === 0 && samples.every((m) => !/!!|\burgent\b|\bfree\b|act now/i.test(subj(m) + m.htmlBody + m.body)), caps.slice(0, 5).join(','));
-  ok('only the logo image (alt, width, height); no tracking pixels', samples.every((m) => (m.htmlBody.match(/<img\b/g) || []).length === 1 &&
+  ok('customer emails: no image at all (no remote logo, no tracking pixel)', customer.every((m) => !/<img\b/.test(m.htmlBody)));
+  ok('staff emails: only the logo image (alt, width, height)', staffMail.every((m) => (m.htmlBody.match(/<img\b/g) || []).length === 1 &&
     /<img src="https:\/\/elite-global-staging\.netlify\.app\/assets\/brand\/email-logo\.png" width="220" height="141" alt="Elite Global[^"]+"/.test(m.htmlBody)));
+  ok('customer emails: at most one link (the button); the code email none', customer.every((m) => (m.htmlBody.match(/<a /g) || []).length <= 1) && !/<a /.test(samples[0].htmlBody));
   const hrefs = customer.map((m) => (m.htmlBody.match(/href="([^"]*)"/g) || []).map((h) => h.slice(6, -1))).flat();
   ok('customer emails: every link is https on SITE_URL (no shorteners, no other domains)', hrefs.length > 0 && hrefs.every((h) => h.indexOf(SITE + '/') === 0), hrefs.filter((h) => h.indexOf(SITE + '/') !== 0).join(','));
-  ok('footer: company address, RC number and why the email was sent', customer.every((m) => /RC: 7787410/.test(m.htmlBody) && /No\. 335, Suite 3/.test(m.htmlBody) &&
+  ok('footer: company address, RC number and why the email was sent (all but the minimal code email)', customer.slice(1).every((m) => /RC: 7787410/.test(m.htmlBody) && /No\. 335, Suite 3/.test(m.htmlBody) &&
     /You&#39;re receiving this because you applied on our website\./.test(m.htmlBody) && /You're receiving this because you applied on our website\./.test(m.body)) &&
     staffMail.every((m) => /Staff notification from the Elite Global lead system\./.test(m.body)));
   const inbox = /add info@elitetravelng.com to your contacts\. If you found this in Spam, mark it 'Not spam'\./;
-  ok('code email and first confirmations ask to add the company email to contacts', [0, 4, 5].every((i) => inbox.test(samples[i].body)) && !inbox.test(samples[7].body));
+  ok('first confirmations ask to add the company email to contacts (the code email stays minimal)', [4, 5].every((i) => inbox.test(samples[i].body)) && !inbox.test(samples[7].body) && !inbox.test(samples[0].body));
   ok('templates are mostly text (visible text ≥ 12% of the inline-styled HTML of customer emails)', customer.every((m) => visible(m.htmlBody).replace(/\s+/g, ' ').length / m.htmlBody.length > 0.12),
     customer.map((m) => (visible(m.htmlBody).replace(/\s+/g, ' ').length / m.htmlBody.length).toFixed(2)).join(','));
 

@@ -244,7 +244,7 @@ module.exports = function (g, ok, t) {
   const tv = ctx.trackApplication_({ leadId: old.visa, contact: 'archvisa@e.co' });
   ok('archived Visa Approved lead: "Visa approved" + the download is still offered', tv.ok && tv.stage === 'Visa approved' && tv.canDownload === true);
   ctx.sendVisaCode_({ session: tv.session });
-  const code = (/code: (\d{6})/.exec(to('archvisa@e.co').pop().subject) || [])[1];
+  const code = (/\n(\d{6})\n/.exec(to('archvisa@e.co').pop().body) || [])[1];
   const vv = ctx.verifyVisaCode_({ session: tv.session, code });
   const dl = ctx.downloadVisaFile_({ dtoken: vv.dtoken, ref: vv.files[0].ref });
   ok('… code → list → download works from the archive (Drive folders never move)', vv.ok && vv.files.length === 1 && dl.ok && Buffer.from(dl.b64, 'base64').toString('latin1') === ctx.specimenVisaPdf_(1));
