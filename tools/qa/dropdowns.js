@@ -6,6 +6,7 @@ const [base, exe] = process.argv.slice(2);
 const res = []; const ok = (n, c, i = '') => { res.push(`${c ? 'PASS' : 'FAIL'}  ${n}${i ? '  — ' + i : ''}`); console.log(res[res.length - 1]); };
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const NOTE = "If it isn't in your inbox within 5 minutes, check Spam/Junk or Promotions and mark it 'Not spam' — or message us on WhatsApp.";
+const CODE_NOTE = 'Check your Spam/Junk folder too. If no code arrives within 2 minutes, email info@elitetravelng.com or message us on WhatsApp.';
 
 async function open(b, page, opts = {}) {
   const p = await b.newPage();
@@ -150,8 +151,10 @@ async function clickOption(p, sel, text, tap) {
     await p.type('[name=name]', 'TEST Note'); await p.type('[name=email]', 'qa-note@example.com');
     await p.click('[data-verify-send]');
     await p.waitForFunction(() => !document.querySelector('[data-verify-code]').hidden, { timeout: 5000 });
-    const sent = await p.$eval('[data-verify-status]', (s) => ({ text: s.textContent, wa: (s.querySelector('[data-inbox-note] a') || {}).href || '' }));
-    ok('after "Send code": "We\'ve emailed you. If it isn\'t in your inbox within 5 minutes…" with the WhatsApp link', sent.text.indexOf("We've emailed you. " + NOTE) !== -1 && /^https:\/\/wa\.me\/2347062152046$/.test(sent.wa), JSON.stringify(sent));
+    const sent = await p.$eval('[data-verify-status]', (s) => ({ text: s.textContent, wa: (s.querySelector('[data-inbox-note] a[href*="wa.me"]') || {}).href || '',
+      mail: (s.querySelector('[data-inbox-note] a[href^="mailto:"]') || {}).href || '' }));
+    ok('after "Send code": "Check your Spam/Junk folder too. If no code arrives within 2 minutes, email info@… or WhatsApp" with both links',
+      sent.text.indexOf(CODE_NOTE) !== -1 && /^https:\/\/wa\.me\/2347062152046$/.test(sent.wa) && sent.mail === 'mailto:info@elitetravelng.com', JSON.stringify(sent));
     await p.close();
     for (const page of ['customize-umrah.html', 'apply-visa.html']) {
       const q = await open(b, page);

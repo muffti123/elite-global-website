@@ -62,7 +62,7 @@ const statusText = (p) => p.$eval('[data-verify-status]', (e) => e.textContent);
       resend: document.querySelector('[data-verify-resend]').textContent, disabled: document.querySelector('[data-verify-resend]').disabled,
       wa: !!document.querySelector('[data-verify-status] a[href*="wa.me"]') }));
     ok(tag + ': code sent: code field focused, "Resend code (60 s)" disabled, spam + WhatsApp help', sent.focus && /Resend code \(\d+ s\)/.test(sent.resend) && sent.disabled &&
-      /spam/.test(await statusText(p)) && sent.wa && p.verifyCalls[0].email === 'qa-verify@example.com' && p.verifyCalls[0].name === 'TEST Verify QA', JSON.stringify(sent));
+      /Spam\/Junk/.test(await statusText(p)) && /within 2 minutes, email info@elitetravelng\.com/.test(await statusText(p)) && sent.wa && p.verifyCalls[0].email === 'qa-verify@example.com' && p.verifyCalls[0].name === 'TEST Verify QA', JSON.stringify(sent));
     await sleep(1300);
     ok(tag + ': countdown ticks', /Resend code \((5[0-9]) s\)/.test(await p.$eval('[data-verify-resend]', (e) => e.textContent)));
 

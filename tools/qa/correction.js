@@ -111,10 +111,10 @@ const shown = (p) => p.evaluate(() => ({ result: !document.querySelector('#track
   await p.click('#correctBtn');
   await p.waitForFunction(() => !document.querySelector('#correctCode').hidden, { timeout: 5000 });
   const cs = await p.evaluate(() => ({ masked: document.querySelector('#corrMasked').textContent, focus: document.activeElement.id,
-    resend: document.querySelector('#corrResend').disabled, wa: (document.querySelector('#corrInbox a') || {}).href || '', otc: document.querySelector('#corrCode').autocomplete }));
+    resend: document.querySelector('#corrResend').disabled, wa: (document.querySelector('#corrInbox a[href*="wa.me"]') || {}).href || '', note: document.querySelector('#corrInbox').textContent, otc: document.querySelector('#corrCode').autocomplete }));
   const sent = p.posts.find((x) => x.action === 'sendCorrectionCode');
   ok('code sent with the session only; masked address shown; code field focused; resend waits', sent && sent.session && !sent.email && cs.masked === 'q•••@e•••.com' && cs.focus === 'corrCode' && cs.resend && cs.otc === 'one-time-code', JSON.stringify(cs));
-  ok('spam / WhatsApp note under the code', /wa\.me\/2347062152046/.test(cs.wa), cs.wa);
+  ok('spam / 2 minutes / info@ / WhatsApp note under the code', /wa\.me\/2347062152046/.test(cs.wa) && /If no code arrives within 2 minutes, email info@elitetravelng\.com or message us on WhatsApp\./.test(cs.note), cs.note);
   await p.type('#corrCode', '12a34'); await p.click('#corrConfirm'); await sleep(200);
   ok('fewer than 6 digits → error, nothing sent', !p.posts.some((x) => x.action === 'verifyCorrectionCode') && await p.$eval('#corrCode', (e) => e.closest('.field').classList.contains('invalid')));
   await p.$eval('#corrCode', (e) => { e.value = ''; }); await p.type('#corrCode', '000000'); await p.click('#corrConfirm'); await sleep(400);

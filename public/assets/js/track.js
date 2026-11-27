@@ -324,7 +324,7 @@
         cBtn.hidden = true;
         cCode.hidden = false;
         cMasked.textContent = res.masked || 'the email address on your application';
-        cNote.innerHTML = EG.inboxNote('We\'ve emailed you a 6-digit code.');
+        cNote.innerHTML = EG.codeNote('We\'ve emailed you a 6-digit code.');
         cShow('ok', 'Code sent. Enter it below.');
         countdown(res.resendIn);
         cInput.focus();
@@ -418,7 +418,7 @@
         vBtn.hidden = true;
         vCode.hidden = false;
         vMasked.textContent = res.masked || 'the email address on your application';
-        vNote.innerHTML = EG.inboxNote('We\'ve emailed you a 6-digit code.');
+        vNote.innerHTML = EG.codeNote('We\'ve emailed you a 6-digit code.');
         vShow('ok', 'Code sent. Enter it below.');
         vCountdown(res.resendIn);
         vInput.focus();

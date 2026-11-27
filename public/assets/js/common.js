@@ -114,6 +114,18 @@ window.EG = window.EG || {};
       'Promotions and mark it \'Not spam\' — or ' + wa + '.';
   }
 
+  /**
+   * Shown under every "code sent" message (Step 1, correction, download): a code that never arrives is the most
+   * likely email problem (spam filters on a new domain), so the customer gets the other ways to reach us.
+   */
+  function codeNote(lead) {
+    var other = [];
+    if (co.email) other.push('email <a href="mailto:' + co.email + '">' + escapeHtml(co.email) + '</a>');
+    if (waLink) other.push('<a href="' + waLink + '" target="_blank" rel="noopener">message us on WhatsApp</a>');
+    return (lead ? escapeHtml(lead) + ' ' : '') + 'Check your Spam/Junk folder too. If no code arrives within 2 minutes, ' +
+      (other.length ? other.join(' or ') : 'contact us') + '.';
+  }
+
   function escapeHtml(s) {
     return String(s).replace(/[&<>"']/g, function (c) {
       return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
@@ -134,6 +146,6 @@ window.EG = window.EG || {};
   Object.assign(window.EG, {
     $: $, $$: $$, waLink: waLink, igLink: igLink, PHONE_RE: PHONE_RE, EMAIL_RE: EMAIL_RE,
     todayISO: todayISO, setInvalid: setInvalid, clearOnInput: clearOnInput,
-    contactFallback: contactFallback, escapeHtml: escapeHtml, fillSelect: fillSelect, inboxNote: inboxNote,
+    contactFallback: contactFallback, escapeHtml: escapeHtml, fillSelect: fillSelect, inboxNote: inboxNote, codeNote: codeNote,
   });
 })();
